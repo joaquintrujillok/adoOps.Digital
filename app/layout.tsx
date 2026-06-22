@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Sora } from "next/font/google";
+import Preloader from "@/components/Preloader";
 import "./globals.css";
 
 const inter = Inter({
@@ -43,6 +44,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="es" className={`${inter.variable} ${sora.variable}`}>
       <body style={{ fontFamily: "var(--font-inter), Inter, sans-serif" }}>
+        <Preloader />
         {children}
       </body>
     </html>

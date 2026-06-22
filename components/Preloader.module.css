@@ -1,0 +1,190 @@
+.preloader {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 34px;
+  overflow: hidden;
+  background: #ffffff;
+  font-family: var(--font-inter), Inter, system-ui, sans-serif;
+  opacity: 1;
+  transition:
+    opacity 420ms ease,
+    visibility 420ms ease;
+}
+
+.preloader::before {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 48%, rgba(32, 196, 99, 0.045), transparent 28%),
+    linear-gradient(180deg, #ffffff, #fbfdfc);
+  content: "";
+  pointer-events: none;
+}
+
+.hidden {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.content {
+  position: relative;
+  display: flex;
+  width: min(620px, 82vw);
+  flex-direction: column;
+  align-items: center;
+  gap: 30px;
+}
+
+.logo {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1219 / 345;
+}
+
+.glow {
+  position: absolute;
+  top: 50%;
+  left: 58%;
+  width: 46%;
+  border-radius: 50%;
+  aspect-ratio: 1;
+  background: radial-gradient(
+    circle,
+    rgba(33, 201, 92, 0.34) 0%,
+    rgba(33, 201, 92, 0.1) 45%,
+    transparent 70%
+  );
+  filter: blur(6px);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.wordmark {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.wordmarkBase {
+  filter: grayscale(1) brightness(1.7) opacity(0.16);
+}
+
+.wordmarkFill {
+  mask-image: linear-gradient(90deg, #000 0%, transparent 0%);
+  -webkit-mask-image: linear-gradient(90deg, #000 0%, transparent 0%);
+}
+
+.trace {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.trail {
+  filter:
+    drop-shadow(0 0 7px rgba(43, 220, 110, 0.9))
+    drop-shadow(0 0 16px rgba(43, 220, 110, 0.55));
+}
+
+.head {
+  filter:
+    drop-shadow(0 0 8px rgba(90, 255, 160, 1))
+    drop-shadow(0 0 20px rgba(43, 220, 110, 0.8));
+}
+
+.progress {
+  display: flex;
+  width: 78%;
+  flex-direction: column;
+  gap: 11px;
+}
+
+.progressTrack {
+  width: 100%;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #edf0f2;
+}
+
+.progressBar {
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #20c95c, #0a8f72);
+  box-shadow: 0 0 12px rgba(32, 201, 92, 0.28);
+}
+
+.progressMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #7c8a96;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.percent {
+  color: #16222e;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.tagline {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  color: #16222e;
+  font-size: clamp(10px, 1.5vw, 15px);
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.ia {
+  display: inline-block;
+  color: #20a64c;
+}
+
+@media (max-width: 520px) {
+  .preloader {
+    gap: 24px;
+  }
+
+  .content {
+    width: min(88vw, 430px);
+    gap: 22px;
+  }
+
+  .progress {
+    width: 86%;
+  }
+
+  .tagline {
+    max-width: 90vw;
+    line-height: 1.8;
+    text-align: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preloader {
+    transition-duration: 180ms;
+  }
+}
