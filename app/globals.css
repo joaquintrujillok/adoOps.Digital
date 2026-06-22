@@ -26,3 +26,330 @@ body {
 .animate-float { animation: floatY 6s ease-in-out infinite; }
 .animate-float2 { animation: floatY2 7s ease-in-out infinite; }
 .animate-pulse-dot { animation: pulseDot 2s infinite; }
+
+.nav-cta-mobile { display: none; }
+
+@media (max-width: 1024px) {
+  .site-nav {
+    padding-inline: 20px !important;
+  }
+
+  .nav-links {
+    gap: 20px !important;
+  }
+
+  .hero-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 0.82fr) !important;
+    gap: 24px !important;
+  }
+
+  .hero-stats {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 0 !important;
+  }
+
+  .hero-stat {
+    min-width: 0;
+    padding-inline: 14px;
+    text-align: center;
+  }
+
+  .hero-stat:first-child { padding-left: 0; }
+  .hero-stat:last-child { padding-right: 0; }
+
+  .hero-stat:not(:first-child) {
+    border-left: 1px solid rgba(255,255,255,0.12);
+  }
+
+  .hero-stat > div:last-child {
+    margin-top: 4px;
+    line-height: 1.35;
+  }
+
+  .hero-stat-divider {
+    display: none !important;
+  }
+
+  .challenge-grid,
+  .solution-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .results-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .contact-grid {
+    gap: 36px !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .site-header {
+    height: 60px !important;
+  }
+
+  .site-nav {
+    padding-inline: 18px !important;
+    gap: 14px !important;
+  }
+
+  .nav-logo {
+    width: 108px !important;
+    height: auto !important;
+  }
+
+  .nav-link {
+    display: none !important;
+  }
+
+  .nav-links {
+    gap: 0 !important;
+  }
+
+  .nav-cta {
+    min-height: 38px;
+    padding: 8px 16px !important;
+    font-size: 13px !important;
+    white-space: nowrap;
+  }
+
+  .nav-cta-desktop { display: none; }
+  .nav-cta-mobile { display: inline; }
+
+  .hero-section {
+    padding: 104px 20px 64px !important;
+  }
+
+  .hero-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 28px !important;
+  }
+
+  .hero-copy {
+    min-width: 0;
+  }
+
+  .hero-title {
+    font-size: clamp(40px, 12vw, 54px) !important;
+    line-height: 1.02 !important;
+    letter-spacing: -0.04em !important;
+  }
+
+  .hero-description {
+    max-width: 100% !important;
+    font-size: 16px !important;
+    line-height: 1.65 !important;
+  }
+
+  .hero-actions {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    margin-bottom: 36px !important;
+  }
+
+  .hero-actions > a {
+    width: 100%;
+    min-height: 50px;
+    justify-content: center;
+    padding-inline: 20px !important;
+    text-align: center;
+  }
+
+  .hero-stats {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 0 !important;
+    width: 100%;
+  }
+
+  .hero-stat {
+    min-width: 0;
+    padding: 0 12px;
+    text-align: center;
+  }
+
+  .hero-stat:first-child { padding-left: 0; }
+  .hero-stat:last-child { padding-right: 0; }
+
+  .hero-stat > div:first-child {
+    font-size: 21px !important;
+  }
+
+  .hero-stat > div:last-child {
+    margin-top: 5px;
+    font-size: 10.5px !important;
+    line-height: 1.35;
+  }
+
+  .hero-stat-divider {
+    display: none !important;
+  }
+
+  .hero-visual {
+    height: 300px !important;
+    margin-top: 2px;
+  }
+
+  .hero-agent-card {
+    top: 10px !important;
+    right: 0 !important;
+    padding: 11px 13px !important;
+  }
+
+  .hero-maturity-card {
+    bottom: 12px !important;
+    left: 0 !important;
+    padding: 12px 15px !important;
+  }
+
+  .content-section {
+    padding: 68px 20px !important;
+  }
+
+  .section-heading {
+    margin-bottom: 36px !important;
+  }
+
+  .section-heading h2,
+  .contact-section h2 {
+    font-size: clamp(28px, 8.6vw, 36px) !important;
+    line-height: 1.12 !important;
+  }
+
+  .section-heading p,
+  .contact-section p {
+    font-size: 15px !important;
+  }
+
+  .challenge-grid,
+  .solution-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 14px !important;
+  }
+
+  .challenge-card,
+  .solution-card {
+    padding: 22px !important;
+  }
+
+  .challenge-card {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr);
+    column-gap: 14px;
+    align-items: start;
+  }
+
+  .challenge-card > span {
+    grid-row: 1 / span 2;
+    margin-bottom: 0 !important;
+  }
+
+  .challenge-card h3 {
+    margin-top: 1px !important;
+  }
+
+  .results-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+  }
+
+  .result-card {
+    padding: 22px 12px !important;
+  }
+
+  .result-card > div:first-child {
+    font-size: clamp(30px, 9vw, 40px) !important;
+  }
+
+  .results-grid .result-card:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .contact-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 36px !important;
+  }
+
+  .contact-form-shell {
+    padding: 22px !important;
+    border-radius: 16px !important;
+  }
+
+  .contact-form-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  .site-footer {
+    padding: 48px 20px 28px !important;
+  }
+
+  .footer-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 34px 24px !important;
+  }
+
+  .footer-grid > div:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .footer-bottom {
+    flex-direction: column !important;
+    line-height: 1.5;
+  }
+}
+
+@media (max-width: 380px) {
+  .site-nav {
+    padding-inline: 14px !important;
+  }
+
+  .nav-logo {
+    width: 100px !important;
+  }
+
+  .nav-cta {
+    padding-inline: 14px !important;
+  }
+
+  .hero-section,
+  .content-section {
+    padding-inline: 16px !important;
+  }
+
+  .hero-title {
+    font-size: 39px !important;
+  }
+
+  .hero-stat {
+    padding-inline: 8px;
+  }
+
+  .hero-stat > div:first-child {
+    font-size: 19px !important;
+  }
+
+  .footer-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .footer-grid > div:first-child {
+    grid-column: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .animate-float,
+  .animate-float2,
+  .animate-pulse-dot {
+    animation: none !important;
+  }
+}

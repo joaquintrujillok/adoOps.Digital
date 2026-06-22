@@ -49,7 +49,7 @@ export default function ContactForm({ defaultTipo }: { defaultTipo?: string }) {
 
   return (
     <form ref={formRef} action={action}>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+      <div className="contact-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
         <div>
           <label style={labelStyle}>Nombre *</label>
           <input required name="nombre" type="text" placeholder="Nombre completo" style={inputStyle} />
