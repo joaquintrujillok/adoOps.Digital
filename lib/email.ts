@@ -5,7 +5,11 @@ export async function sendLeadNotification(lead: NewLead) {
   const client = new BrevoClient({ apiKey: process.env.BREVO_API_KEY! });
 
   await client.transactionalEmails.sendTransacEmail({
-    to: [{ email: process.env.NOTIFY_EMAIL!, name: "adoOps" }],
+    to: [
+      { email: "joaquintrujillok@gmail.com", name: "Joaquín" },
+      { email: "joaquin@jtk.app", name: "Joaquín" },
+      { email: "nelson.garcia.m@gmail.com", name: "Nelson" },
+    ],
     replyTo: { email: lead.email, name: lead.nombre },
     sender: {
       email: process.env.FROM_EMAIL || "noreply@adoops.ai",
