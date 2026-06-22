@@ -22,6 +22,9 @@ export const metadata: Metadata = {
   description:
     "Transformamos organizaciones mediante estrategias de adopción, agentes inteligentes, talento especializado y programas de desarrollo para convertir la IA en una capacidad real de negocio.",
   metadataBase: new URL(BASE_URL),
+  icons: {
+    icon: "/favicon.png",
+  },
   openGraph: {
     title: "adoOps — Plataforma de adopción de IA",
     description:
