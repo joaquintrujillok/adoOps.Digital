@@ -28,7 +28,7 @@ export default function ContactForm({ defaultTipo }: { defaultTipo?: string }) {
         </span>
         <h3 style={{ fontFamily: "Sora,sans-serif", fontWeight: 600, fontSize: 22, margin: "0 0 10px", color: "#0E1D33" }}>¡Solicitud recibida!</h3>
         <p style={{ fontSize: 15, lineHeight: 1.6, color: "#5C6B79", margin: 0 }}>
-          Gracias por tu interés. Un especialista de adoOps te contactará en menos de 24 horas.
+          Gracias por su interés. Un especialista de adoOps se comunicará en menos de 24 horas.
         </p>
       </div>
     );
@@ -52,7 +52,7 @@ export default function ContactForm({ defaultTipo }: { defaultTipo?: string }) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
         <div>
           <label style={labelStyle}>Nombre *</label>
-          <input required name="nombre" type="text" placeholder="Tu nombre" style={inputStyle} />
+          <input required name="nombre" type="text" placeholder="Nombre completo" style={inputStyle} />
         </div>
         <div>
           <label style={labelStyle}>Email corporativo *</label>
@@ -64,7 +64,7 @@ export default function ContactForm({ defaultTipo }: { defaultTipo?: string }) {
         </div>
         <div>
           <label style={labelStyle}>Rol</label>
-          <input name="rol" type="text" placeholder="Tu cargo" style={inputStyle} />
+          <input name="rol" type="text" placeholder="Cargo" style={inputStyle} />
         </div>
       </div>
 
@@ -80,7 +80,7 @@ export default function ContactForm({ defaultTipo }: { defaultTipo?: string }) {
         <label style={labelStyle}>Mensaje</label>
         <textarea
           name="mensaje" rows={3}
-          placeholder="Contanos brevemente tu contexto y objetivos"
+          placeholder="Describa brevemente su contexto y objetivos"
           style={{ ...inputStyle, resize: "vertical" }}
         />
       </div>

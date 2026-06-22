@@ -52,7 +52,7 @@ export default function Home() {
               </a>
               <a href="#contacto" style={{ display: "inline-flex", alignItems: "center", gap: 9, background: "rgba(255,255,255,0.06)", color: "#EAF1F4", fontFamily: "var(--font-inter), Inter, sans-serif", fontSize: 15, fontWeight: 600, padding: "14px 24px", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 999, textDecoration: "none" }}>
                 <span style={{ display: "block", width: 17, height: 17, background: "#EAF1F4", WebkitMask: iconMask("calendar"), mask: iconMask("calendar") }} />
-                Agendar Diagnóstico
+                Agendar un Diagnóstico
               </a>
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 30 }}>
@@ -131,7 +131,7 @@ export default function Home() {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 18 }}>
             {[
-              { num: "01", icon: "gauge", title: "Assessment", desc: "Diagnóstico de madurez en IA. Medimos dónde estás y trazamos la hoja de ruta priorizada.", dark: false },
+              { num: "01", icon: "gauge", title: "Assessment", desc: "Diagnóstico de madurez en IA. Medimos dónde está su organización y trazamos la hoja de ruta priorizada.", dark: false },
               { num: "02", icon: "bot", title: "AgentOps", desc: "Diseño, despliegue y operación de agentes inteligentes conectados a tus sistemas.", dark: false },
               { num: "03", icon: "users", title: "AI Talent", desc: "Staffing especializado: perfiles de IA listos para integrarse a tus equipos.", dark: false },
               { num: "04", icon: "book-open", title: "AI Academy", desc: "Programas de formación por rol para que cada equipo opere IA con autonomía.", dark: false },
@@ -183,7 +183,7 @@ export default function Home() {
             ))}
           </div>
           <p style={{ textAlign: "center", fontSize: 12, color: "#62788A", margin: "26px 0 0" }}>
-            Cifras representativas de referencia. Tu Assessment estima los valores específicos de tu organización.
+            Cifras representativas de referencia. El Assessment estima los valores específicos de su organización.
           </p>
         </div>
       </section>
@@ -194,10 +194,10 @@ export default function Home() {
           <div>
             <div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "#0E8A82", marginBottom: 16 }}>Empecemos</div>
             <h2 style={{ fontFamily: "var(--font-sora), Sora, sans-serif", fontWeight: 700, fontSize: "clamp(28px,3.4vw,38px)", lineHeight: 1.12, letterSpacing: "-0.025em", margin: "0 0 18px", color: "#0E1D33" }}>
-              Solicitá tu Assessment de madurez en IA
+              Solicite su Assessment de madurez en IA
             </h2>
             <p style={{ fontSize: 16, lineHeight: 1.6, color: "#5C6B79", margin: "0 0 30px" }}>
-              En una sesión de diagnóstico identificamos oportunidades concretas, priorizamos casos de uso y definimos el primer paso hacia una operación con IA.
+              En una sesión de diagnóstico identificamos oportunidades concretas, priorizamos casos de uso y definimos el primer paso hacia una operación con IA real.
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {[
