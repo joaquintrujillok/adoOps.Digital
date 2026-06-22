@@ -2,6 +2,7 @@ import Image from "next/image";
 import HeroCanvas from "@/components/HeroCanvas";
 import AnimatedCounter from "@/components/AnimatedCounter";
 import ContactForm from "@/components/ContactForm";
+import ClosingAnimation from "@/components/ClosingAnimation";
 
 const iconMask = (icon: string) =>
   `url('https://unpkg.com/lucide-static@latest/icons/${icon}.svg') center/contain no-repeat` as const;
@@ -221,6 +222,8 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <ClosingAnimation />
 
       {/* FOOTER */}
       <footer className="site-footer" style={{ background: "#081320", color: "#9DB0BF", padding: "56px 24px 32px" }}>
