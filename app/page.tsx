@@ -18,7 +18,7 @@ export default function Home() {
             <Image className="nav-logo" src="/logo.png" alt="adoOps" width={120} height={36} style={{ objectFit: "contain" }} priority />
           </a>
           <div className="nav-links" style={{ display: "flex", alignItems: "center", gap: 30 }}>
-            <a className="nav-link" href="#solucion" style={{ textDecoration: "none", color: "#43566A", fontSize: 14, fontWeight: 500 }}>Plataforma</a>
+            <a className="nav-link" href="/framework" style={{ textDecoration: "none", color: "#43566A", fontSize: 14, fontWeight: 500 }}>Framework</a>
             <a className="nav-link" href="#solucion" style={{ textDecoration: "none", color: "#43566A", fontSize: 14, fontWeight: 500 }}>Pilares</a>
             <a className="nav-link" href="#resultados" style={{ textDecoration: "none", color: "#43566A", fontSize: 14, fontWeight: 500 }}>Impacto</a>
             <a className="nav-link" href="#contacto" style={{ textDecoration: "none", color: "#43566A", fontSize: 14, fontWeight: 500 }}>Contacto</a>
@@ -239,7 +239,8 @@ export default function Home() {
           <div>
             <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#5C7184", marginBottom: 16 }}>Plataforma</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
-              {["Assessment", "AgentOps", "AI Talent", "AI Academy"].map((item) => (
+              <a href="/framework" style={{ textDecoration: "none", color: "#9DB0BF", fontSize: 13.5 }}>AI Adoption Framework™</a>
+              {["Assessment", "AgentOps", "AI Talent"].map((item) => (
                 <a key={item} href="#solucion" style={{ textDecoration: "none", color: "#9DB0BF", fontSize: 13.5 }}>{item}</a>
               ))}
             </div>
