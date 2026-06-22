@@ -14,15 +14,28 @@ const sora = Sora({
   display: "swap",
 });
 
+const BASE_URL = "https://adoops.digital";
+
 export const metadata: Metadata = {
   title: "adoOps — Adoptamos IA. Operamos IA. Escalamos IA.",
   description:
     "Transformamos organizaciones mediante estrategias de adopción, agentes inteligentes, talento especializado y programas de desarrollo para convertir la IA en una capacidad real de negocio.",
+  metadataBase: new URL(BASE_URL),
   openGraph: {
     title: "adoOps — Plataforma de adopción de IA",
     description:
       "Adoptamos IA. Operamos IA. Escalamos IA. Convertimos la Inteligencia Artificial en una capacidad real de negocio.",
     type: "website",
+    url: BASE_URL,
+    siteName: "adoOps",
+    images: [{ url: "/og.png", width: 1200, height: 630, alt: "adoOps" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "adoOps — Plataforma de adopción de IA",
+    description:
+      "Adoptamos IA. Operamos IA. Escalamos IA. Convertimos la Inteligencia Artificial en una capacidad real de negocio.",
+    images: ["/og.png"],
   },
 };
 

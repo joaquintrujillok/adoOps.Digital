@@ -1,3 +1,4 @@
+import Image from "next/image";
 import HeroCanvas from "@/components/HeroCanvas";
 import AnimatedCounter from "@/components/AnimatedCounter";
 import ContactForm from "@/components/ContactForm";
@@ -12,9 +13,8 @@ export default function Home() {
       {/* NAV */}
       <header style={{ position: "fixed", top: 0, left: 0, width: "100%", height: 64, zIndex: 50, background: "rgba(255,255,255,0.82)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", borderBottom: "1px solid #E9EEF1" }}>
         <nav style={{ maxWidth: 1200, height: "100%", margin: "0 auto", padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24 }}>
-          <a href="#top" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 2, fontFamily: "var(--font-sora), Sora, sans-serif", fontWeight: 700, fontSize: 23, letterSpacing: "-0.025em" }}>
-            <span style={{ color: "#0E1D33" }}>ado</span>
-            <span style={{ background: "linear-gradient(120deg,#20C463,#0E8A82)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>Ops</span>
+          <a href="#top" style={{ textDecoration: "none", display: "flex", alignItems: "center" }}>
+            <Image src="/logo.png" alt="adoOps" width={120} height={36} style={{ objectFit: "contain" }} priority />
           </a>
           <div style={{ display: "flex", alignItems: "center", gap: 30 }}>
             <a href="#solucion" style={{ textDecoration: "none", color: "#43566A", fontSize: 14, fontWeight: 500 }}>Plataforma</a>
@@ -225,9 +225,8 @@ export default function Home() {
       <footer style={{ background: "#081320", color: "#9DB0BF", padding: "56px 24px 32px" }}>
         <div style={{ maxWidth: 1200, margin: "0 auto", display: "grid", gridTemplateColumns: "1.6fr 1fr 1fr 1fr", gap: 40, paddingBottom: 40, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
           <div>
-            <div style={{ fontFamily: "var(--font-sora), Sora, sans-serif", fontWeight: 700, fontSize: 23, letterSpacing: "-0.025em", marginBottom: 14 }}>
-              <span style={{ color: "#FFFFFF" }}>ado</span>
-              <span style={{ background: "linear-gradient(120deg,#2ED477,#0E8A82)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>Ops</span>
+            <div style={{ marginBottom: 14 }}>
+              <Image src="/logo.png" alt="adoOps" width={120} height={36} style={{ objectFit: "contain", filter: "brightness(0) invert(1)" }} />
             </div>
             <p style={{ fontSize: 13.5, lineHeight: 1.6, color: "#7E91A0", margin: 0, maxWidth: 280 }}>
               Adoptamos IA. Operamos IA. Escalamos IA. Convertimos la Inteligencia Artificial en una capacidad real de negocio.
