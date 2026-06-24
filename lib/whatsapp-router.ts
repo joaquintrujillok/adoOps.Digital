@@ -18,6 +18,7 @@ import {
 import * as terreno from "@/lib/reports";
 import * as actas from "@/lib/actas";
 import * as mantencion from "@/lib/mantencion";
+import { getActiveDemoSetting } from "@/lib/demo-settings";
 
 type Vertical = "terreno" | "actas" | "mantencion";
 
@@ -218,7 +219,10 @@ export async function routeMessage(msg: WaIncomingMessage): Promise<void> {
       return;
     }
 
-    // 2) Audio → desencriptar → transcribir (una vez) → clasificar → procesar.
+    // Vertical activo según el selector de /admin (ignora clasificación automática).
+    const vertical = await getActiveDemoSetting();
+
+    // 2) Audio → desencriptar → transcribir → procesar en el vertical activo.
     if (msg.message?.audioMessage) {
       await sendText(phone, "🎧 Recibí tu audio, lo estoy procesando…");
       const publicUrl = await decryptAudio(msg);
@@ -231,7 +235,6 @@ export async function routeMessage(msg: WaIncomingMessage): Promise<void> {
         await sendText(phone, "⚠️ No pude transcribir el audio. ¿Lo reenvías?");
         return;
       }
-      const vertical = classify(transcript);
       await VERTICALS[vertical].processTranscript({
         senderPhone: phone,
         senderName: name,
@@ -243,9 +246,8 @@ export async function routeMessage(msg: WaIncomingMessage): Promise<void> {
       return;
     }
 
-    // 3) Texto libre → clasificar → procesar.
+    // 3) Texto libre → procesar en el vertical activo.
     if (text) {
-      const vertical = classify(text);
       await VERTICALS[vertical].processTranscript({
         senderPhone: phone,
         senderName: name,

@@ -116,6 +116,13 @@ export const workSheets = pgTable("work_sheets", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Demo selector — una sola fila, actualizada desde /admin
+export const demoSettings = pgTable("demo_settings", {
+  id: serial("id").primaryKey(),
+  activeDemo: varchar("active_demo", { length: 20 }).notNull().default("terreno"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export type FieldReport = typeof fieldReports.$inferSelect;
 export type NewFieldReport = typeof fieldReports.$inferInsert;
 export type WorkSheet = typeof workSheets.$inferSelect;
