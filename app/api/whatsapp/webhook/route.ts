@@ -1,5 +1,5 @@
 import { NextResponse, after } from "next/server";
-import { ingestMessage } from "@/lib/reports";
+import { routeMessage } from "@/lib/whatsapp-router";
 import type { WaIncomingMessage } from "@/lib/wasender";
 
 export const runtime = "nodejs";
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
     processed.add(id);
     if (processed.size > MAX_DEDUP) processed.clear();
 
-    after(() => ingestMessage(msg));
+    after(() => routeMessage(msg));
   }
 
   return NextResponse.json({ status: "ok" });

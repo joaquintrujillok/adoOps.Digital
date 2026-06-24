@@ -8,16 +8,7 @@ import { db } from "@/db";
 import { fieldReports, workSheets } from "@/db/schema";
 import type { ExtractionResult } from "@/lib/extract";
 import { extractReport } from "@/lib/extract";
-import { transcribeFromUrl } from "@/lib/stt";
-import {
-  decryptAudio,
-  extractText,
-  sendText,
-  type WaIncomingMessage,
-} from "@/lib/wasender";
-
-/** Palabras que el usuario manda para validar el último reporte pendiente. */
-const VALIDATION_WORDS = ["ok", "validar", "validado", "confirmo", "confirmar", "👍", "si", "sí"];
+import { sendText } from "@/lib/wasender";
 
 /** Persiste un reporte extraído + su hoja de trabajo. Devuelve el id. */
 async function persist(params: {
@@ -110,7 +101,7 @@ function buildReply(result: ExtractionResult): string {
 }
 
 /** Procesa una transcripción ya obtenida: extrae, persiste y responde. */
-async function processTranscript(params: {
+export async function processTranscript(params: {
   senderPhone: string;
   senderName: string | null;
   source: "audio" | "texto";
@@ -123,14 +114,19 @@ async function processTranscript(params: {
   await sendText(params.senderPhone, buildReply(result));
 }
 
-/** ¿El texto es una confirmación de validación? */
-function isValidation(text: string): boolean {
-  const t = text.trim().toLowerCase();
-  return VALIDATION_WORDS.includes(t);
+/** Fecha del último reporte pendiente de ese teléfono (para el router de validación). */
+export async function findLastPendingAt(phone: string): Promise<Date | null> {
+  const [last] = await db
+    .select({ createdAt: fieldReports.createdAt })
+    .from(fieldReports)
+    .where(and(eq(fieldReports.senderPhone, phone), eq(fieldReports.status, "pendiente")))
+    .orderBy(desc(fieldReports.createdAt))
+    .limit(1);
+  return last?.createdAt ?? null;
 }
 
 /** Marca como validado el último reporte pendiente de ese teléfono. */
-async function validateLastPending(phone: string): Promise<boolean> {
+export async function validateLastPending(phone: string): Promise<boolean> {
   const [last] = await db
     .select({ id: fieldReports.id })
     .from(fieldReports)
@@ -151,74 +147,4 @@ async function validateLastPending(phone: string): Promise<boolean> {
     .where(eq(workSheets.reportId, last.id));
 
   return true;
-}
-
-/**
- * Punto de entrada desde el webhook. Decide si es texto/audio/validación
- * y ejecuta el flujo correspondiente. Maneja sus propios errores para no
- * romper el ack del webhook.
- */
-export async function ingestMessage(msg: WaIncomingMessage): Promise<void> {
-  const phone = msg.key.cleanedSenderPn || msg.key.remoteJid || "";
-  const name = msg.pushName ?? null;
-  const waMessageId = msg.key.id;
-  const text = extractText(msg);
-
-  try {
-    // 1) Validación humana del último reporte pendiente.
-    if (text && isValidation(text)) {
-      const ok = await validateLastPending(phone);
-      await sendText(
-        phone,
-        ok
-          ? "✅ Reporte validado. Hoja de trabajo activada y disponible en el dashboard."
-          : "No encontré un reporte pendiente de validar. Envíame tu reporte de terreno."
-      );
-      return;
-    }
-
-    // 2) Audio → desencriptar → transcribir.
-    if (msg.message?.audioMessage) {
-      await sendText(phone, "🎧 Recibí tu audio, lo estoy procesando…");
-      const publicUrl = await decryptAudio(msg);
-      if (!publicUrl) {
-        await sendText(phone, "⚠️ No pude descargar el audio. ¿Lo reenvías?");
-        return;
-      }
-      const transcript = await transcribeFromUrl(publicUrl, `${waMessageId}.ogg`);
-      if (!transcript) {
-        await sendText(phone, "⚠️ No pude transcribir el audio. ¿Lo reenvías?");
-        return;
-      }
-      await processTranscript({
-        senderPhone: phone,
-        senderName: name,
-        source: "audio",
-        waMessageId,
-        audioUrl: publicUrl,
-        transcript,
-      });
-      return;
-    }
-
-    // 3) Texto libre → tratar como reporte.
-    if (text) {
-      await processTranscript({
-        senderPhone: phone,
-        senderName: name,
-        source: "texto",
-        waMessageId,
-        audioUrl: null,
-        transcript: text,
-      });
-      return;
-    }
-  } catch (err) {
-    console.error("ingestMessage error:", err);
-    try {
-      await sendText(phone, "⚠️ Tuve un problema procesando tu reporte. Intentemos de nuevo.");
-    } catch {
-      /* noop */
-    }
-  }
 }
