@@ -66,61 +66,77 @@ const VERTICALS: Record<
 const VALIDATION_WORDS = ["ok", "validar", "validado", "confirmo", "confirmar", "👍", "si", "sí"];
 
 /** Diccionario de palabras clave por vertical (en minúsculas, sin tildes). */
-const KEYWORDS: Record<Exclude<Vertical, "terreno">, string[]> = {
+const KEYWORDS: Record<Vertical, string[]> = {
+  terreno: [
+    "reporte de terreno",
+    "informe de terreno",
+    "reporte de campo",
+    "terreno",
+    "predio",
+    "campo",
+    "cuartel",
+    "hectareas",
+    "cuadrilla",
+    "supervisor de terreno",
+    "tecnico de terreno",
+    "avance del dia",
+    "trabajo planificado",
+    "poda",
+    "cosecha",
+    "aplicacion",
+    "labores",
+    "faena",
+    "polinizacion",
+    "trampa",
+    "colmena",
+  ],
   mantencion: [
-    "incidencia",
+    "falla mecanica",
+    "falla electrica",
+    "falla hidraulica",
     "falla",
     "fallo",
     "averia",
-    "avería",
     "mantencion",
-    "mantención",
     "mantenimiento",
     "se detuvo",
+    "equipo detenido",
     "esta detenido",
     "esta detenida",
-    "equipo detenido",
-    "maquina",
-    "máquina",
-    "motor",
-    "bomba",
-    "tractor",
-    "cosechadora",
-    "correa",
-    "rodamiento",
     "no parte",
     "no enciende",
     "no arranca",
-    "fuga",
-    "sobrecalent",
-    "recalent",
-    "vibracion",
-    "vibración",
+    "maquina parada",
+    "motor quemado",
+    "bomba rota",
+    "correa cortada",
+    "rodamiento",
     "repuesto",
+    "fuga de aceite",
+    "fuga de agua",
+    "sobrecalentamiento",
+    "recalentamiento",
+    "vibracion excesiva",
     "panne",
+    "orden de trabajo",
   ],
   actas: [
+    "acta de reunion",
     "acta",
     "reunion",
-    "reunión",
     "minuta",
     "comite",
-    "comité",
-    "acuerdo",
     "acordamos",
     "se acordo",
-    "se acordó",
     "quedo de",
     "quedó de",
     "compromiso",
     "participaron",
     "asistieron",
-    "tema tratado",
     "proxima reunion",
-    "próxima reunión",
     "kickoff",
-    "kick off",
     "directorio",
+    "sesion de",
   ],
 };
 
@@ -134,26 +150,22 @@ function normalize(s: string): string {
 
 /**
  * Clasifica el mensaje a un vertical contando coincidencias de palabras clave.
- * Si hay empate o ninguna coincidencia, cae a `terreno` (comportamiento previo).
+ * Los 3 verticales puntúan; terreno gana los empates (es el caso más común).
  */
 export function classify(text: string): Vertical {
   const t = normalize(text);
-  const scores: Record<Exclude<Vertical, "terreno">, number> = {
-    mantencion: 0,
-    actas: 0,
-  };
-  for (const [vertical, words] of Object.entries(KEYWORDS) as [
-    Exclude<Vertical, "terreno">,
-    string[],
-  ][]) {
+  const scores: Record<Vertical, number> = { terreno: 0, mantencion: 0, actas: 0 };
+
+  for (const [vertical, words] of Object.entries(KEYWORDS) as [Vertical, string[]][]) {
     for (const w of words) {
       if (t.includes(normalize(w))) scores[vertical] += 1;
     }
   }
 
-  const best = scores.mantencion >= scores.actas ? "mantencion" : "actas";
-  if (scores[best] === 0) return "terreno";
-  return best;
+  // Terreno gana los empates (es el vertical más frecuente).
+  if (scores.terreno >= scores.mantencion && scores.terreno >= scores.actas) return "terreno";
+  if (scores.mantencion >= scores.actas) return "mantencion";
+  return "actas";
 }
 
 /** ¿El texto es una confirmación de validación? */
