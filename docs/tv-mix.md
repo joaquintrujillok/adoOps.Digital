@@ -22,8 +22,10 @@ Consola /mix/SALA (celular o computador)
    URL en una pestaña del computador y castéala (Chrome → Enviar) / conéctala
    por HDMI como segunda pantalla. Un toque en "Iniciar pantalla" habilita el
    audio (política de autoplay de los navegadores).
-3. En `/mix/XK42` pega URLs de YouTube en los decks A y B, dale play y mezcla
-   con el crossfader. El video y el audio salen por la TV.
+3. En `/mix/XK42` elige la música: busca videos visualmente (🔍 Buscar), navega
+   tus playlists de YouTube Music y tus "Me gusta" (♪ Mi música, con la cuenta
+   conectada) o pega una URL directo en el deck. Dale play y mezcla con el
+   crossfader. El video y el audio salen por la TV.
 
 ### Fases del desafío original
 
@@ -43,6 +45,12 @@ Consola /mix/SALA (celular o computador)
 | `app/api/mix/[room]/route.ts` | GET snapshot (con poll barato `?v=N`) · POST `{patch}` (consola) o `{progress}` (TV) |
 | `app/api/mix/oembed/route.ts` | Proxy del oEmbed de YouTube (título del video, sin API key) |
 | `app/api/mix/suggest/route.ts` | DJ asistente: OpenAI sugiere temas según la vibra y lo que suena |
+| `app/api/mix/auth/*` | OAuth de Google/YouTube: login, callback, status, logout |
+| `app/api/mix/search/route.ts` | Búsqueda visual (cuenta conectada o `YOUTUBE_API_KEY`) |
+| `app/api/mix/library/*` | Playlists del usuario y sus videos ("Me gusta" incluido) |
+| `lib/mix-auth.ts` | Tokens OAuth sellados (AES-256-GCM) en cookie httpOnly — nada en DB |
+| `lib/mix-youtube.ts` | Wrappers de la YouTube Data API v3 (search, playlists, likes, duraciones) |
+| `components/mixer/LibraryPanel.tsx` | Panel visual: buscador + playlists, carga a decks con un toque |
 | `app/mix/page.tsx` | Portada: crear/unirse a una sala |
 | `app/mix/[room]/page.tsx` + `components/mixer/Controller.tsx` | Consola: decks, crossfader, master, biblioteca, IA |
 | `app/tv/[room]/page.tsx` + `components/mixer/TvScreen.tsx` | Pantalla: 2 players de YouTube IFrame API mezclados por opacidad/volumen |
@@ -55,6 +63,30 @@ Consola /mix/SALA (celular o computador)
    `gpt-4o-mini`).
 2. **Tabla en Neon**: se crea sola en el primer request. Si prefieres crearla
    antes: `node scripts/create-mix-tables.mjs`.
+
+### Buscador y cuenta de YouTube / YouTube Music (opcional)
+
+Los dos niveles son independientes y degradan con gracia (sin configurar,
+siempre queda el fallback de pegar URLs):
+
+1. **Buscador visual sin cuenta** — `YOUTUBE_API_KEY`:
+   [console.cloud.google.com](https://console.cloud.google.com) → crear
+   proyecto → habilitar **YouTube Data API v3** → Credenciales → Clave de API.
+   Cuota gratis: 10.000 unidades/día (una búsqueda cuesta ~100; sobra para uso
+   personal).
+2. **Conectar la cuenta (playlists de YT Music + "Me gusta")** —
+   `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET`: en el mismo proyecto →
+   Pantalla de consentimiento OAuth (tipo Externo, con tu correo como usuario
+   de prueba basta) → Credenciales → ID de cliente OAuth → "Aplicación web"
+   con redirect URI `https://adoops.digital/api/mix/auth/callback` (y
+   `http://localhost:3000/api/mix/auth/callback` para dev). Opcional:
+   `MIX_AUTH_SECRET` (`openssl rand -hex 32`) para sellar la cookie.
+
+Los tokens del usuario viven solo en su navegador (cookie httpOnly cifrada con
+AES-256-GCM, scope `youtube.readonly`); no se guardan en la base de datos.
+Nota: YouTube Music no tiene API pública propia — la cuenta es la misma de
+YouTube, y sus playlists y "Me gusta" se leen por la YouTube Data API, que es
+la vía oficial.
 
 ## Decisiones y límites
 

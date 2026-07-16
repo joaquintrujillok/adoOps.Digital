@@ -24,6 +24,7 @@ import {
   type RoomSnapshot,
   type RoomState,
 } from "@/lib/mix-types";
+import LibraryPanel from "./LibraryPanel";
 import { useHost } from "./useHost";
 import "./mixer.css";
 
@@ -483,6 +484,12 @@ export default function Controller({ room }: { room: string }) {
             <span className="w-8 text-right">{state?.master ?? 90}</span>
           </label>
         </section>
+
+        {/* Buscador visual + playlists de YouTube / YouTube Music. */}
+        <LibraryPanel
+          room={room}
+          onLoad={(deck, videoId, title) => loadToDeck(deck, videoId, title)}
+        />
 
         {/* Biblioteca: últimos videos de la sala. */}
         {!!state?.library.length && (
