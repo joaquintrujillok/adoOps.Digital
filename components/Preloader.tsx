@@ -1,8 +1,12 @@
 "use client";
 
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import styles from "./Preloader.module.css";
+
+// Superficies donde el preloader estorba (consola y pantalla de TV Mix).
+const SKIP_PREFIXES = ["/mix", "/tv"];
 
 const TRACE_PATH =
   "M 845 160 C 792 56 636 56 636 160 C 636 264 792 264 845 160 C 898 56 1058 56 1058 160 C 1058 264 898 264 845 160 Z";
@@ -22,6 +26,12 @@ const bump = (value: number, width: number) => {
 };
 
 export default function Preloader() {
+  const pathname = usePathname();
+  // Decidido una sola vez al montar (igual que la animación, que corre una vez
+  // por carga completa de página).
+  const [skip] = useState(() =>
+    SKIP_PREFIXES.some((prefix) => pathname?.startsWith(prefix)),
+  );
   const [hidden, setHidden] = useState(false);
   const fillRef = useRef<HTMLImageElement>(null);
   const glowRef = useRef<HTMLDivElement>(null);
@@ -35,6 +45,7 @@ export default function Preloader() {
   const iaRefs = useRef<(HTMLSpanElement | null)[]>([]);
 
   useEffect(() => {
+    if (skip) return;
     const reducedMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
     ).matches;
@@ -163,7 +174,9 @@ export default function Preloader() {
       window.clearTimeout(exitTimer);
       document.body.style.overflow = previousOverflow;
     };
-  }, []);
+  }, [skip]);
+
+  if (skip) return null;
 
   return (
     <div

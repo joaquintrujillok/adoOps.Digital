@@ -7,6 +7,11 @@ import {
   timestamp,
   varchar,
 } from "drizzle-orm/pg-core";
+// Import relativo (no alias) para que drizzle-kit resuelva sin tsconfig paths.
+import type {
+  RoomProgress as MixRoomProgress,
+  RoomState as MixRoomState,
+} from "../lib/mix-types";
 
 export const leads = pgTable("leads", {
   id: serial("id").primaryKey(),
@@ -294,3 +299,23 @@ export type Incidencia = typeof incidencias.$inferSelect;
 export type NewIncidencia = typeof incidencias.$inferInsert;
 export type OrdenTrabajo = typeof ordenesTrabajo.$inferSelect;
 export type NewOrdenTrabajo = typeof ordenesTrabajo.$inferInsert;
+
+// =============================================================================
+// TV Mix — mixer de YouTube sincronizado con TV (/mix consola · /tv pantalla)
+// =============================================================================
+
+/**
+ * Estado compartido de una sala de mixeo. La consola (celular/computador)
+ * escribe `state`; la TV escribe `progress` (telemetría de reproducción,
+ * no incrementa `version`).
+ */
+export const mixRooms = pgTable("mix_rooms", {
+  code: varchar("code", { length: 12 }).primaryKey(),
+  state: jsonb("state").$type<MixRoomState>().notNull(),
+  progress: jsonb("progress").$type<MixRoomProgress>(),
+  version: integer("version").notNull().default(1),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type MixRoom = typeof mixRooms.$inferSelect;
+export type NewMixRoom = typeof mixRooms.$inferInsert;
