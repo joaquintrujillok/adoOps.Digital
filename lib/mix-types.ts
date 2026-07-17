@@ -83,7 +83,9 @@ export const ROOM_CODE_RE = /^[A-Z0-9]{3,8}$/;
 export const VIDEO_ID_RE = /^[A-Za-z0-9_-]{11}$/;
 
 const RATES = [0.5, 0.75, 1, 1.25, 1.5];
-const LIBRARY_MAX = 12;
+// historial de la sala: también es la memoria anti-repetición del DJ IA,
+// así que debe alcanzar para una fiesta completa.
+const LIBRARY_MAX = 30;
 
 export function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));

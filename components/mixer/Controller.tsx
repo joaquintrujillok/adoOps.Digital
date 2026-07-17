@@ -489,6 +489,8 @@ export default function Controller({ room }: { room: string }) {
     const currentTitles = (["a", "b"] as const)
       .map((deck) => stateRef.current?.decks[deck].title)
       .filter((t): t is string => !!t);
+    // historial de la sala = memoria anti-repetición del DJ
+    const history = (stateRef.current?.library ?? []).map((item) => item.title);
     const res = await fetchWithTimeout(
       `/api/mix/suggest`,
       {
@@ -497,6 +499,8 @@ export default function Controller({ room }: { room: string }) {
         body: JSON.stringify({
           prompt: vibe.trim() || "mantén la energía y el género de lo que está sonando",
           current: currentTitles,
+          history,
+          hour: new Date().getHours(),
         }),
       },
       45_000,
@@ -506,7 +510,12 @@ export default function Controller({ room }: { room: string }) {
     return (data.sugerencias ?? []).slice(0, 6);
   }, [vibe]);
 
-  /** Resuelve una sugerencia (texto) al primer video de YouTube utilizable. */
+  /**
+   * Resuelve una sugerencia (texto) al mejor video de YouTube utilizable:
+   * entre los primeros candidatos embebibles y no repetidos, filtra a duración
+   * de tema normal (1.5–9 min — fuera mega-mixes y shorts) y elige el más
+   * popular (reproducciones, con likes de desempate).
+   */
   const resolveSuggestion = useCallback(
     async (s: Suggestion): Promise<{ videoId: string; title: string } | null> => {
       const current = stateRef.current;
@@ -524,12 +533,29 @@ export default function Controller({ room }: { room: string }) {
       );
       if (!res.ok) return null;
       const found = (await res.json()) as {
-        items?: { videoId: string; title: string; embeddable?: boolean }[];
+        items?: {
+          videoId: string;
+          title: string;
+          embeddable?: boolean;
+          duration?: number;
+          views?: number;
+          likes?: number;
+        }[];
       };
-      const pick = (found.items ?? []).find(
-        (v) => v.embeddable !== false && !played.has(v.videoId),
+      const usable = (found.items ?? [])
+        .filter((v) => v.embeddable !== false && !played.has(v.videoId))
+        .slice(0, 5);
+      if (!usable.length) return null;
+      const normalLength = usable.filter(
+        (v) => (v.duration ?? 0) >= 90 && (v.duration ?? 0) <= 540,
       );
-      return pick ? { videoId: pick.videoId, title: pick.title } : null;
+      const pool = normalLength.length ? normalLength : usable;
+      const pick = pool.reduce((best, v) =>
+        (v.views ?? 0) + (v.likes ?? 0) * 50 > (best.views ?? 0) + (best.likes ?? 0) * 50
+          ? v
+          : best,
+      );
+      return { videoId: pick.videoId, title: pick.title };
     },
     [],
   );

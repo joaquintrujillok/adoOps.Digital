@@ -64,9 +64,20 @@ const PARAMETERS = {
   required: ["sugerencias"],
 };
 
+function sanitizeTitles(input: unknown, max: number): string[] {
+  return Array.isArray(input)
+    ? input
+        .filter((t): t is string => typeof t === "string" && !!t.trim())
+        .map((t) => t.slice(0, 120))
+        .slice(0, max)
+    : [];
+}
+
 /**
  * POST /api/mix/suggest — DJ asistente.
- * Body: { prompt: string, current?: string[] } → { sugerencias: MixSuggestion[] }
+ * Body: { prompt, current?, history?, hour? } → { sugerencias: MixSuggestion[] }
+ * `history` = temas ya sonados (no repetir) · `hour` = hora local (0-23) del
+ * usuario para modular la energía.
  */
 export async function POST(req: Request) {
   if (!process.env.ZAI_API_KEY && !process.env.OPENAI_API_KEY) {
@@ -76,7 +87,7 @@ export async function POST(req: Request) {
     );
   }
 
-  let body: { prompt?: string; current?: string[] };
+  let body: { prompt?: string; current?: string[]; history?: string[]; hour?: number };
   try {
     body = await req.json();
   } catch {
@@ -87,9 +98,12 @@ export async function POST(req: Request) {
   if (!prompt) {
     return NextResponse.json({ error: "describe la vibra que buscas" }, { status: 400 });
   }
-  const current = Array.isArray(body.current)
-    ? body.current.filter((t): t is string => typeof t === "string").slice(0, 4)
-    : [];
+  const current = sanitizeTitles(body.current, 4);
+  const history = sanitizeTitles(body.history, 40);
+  const hour =
+    typeof body.hour === "number" && body.hour >= 0 && body.hour <= 23
+      ? Math.floor(body.hour)
+      : null;
 
   try {
     const completion = await client().chat.completions.create({
@@ -103,13 +117,21 @@ export async function POST(req: Request) {
           content:
             "Eres un DJ asistente. Sugieres temas reales y conocidos que se encuentren " +
             "fácil en YouTube, pensando en transiciones coherentes de energía y género. " +
-            "Responde únicamente llamando a la función.",
+            "Reglas de DJ: (1) NUNCA sugieras un tema que aparezca en la lista de ya " +
+            "sonados, ni el mismo tema con otro nombre. (2) Evita repetir al artista " +
+            "que está sonando o al de los últimos temas — varía, salvo que la vibra " +
+            "pida un solo artista. (3) Prefiere temas populares y reconocibles por " +
+            "sobre rarezas, salvo que la vibra pida lo contrario. (4) Si conoces la " +
+            "hora local, modula la energía: subir hacia el peak de la noche, aterrizar " +
+            "suave de madrugada o temprano. Responde únicamente llamando a la función.",
         },
         {
           role: "user",
           content:
             `Vibra pedida: ${prompt}\n` +
-            `Sonando ahora: ${current.length ? current.join(" · ") : "nada todavía"}`,
+            `Sonando ahora: ${current.length ? current.join(" · ") : "nada todavía"}\n` +
+            `Ya sonaron (prohibido repetir): ${history.length ? history.join(" · ") : "ninguno"}` +
+            (hour !== null ? `\nHora local: ${hour}:00` : ""),
         },
       ],
       tools: [
