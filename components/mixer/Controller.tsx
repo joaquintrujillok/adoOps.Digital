@@ -36,8 +36,10 @@ import "./mixer.css";
 
 const RATES = [0.75, 1, 1.25] as const;
 
-/** Los videos arrancan este offset (s) adentro, para saltarse la intro. */
-const START_OFFSET_S = 15;
+/** Offset de inicio por defecto (s) para saltarse la intro; ajustable en la consola. */
+const START_OFFSET_DEFAULT = 15;
+const START_OFFSET_OPTIONS = [0, 5, 10, 15, 20, 30];
+const START_OFFSET_KEY = "tvmix-start-offset";
 
 /** Mensajes para los códigos de onError que reporta la TV. */
 const PLAYER_ERROR_MESSAGES: Record<number, string> = {
@@ -138,6 +140,7 @@ export default function Controller({ room }: { room: string }) {
   const [liveStatus, setLiveStatus] = useState<string | null>(null);
   const [uploading, setUploading] = useState<number | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [startOffset, setStartOffset] = useState(START_OFFSET_DEFAULT);
   const host = useHost();
 
   const [vibe, setVibe] = useState("");
@@ -168,6 +171,29 @@ export default function Controller({ room }: { room: string }) {
   const usedKeysRef = useRef<string[]>([]);
   /** videoId del tema activo para el que ya se pidieron alternativas. */
   const suggestForRef = useRef<string | null>(null);
+  // el offset se lee al momento de cargar sin recrear loadToDeck/loadClipToDeck
+  const startOffsetRef = useRef(START_OFFSET_DEFAULT);
+
+  // restaura el offset elegido en este navegador tras montar (leerlo en el
+  // render daría mismatch de hidratación: el server no ve localStorage).
+  useEffect(() => {
+    const saved = Number(window.localStorage.getItem(START_OFFSET_KEY));
+    if (START_OFFSET_OPTIONS.includes(saved) && saved !== START_OFFSET_DEFAULT) {
+      startOffsetRef.current = saved;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sync con localStorage post-mount
+      setStartOffset(saved);
+    }
+  }, []);
+
+  const changeStartOffset = useCallback((value: number) => {
+    startOffsetRef.current = value;
+    setStartOffset(value);
+    try {
+      window.localStorage.setItem(START_OFFSET_KEY, String(value));
+    } catch {
+      // sin localStorage: el offset vale solo para esta sesión
+    }
+  }, []);
   const livePcRef = useRef<RTCPeerConnection | null>(null);
   const liveStreamRef = useRef<MediaStream | null>(null);
   const liveIdRef = useRef<string | null>(null);
@@ -330,7 +356,7 @@ export default function Controller({ room }: { room: string }) {
         kind: "yt",
         src: null,
         playing: false,
-        seekTo: START_OFFSET_S,
+        seekTo: startOffsetRef.current,
         seekNonce: (stateRef.current?.decks[deck].seekNonce ?? 0) + 1,
       };
       const library = [
@@ -355,7 +381,7 @@ export default function Controller({ room }: { room: string }) {
         videoId: null,
         title: clip.name,
         playing: false,
-        seekTo: START_OFFSET_S,
+        seekTo: startOffsetRef.current,
         seekNonce: (stateRef.current?.decks[deck].seekNonce ?? 0) + 1,
       };
       sendPatch({ decks });
@@ -1349,6 +1375,27 @@ export default function Controller({ room }: { room: string }) {
             />
             <span className="w-8 text-right">{state?.master ?? 90}</span>
           </label>
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            <span
+              className="text-zinc-400"
+              title="Los videos arrancan este offset adentro para saltarse la intro"
+            >
+              Inicio:
+            </span>
+            {START_OFFSET_OPTIONS.map((v) => (
+              <button
+                key={v}
+                onClick={() => changeStartOffset(v)}
+                className={`rounded-full px-3 py-1 transition ${
+                  startOffset === v
+                    ? "bg-zinc-100 font-semibold text-zinc-950"
+                    : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+                }`}
+              >
+                {v === 0 ? "0:00" : `${v}s`}
+              </button>
+            ))}
+          </div>
         </section>
 
         {/* Cola de próximos: se cargan al deck libre (auto A/B). */}
