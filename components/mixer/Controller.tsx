@@ -50,8 +50,8 @@ const FX_PAD: { sound: FxSound; label: string }[] = [
 ];
 
 /** Mix eterno: umbrales sobre el tiempo restante del deck activo. */
-const AUTODJ_PREPARE_AT = 45; // s restantes: elegir y cargar el próximo tema
-const AUTODJ_MIX_AT = 15; // s restantes: disparar el mix automático (dura 8 s)
+const AUTODJ_PREPARE_AT = 65; // s restantes: elegir y cargar el próximo tema
+const AUTODJ_MIX_AT = 35; // s restantes: disparar el mix automático (dura 8 s)
 
 type Suggestion = { artista: string; tema: string; motivo: string };
 
