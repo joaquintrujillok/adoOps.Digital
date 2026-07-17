@@ -53,10 +53,18 @@ export type RoomProgress = {
   at: number;
 };
 
+/**
+ * Señalización del modo en vivo (mic/cámara de la consola → TV por WebRTC).
+ * SDPs completos sin trickle: un offer y un answer por sesión, apareados por id.
+ */
+export type RtcSignal = { id: string; sdp: string; at: number };
+export type RtcChannel = { offer?: RtcSignal | null; answer?: RtcSignal | null } | null;
+
 export type RoomSnapshot = {
   version: number;
   state: RoomState;
   progress: RoomProgress | null;
+  rtc?: RtcChannel;
 };
 
 export type DeckPatch = Partial<
@@ -77,7 +85,8 @@ export type RoomPatch = {
 /** Mensajes del canal local (BroadcastChannel) entre consola y TV. */
 export type MixBroadcast =
   | { kind: "state"; state: RoomState }
-  | { kind: "progress"; progress: RoomProgress };
+  | { kind: "progress"; progress: RoomProgress }
+  | { kind: "rtc"; role: "offer" | "answer" | "end"; id: string; sdp?: string };
 
 export const ROOM_CODE_RE = /^[A-Z0-9]{3,8}$/;
 export const VIDEO_ID_RE = /^[A-Za-z0-9_-]{11}$/;

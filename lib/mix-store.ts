@@ -30,6 +30,8 @@ function ensureTable(): Promise<unknown> {
           updated_at TIMESTAMP NOT NULL DEFAULT now()
         )`,
       )
+      // migración: columna de señalización WebRTC en tablas ya existentes
+      .then(() => db.execute(sql`ALTER TABLE mix_rooms ADD COLUMN IF NOT EXISTS rtc JSONB`))
       .catch((error) => {
         tableReady = null; // permitir reintento en el próximo request
         throw error;
@@ -41,7 +43,12 @@ function ensureTable(): Promise<unknown> {
 type Row = typeof mixRooms.$inferSelect;
 
 function toSnapshot(row: Row): RoomSnapshot {
-  return { version: row.version, state: row.state, progress: row.progress ?? null };
+  return {
+    version: row.version,
+    state: row.state,
+    progress: row.progress ?? null,
+    rtc: row.rtc ?? null,
+  };
 }
 
 /** Devuelve la sala; si no existe la crea con el estado por defecto. */
@@ -77,4 +84,35 @@ export async function saveProgress(code: string, progress: RoomProgress): Promis
     .update(mixRooms)
     .set({ progress, updatedAt: new Date() })
     .where(eq(mixRooms.code, code));
+}
+
+/**
+ * Señalización del modo en vivo. `offer` reinicia la sesión, `answer` se
+ * apareja al offer vigente por id, `end` la limpia. No sube la versión.
+ */
+export async function saveRtc(
+  code: string,
+  signal: { role: "offer" | "answer" | "end"; id: string; sdp?: string },
+): Promise<void> {
+  await ensureTable();
+  if (signal.role === "offer" && signal.sdp) {
+    await db
+      .update(mixRooms)
+      .set({ rtc: { offer: { id: signal.id, sdp: signal.sdp, at: Date.now() } } })
+      .where(eq(mixRooms.code, code));
+    return;
+  }
+  if (signal.role === "answer" && signal.sdp) {
+    const rows = await db.select().from(mixRooms).where(eq(mixRooms.code, code));
+    const rtc = rows[0]?.rtc;
+    if (!rtc?.offer || rtc.offer.id !== signal.id) return; // offer viejo: ignorar
+    await db
+      .update(mixRooms)
+      .set({ rtc: { ...rtc, answer: { id: signal.id, sdp: signal.sdp, at: Date.now() } } })
+      .where(eq(mixRooms.code, code));
+    return;
+  }
+  if (signal.role === "end") {
+    await db.update(mixRooms).set({ rtc: null }).where(eq(mixRooms.code, code));
+  }
 }

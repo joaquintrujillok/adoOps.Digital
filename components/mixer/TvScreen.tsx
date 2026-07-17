@@ -19,9 +19,11 @@ import {
   type RoomProgress,
   type RoomSnapshot,
   type RoomState,
+  type RtcChannel,
 } from "@/lib/mix-types";
 import { useHost } from "./useHost";
-import { playFx, unlockFxAudio } from "./fx";
+import { attachLiveAudio, playFx, unlockFxAudio } from "./fx";
+import { RTC_CONFIG, waitIceComplete } from "./live";
 import { loadYouTubeApi, type YTPlayer } from "./youtube";
 import "./mixer.css";
 
@@ -58,6 +60,10 @@ export default function TvScreen({ room }: { room: string }) {
   const [state, setState] = useState<RoomState | null>(null);
   const [started, setStarted] = useState(false);
   const [hudVisible, setHudVisible] = useState(true);
+  const [live, setLive] = useState<{ active: boolean; video: boolean }>({
+    active: false,
+    video: false,
+  });
   const host = useHost();
 
   const stateRef = useRef<RoomState | null>(null);
@@ -73,6 +79,11 @@ export default function TvScreen({ room }: { room: string }) {
   const bcRef = useRef<BroadcastChannel | null>(null);
   const hudTimerRef = useRef(0);
   const progressTickRef = useRef(0);
+  const livePcRef = useRef<RTCPeerConnection | null>(null);
+  const liveIdRef = useRef<string | null>(null);
+  const liveAudioStopRef = useRef<(() => void) | null>(null);
+  const liveVideoElRef = useRef<HTMLVideoElement | null>(null);
+  const liveActiveRef = useRef(false);
 
   /** Aplica el estado de la sala a los reproductores y a la UI. */
   const applyState = useCallback((next: RoomState) => {
@@ -112,13 +123,99 @@ export default function TvScreen({ room }: { room: string }) {
       }
 
       player.setPlaybackRate(target.rate);
-      player.setVolume(deckVolume(next, deck));
+      // ducking: con el micrófono en vivo, la música baja para que se escuche la voz
+      player.setVolume(Math.round(deckVolume(next, deck) * (liveActiveRef.current ? 0.4 : 1)));
       if (target.videoId) {
         if (target.playing) player.playVideo();
         else player.pauseVideo();
       }
     }
   }, []);
+
+  /** Cierra la sesión en vivo y restaura los volúmenes de los decks. */
+  const teardownLive = useCallback(() => {
+    try {
+      livePcRef.current?.close();
+    } catch {
+      // ya cerrada
+    }
+    livePcRef.current = null;
+    liveIdRef.current = null;
+    liveAudioStopRef.current?.();
+    liveAudioStopRef.current = null;
+    if (liveVideoElRef.current) liveVideoElRef.current.srcObject = null;
+    liveActiveRef.current = false;
+    setLive({ active: false, video: false });
+    if (stateRef.current) applyState(stateRef.current); // des-duck
+  }, [applyState]);
+
+  /** Atiende la señalización del modo en vivo (offer/end de la consola). */
+  const handleRtcSignal = useCallback(
+    async (role: "offer" | "answer" | "end", id: string, sdp?: string) => {
+      if (role === "answer") return; // nuestra propia respuesta, eco del canal
+      if (role === "end") {
+        if (liveIdRef.current === id || !id) teardownLive();
+        return;
+      }
+      if (!sdp || !startedRef.current) return; // sin iniciar: el offer persiste y se reintenta
+      if (liveIdRef.current === id) return; // sesión ya atendida
+
+      teardownLive();
+      liveIdRef.current = id;
+      const pc = new RTCPeerConnection(RTC_CONFIG);
+      livePcRef.current = pc;
+
+      pc.ontrack = (event) => {
+        const stream = event.streams[0] ?? new MediaStream([event.track]);
+        const el = liveVideoElRef.current;
+        // el <video> (muteado) consume el stream; el audio va por Web Audio
+        if (el && el.srcObject !== stream) {
+          el.srcObject = stream;
+          el.play().catch(() => {});
+        }
+        if (event.track.kind === "audio") {
+          liveAudioStopRef.current?.();
+          liveAudioStopRef.current = attachLiveAudio(stream);
+        }
+        if (event.track.kind === "video") {
+          setLive((prev) => ({ ...prev, video: true }));
+        }
+      };
+      pc.onconnectionstatechange = () => {
+        const st = pc.connectionState;
+        if (st === "connected") {
+          liveActiveRef.current = true;
+          setLive((prev) => ({ ...prev, active: true }));
+          if (stateRef.current) applyState(stateRef.current); // aplica el duck
+        } else if (st === "failed" || st === "disconnected" || st === "closed") {
+          if (livePcRef.current === pc) teardownLive();
+        }
+      };
+
+      try {
+        await pc.setRemoteDescription({ type: "offer", sdp });
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        await waitIceComplete(pc);
+        const answerSdp = pc.localDescription?.sdp;
+        if (!answerSdp) throw new Error("sin SDP de respuesta");
+        bcRef.current?.postMessage({
+          kind: "rtc",
+          role: "answer",
+          id,
+          sdp: answerSdp,
+        } satisfies MixBroadcast);
+        await fetch(`/api/mix/${room}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rtc: { role: "answer", id, sdp: answerSdp } }),
+        });
+      } catch {
+        if (livePcRef.current === pc) teardownLive();
+      }
+    },
+    [room, applyState, teardownLive],
+  );
 
   // Sincronización remota: polling liviano contra el API.
   useEffect(() => {
@@ -130,6 +227,15 @@ export default function TvScreen({ room }: { room: string }) {
         });
         if (!res.ok || cancelled) return;
         const data = (await res.json()) as Partial<RoomSnapshot> & { unchanged?: boolean };
+        // señalización del modo en vivo (viene también en respuestas unchanged)
+        if ("rtc" in data) {
+          const rtc = data.rtc as RtcChannel;
+          if (rtc?.offer) {
+            void handleRtcSignal("offer", rtc.offer.id, rtc.offer.sdp);
+          } else if (liveIdRef.current) {
+            void handleRtcSignal("end", liveIdRef.current);
+          }
+        }
         if (data.unchanged || typeof data.version !== "number") return;
         if (data.version === versionRef.current) return;
         // Si la consola está en este mismo equipo (BroadcastChannel activo hace
@@ -150,7 +256,7 @@ export default function TvScreen({ room }: { room: string }) {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [room, applyState]);
+  }, [room, applyState, handleRtcSignal]);
 
   // Sincronización local (mismo equipo): BroadcastChannel.
   useEffect(() => {
@@ -161,13 +267,15 @@ export default function TvScreen({ room }: { room: string }) {
       if (event.data?.kind === "state") {
         lastLocalAtRef.current = Date.now();
         applyState(event.data.state);
+      } else if (event.data?.kind === "rtc") {
+        void handleRtcSignal(event.data.role, event.data.id, event.data.sdp);
       }
     };
     return () => {
       bcRef.current = null;
       bc.close();
     };
-  }, [room, applyState]);
+  }, [room, applyState, handleRtcSignal]);
 
   // Telemetría: la TV reporta tiempos para que la consola muestre el progreso.
   useEffect(() => {
@@ -269,6 +377,10 @@ export default function TvScreen({ room }: { room: string }) {
     else enterFullscreen();
   }, []);
 
+  useEffect(() => {
+    return () => teardownLive();
+  }, [teardownLive]);
+
   const layerOpacity = (deck: DeckId): number => {
     if (!state || !state.decks[deck].videoId) return 0;
     const gain = deckGain(deck, state.crossfader);
@@ -329,6 +441,24 @@ export default function TvScreen({ room }: { room: string }) {
             Carga un video de YouTube en un deck desde la consola (
             {host || "…"}/mix/{room}) y aparecerá aquí.
           </p>
+        </div>
+      )}
+
+      {/* Modo en vivo: cámara de la consola (PiP) y aviso. El <video> vive
+          siempre en el DOM (muteado: el audio va por Web Audio). */}
+      <video
+        ref={liveVideoElRef}
+        muted
+        playsInline
+        autoPlay
+        className={`absolute bottom-6 right-6 z-20 w-[30%] max-w-xl rounded-xl border border-zinc-700 shadow-2xl transition-opacity duration-300 ${
+          live.active && live.video ? "opacity-100" : "pointer-events-none opacity-0"
+        }`}
+      />
+      {live.active && (
+        <div className="absolute left-6 top-6 z-30 flex items-center gap-2 rounded-full bg-black/60 px-4 py-2 text-sm font-semibold text-red-400 backdrop-blur">
+          <span className="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-red-500" />
+          EN VIVO
         </div>
       )}
 

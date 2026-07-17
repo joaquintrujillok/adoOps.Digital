@@ -11,6 +11,7 @@ import {
 import type {
   RoomProgress as MixRoomProgress,
   RoomState as MixRoomState,
+  RtcChannel as MixRtcChannel,
 } from "../lib/mix-types";
 
 export const leads = pgTable("leads", {
@@ -313,6 +314,8 @@ export const mixRooms = pgTable("mix_rooms", {
   code: varchar("code", { length: 12 }).primaryKey(),
   state: jsonb("state").$type<MixRoomState>().notNull(),
   progress: jsonb("progress").$type<MixRoomProgress>(),
+  /** Señalización WebRTC del modo en vivo (efímera, no versionada). */
+  rtc: jsonb("rtc").$type<MixRtcChannel>(),
   version: integer("version").notNull().default(1),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

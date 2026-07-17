@@ -27,6 +27,7 @@ import {
 } from "@/lib/mix-types";
 import LibraryPanel from "./LibraryPanel";
 import { useHost } from "./useHost";
+import { RTC_CONFIG, newLiveSessionId, waitIceComplete } from "./live";
 import { loadYouTubeApi, type YTPlayer } from "./youtube";
 import "./mixer.css";
 
@@ -127,6 +128,8 @@ export default function Controller({ room }: { room: string }) {
   const [scrub, setScrub] = useState<Record<DeckId, number | null>>({ a: null, b: null });
   const [autoDj, setAutoDj] = useState(false);
   const [autoDjStatus, setAutoDjStatus] = useState<string | null>(null);
+  const [liveMode, setLiveMode] = useState<"off" | "mic" | "cam">("off");
+  const [liveStatus, setLiveStatus] = useState<string | null>(null);
   const host = useHost();
 
   const [vibe, setVibe] = useState("");
@@ -157,6 +160,10 @@ export default function Controller({ room }: { room: string }) {
   const usedKeysRef = useRef<string[]>([]);
   /** videoId del tema activo para el que ya se pidieron alternativas. */
   const suggestForRef = useRef<string | null>(null);
+  const livePcRef = useRef<RTCPeerConnection | null>(null);
+  const liveStreamRef = useRef<MediaStream | null>(null);
+  const liveIdRef = useRef<string | null>(null);
+  const liveAnswerPollRef = useRef(0);
 
   const suggestionKey = (s: Suggestion) => `${s.artista}|${s.tema}`;
 
@@ -262,6 +269,17 @@ export default function Controller({ room }: { room: string }) {
       if (event.data?.kind === "progress") {
         progressRef.current = event.data.progress;
         setProgress(event.data.progress);
+      } else if (
+        event.data?.kind === "rtc" &&
+        event.data.role === "answer" &&
+        event.data.id === liveIdRef.current &&
+        event.data.sdp &&
+        livePcRef.current?.signalingState === "have-local-offer"
+      ) {
+        // fase espejo: la respuesta de la TV llega al instante por BC
+        void livePcRef.current
+          .setRemoteDescription({ type: "answer", sdp: event.data.sdp })
+          .catch(() => {});
       }
     };
     return () => {
@@ -491,6 +509,129 @@ export default function Controller({ room }: { room: string }) {
     },
     [sendPatch],
   );
+
+  /** Corta el modo en vivo (mic/cámara) y avisa a la TV. */
+  const stopLive = useCallback(
+    (notifyTv = true) => {
+      window.clearInterval(liveAnswerPollRef.current);
+      liveAnswerPollRef.current = 0;
+      try {
+        livePcRef.current?.close();
+      } catch {
+        // ya cerrada
+      }
+      livePcRef.current = null;
+      liveStreamRef.current?.getTracks().forEach((t) => t.stop());
+      liveStreamRef.current = null;
+      const id = liveIdRef.current;
+      liveIdRef.current = null;
+      if (notifyTv && id) {
+        bcRef.current?.postMessage({ kind: "rtc", role: "end", id } satisfies MixBroadcast);
+        fetch(`/api/mix/${room}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rtc: { role: "end", id } }),
+        }).catch(() => {});
+      }
+      setLiveMode("off");
+      setLiveStatus(null);
+    },
+    [room],
+  );
+
+  /**
+   * Modo en vivo: captura mic (y cámara) de este dispositivo y lo transmite a
+   * la TV por WebRTC. Señalización: offer/answer completos vía API (polling) y
+   * BroadcastChannel como atajo en fase espejo.
+   */
+  const startLive = useCallback(
+    async (mode: "mic" | "cam") => {
+      stopLive(true);
+      setLiveStatus("pidiendo permiso…");
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true },
+          video:
+            mode === "cam"
+              ? { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }
+              : false,
+        });
+      } catch {
+        setLiveStatus("⚠ permiso de micrófono/cámara denegado");
+        return;
+      }
+
+      try {
+        liveStreamRef.current = stream;
+        const pc = new RTCPeerConnection(RTC_CONFIG);
+        livePcRef.current = pc;
+        for (const track of stream.getTracks()) pc.addTrack(track, stream);
+        const id = newLiveSessionId();
+        liveIdRef.current = id;
+
+        pc.onconnectionstatechange = () => {
+          if (livePcRef.current !== pc) return;
+          if (pc.connectionState === "connected") {
+            setLiveStatus(mode === "cam" ? "🔴 cámara y voz en la TV" : "🔴 tu voz suena en la TV");
+          } else if (["failed", "disconnected"].includes(pc.connectionState)) {
+            setLiveStatus("⚠ se perdió la conexión con la TV");
+          }
+        };
+
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        await waitIceComplete(pc);
+        const sdp = pc.localDescription?.sdp;
+        if (!sdp) throw new Error("sin SDP");
+
+        setLiveMode(mode);
+        setLiveStatus("conectando con la TV…");
+        bcRef.current?.postMessage({ kind: "rtc", role: "offer", id, sdp } satisfies MixBroadcast);
+        await fetch(`/api/mix/${room}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rtc: { role: "offer", id, sdp } }),
+        });
+
+        // poll por la respuesta (para TV en otro dispositivo)
+        let tries = 0;
+        liveAnswerPollRef.current = window.setInterval(async () => {
+          tries += 1;
+          if (livePcRef.current !== pc || pc.signalingState !== "have-local-offer") {
+            window.clearInterval(liveAnswerPollRef.current);
+            return;
+          }
+          if (tries > 30) {
+            window.clearInterval(liveAnswerPollRef.current);
+            setLiveStatus("⚠ la TV no respondió — ¿está iniciada la pantalla?");
+            return;
+          }
+          try {
+            const res = await fetch(`/api/mix/${room}?v=-1`, { cache: "no-store" });
+            if (!res.ok) return;
+            const data = (await res.json()) as { rtc?: { answer?: { id: string; sdp: string } | null } | null };
+            const answer = data.rtc?.answer;
+            if (answer?.id === id && pc.signalingState === "have-local-offer") {
+              await pc.setRemoteDescription({ type: "answer", sdp: answer.sdp });
+              window.clearInterval(liveAnswerPollRef.current);
+            }
+          } catch {
+            // reintenta en el próximo tick
+          }
+        }, 1000);
+      } catch {
+        setLiveStatus("⚠ no se pudo iniciar el modo en vivo");
+        stopLive(false);
+      }
+    },
+    [room, stopLive],
+  );
+
+  useEffect(() => {
+    return () => stopLive(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al desmontar
+  }, []);
 
   /** Pide alternativas al DJ IA (solo texto; no resuelve videos todavía). */
   const fetchSuggestions = useCallback(async (): Promise<
@@ -1000,6 +1141,33 @@ export default function Controller({ room }: { room: string }) {
                 {label}
               </button>
             ))}
+          </div>
+          {/* Modo en vivo: mic/cámara de este dispositivo hacia la TV. */}
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <span className="text-xs text-zinc-500">En vivo:</span>
+            <button
+              onClick={() => (liveMode === "mic" ? stopLive() : startLive("mic"))}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                liveMode === "mic"
+                  ? "bg-red-600 text-white hover:bg-red-500"
+                  : "bg-zinc-800 text-zinc-200 hover:bg-zinc-700"
+              }`}
+              title="Habla por la TV (la música baja mientras hablas)"
+            >
+              🎤 {liveMode === "mic" ? "Cortar voz" : "Voz"}
+            </button>
+            <button
+              onClick={() => (liveMode === "cam" ? stopLive() : startLive("cam"))}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                liveMode === "cam"
+                  ? "bg-red-600 text-white hover:bg-red-500"
+                  : "bg-zinc-800 text-zinc-200 hover:bg-zinc-700"
+              }`}
+              title="Muestra tu cámara en la TV, con tu voz"
+            >
+              🎥 {liveMode === "cam" ? "Cortar cámara" : "Cámara"}
+            </button>
+            {liveStatus && <span className="text-xs text-emerald-300">{liveStatus}</span>}
           </div>
           <label className="flex items-center gap-3 text-xs text-zinc-400">
             <span className="w-12">Master</span>

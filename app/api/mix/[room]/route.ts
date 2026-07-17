@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getRoom, patchRoom, saveProgress } from "@/lib/mix-store";
+import { getRoom, patchRoom, saveProgress, saveRtc } from "@/lib/mix-store";
 import {
   normalizeRoomCode,
   type DeckProgress,
@@ -31,14 +31,18 @@ export async function GET(req: Request, { params }: Ctx) {
       version: snapshot.version,
       unchanged: true,
       progress: snapshot.progress,
+      rtc: snapshot.rtc ?? null,
     });
   }
   return NextResponse.json(snapshot);
 }
 
+const RTC_ROLES = ["offer", "answer", "end"] as const;
+
 type PostBody = {
   patch?: RoomPatch;
   progress?: { decks?: { a?: DeckProgress | null; b?: DeckProgress | null } };
+  rtc?: { role?: string; id?: string; sdp?: string };
 };
 
 /**
@@ -65,6 +69,20 @@ export async function POST(req: Request, { params }: Ctx) {
     return NextResponse.json(snapshot);
   }
 
+  if (body.rtc && typeof body.rtc === "object") {
+    const { role, id, sdp } = body.rtc;
+    const validRole = RTC_ROLES.find((r) => r === role);
+    const validId = typeof id === "string" && id.length > 0 && id.length <= 64;
+    const needsSdp = validRole === "offer" || validRole === "answer";
+    const validSdp =
+      !needsSdp || (typeof sdp === "string" && sdp.length > 0 && sdp.length <= 100_000);
+    if (!validRole || !validId || !validSdp) {
+      return NextResponse.json({ error: "señal rtc inválida" }, { status: 400 });
+    }
+    await saveRtc(code, { role: validRole, id: id!, sdp });
+    return NextResponse.json({ ok: true });
+  }
+
   if (body.progress && typeof body.progress === "object") {
     const progress: RoomProgress = {
       decks: {
@@ -77,7 +95,10 @@ export async function POST(req: Request, { params }: Ctx) {
     return NextResponse.json({ ok: true });
   }
 
-  return NextResponse.json({ error: "se espera { patch } o { progress }" }, { status: 400 });
+  return NextResponse.json(
+    { error: "se espera { patch }, { progress } o { rtc }" },
+    { status: 400 },
+  );
 }
 
 /** Códigos de onError del player de YouTube que la TV puede reportar. */

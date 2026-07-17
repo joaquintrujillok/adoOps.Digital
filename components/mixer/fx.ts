@@ -153,6 +153,31 @@ const DURATIONS: Record<FxSound, number> = {
   rewind: 1.1,
 };
 
+/**
+ * Conecta el audio de un stream en vivo (WebRTC) a la salida, por el mismo
+ * AudioContext ya desbloqueado en "Iniciar pantalla" — así el navegador no lo
+ * bloquea. Devuelve la función para cortarlo.
+ */
+export function attachLiveAudio(stream: MediaStream): () => void {
+  try {
+    const ac = audioContext();
+    const src = ac.createMediaStreamSource(stream);
+    const g = ac.createGain();
+    g.gain.value = 1;
+    src.connect(g).connect(ac.destination);
+    return () => {
+      try {
+        src.disconnect();
+        g.disconnect();
+      } catch {
+        // ya desconectado
+      }
+    };
+  } catch {
+    return () => {};
+  }
+}
+
 /** Dispara un efecto. `gain` 0–1 (normalmente master/100). */
 export function playFx(sound: FxSound, gain: number) {
   try {
