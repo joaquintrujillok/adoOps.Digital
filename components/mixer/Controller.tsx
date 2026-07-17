@@ -54,6 +54,15 @@ const FX_PAD: { sound: FxSound; label: string }[] = [
 // ya se piden al empezar el tema, así que aquí solo se resuelve+carga y mezcla.
 const AUTODJ_MIX_AT = 35;
 
+/** Arco de la fiesta: elegido a mano pesa más que la hora local. */
+type PartyArc = "auto" | "warmup" | "peak" | "cooldown";
+const PARTY_ARC_OPTIONS: { id: PartyArc; label: string; hint: string }[] = [
+  { id: "auto", label: "Auto", hint: "la IA modula según la hora" },
+  { id: "warmup", label: "🌅 Calentando", hint: "energía media, subiendo de a poco" },
+  { id: "peak", label: "🔥 Peak", hint: "máxima energía bailable" },
+  { id: "cooldown", label: "🌙 Bajando", hint: "aterrizar suave" },
+];
+
 type Suggestion = { artista: string; tema: string; motivo: string };
 
 const DECK_META: Record<
@@ -121,6 +130,7 @@ export default function Controller({ room }: { room: string }) {
   const host = useHost();
 
   const [vibe, setVibe] = useState("");
+  const [partyArc, setPartyArc] = useState<PartyArc>("auto");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [suggestError, setSuggestError] = useState<string | null>(null);
   const [suggesting, setSuggesting] = useState(false);
@@ -501,6 +511,7 @@ export default function Controller({ room }: { room: string }) {
           current: currentTitles,
           history,
           hour: new Date().getHours(),
+          ...(partyArc !== "auto" ? { arc: partyArc } : {}),
         }),
       },
       45_000,
@@ -508,7 +519,7 @@ export default function Controller({ room }: { room: string }) {
     const data = (await res.json()) as { sugerencias?: Suggestion[]; error?: string };
     if (!res.ok) return { error: data.error ?? "falló el DJ IA" };
     return (data.sugerencias ?? []).slice(0, 6);
-  }, [vibe]);
+  }, [vibe, partyArc]);
 
   /**
    * Resuelve una sugerencia (texto) al mejor video de YouTube utilizable:
@@ -1093,6 +1104,23 @@ export default function Controller({ room }: { room: string }) {
             >
               {autoDj ? "♾ Mix eterno ON" : "♾ Mix eterno"}
             </button>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+            <span className="text-zinc-500">Arco:</span>
+            {PARTY_ARC_OPTIONS.map((a) => (
+              <button
+                key={a.id}
+                onClick={() => setPartyArc(a.id)}
+                title={a.hint}
+                className={`rounded-full px-3 py-1 transition ${
+                  partyArc === a.id
+                    ? "bg-zinc-100 font-semibold text-zinc-950"
+                    : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+                }`}
+              >
+                {a.label}
+              </button>
+            ))}
           </div>
           {autoDj && autoDjStatus && (
             <p className="mt-2 text-xs text-emerald-300">♾ {autoDjStatus}</p>

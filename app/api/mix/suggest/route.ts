@@ -64,6 +64,15 @@ const PARAMETERS = {
   required: ["sugerencias"],
 };
 
+/** Momento de la fiesta elegido a mano en la consola: pesa más que la hora. */
+const PARTY_ARCS = ["warmup", "peak", "cooldown"] as const;
+type PartyArc = (typeof PARTY_ARCS)[number];
+const ARC_LABEL: Record<PartyArc, string> = {
+  warmup: "calentando — energía media, subiendo de a poco",
+  peak: "peak de la fiesta — máxima energía bailable",
+  cooldown: "bajando — aterrizar suave, temas más calmados",
+};
+
 function sanitizeTitles(input: unknown, max: number): string[] {
   return Array.isArray(input)
     ? input
@@ -87,7 +96,13 @@ export async function POST(req: Request) {
     );
   }
 
-  let body: { prompt?: string; current?: string[]; history?: string[]; hour?: number };
+  let body: {
+    prompt?: string;
+    current?: string[];
+    history?: string[];
+    hour?: number;
+    arc?: string;
+  };
   try {
     body = await req.json();
   } catch {
@@ -104,6 +119,7 @@ export async function POST(req: Request) {
     typeof body.hour === "number" && body.hour >= 0 && body.hour <= 23
       ? Math.floor(body.hour)
       : null;
+  const arc = PARTY_ARCS.includes(body.arc as PartyArc) ? (body.arc as PartyArc) : null;
 
   try {
     const completion = await client().chat.completions.create({
@@ -123,7 +139,9 @@ export async function POST(req: Request) {
             "pida un solo artista. (3) Prefiere temas populares y reconocibles por " +
             "sobre rarezas, salvo que la vibra pida lo contrario. (4) Si conoces la " +
             "hora local, modula la energía: subir hacia el peak de la noche, aterrizar " +
-            "suave de madrugada o temprano. Responde únicamente llamando a la función.",
+            "suave de madrugada o temprano. (5) Si te doy el momento de la fiesta " +
+            "(calentando/peak/bajando), ese manda por sobre la hora. " +
+            "Responde únicamente llamando a la función.",
         },
         {
           role: "user",
@@ -131,7 +149,8 @@ export async function POST(req: Request) {
             `Vibra pedida: ${prompt}\n` +
             `Sonando ahora: ${current.length ? current.join(" · ") : "nada todavía"}\n` +
             `Ya sonaron (prohibido repetir): ${history.length ? history.join(" · ") : "ninguno"}` +
-            (hour !== null ? `\nHora local: ${hour}:00` : ""),
+            (hour !== null ? `\nHora local: ${hour}:00` : "") +
+            (arc ? `\nMomento de la fiesta: ${ARC_LABEL[arc]}` : ""),
         },
       ],
       tools: [
