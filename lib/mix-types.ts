@@ -30,6 +30,15 @@ export type LibraryItem = { videoId: string; title: string };
 /** Clip propio subido a la sala (video del celular en Vercel Blob). */
 export type ClipItem = { id: string; url: string; name: string };
 
+/** Ítem de la cola de próximos: video de YouTube o clip propio. */
+export type QueueItem = {
+  id: string;
+  kind: "yt" | "clip";
+  videoId?: string | null;
+  src?: string | null;
+  title: string;
+};
+
 /** Efectos de DJ sintetizados en la TV (Web Audio, no dependen de YouTube). */
 export const FX_SOUNDS = ["horn", "siren", "scratch", "rewind"] as const;
 export type FxSound = (typeof FX_SOUNDS)[number];
@@ -48,6 +57,8 @@ export type RoomState = {
   fx?: FxEvent;
   /** Videos propios subidos a la sala (opcional: salas viejas no lo tienen). */
   clips?: ClipItem[];
+  /** Cola de próximos a cargar en el deck libre (opcional). */
+  queue?: QueueItem[];
 };
 
 export type DeckProgress = {
@@ -98,6 +109,7 @@ export type RoomPatch = {
   library?: LibraryItem[];
   fx?: FxEvent;
   clips?: ClipItem[];
+  queue?: QueueItem[];
 };
 
 /** Mensajes del canal local (BroadcastChannel) entre consola y TV. */
@@ -119,6 +131,7 @@ export function clamp(n: number, min: number, max: number): number {
 }
 
 const CLIPS_MAX = 24;
+const QUEUE_MAX = 40;
 
 /** Solo se aceptan URLs https de Vercel Blob (evita inyectar orígenes ajenos). */
 export function isBlobUrl(url: string): boolean {
@@ -305,6 +318,30 @@ export function mergePatch(state: RoomState, patch: RoomPatch): RoomState {
         name: String(item.name ?? "").slice(0, 80),
       }))
       .slice(0, CLIPS_MAX);
+  }
+  if (Array.isArray(patch.queue)) {
+    const seenQ = new Set<string>();
+    next.queue = patch.queue
+      .filter(
+        (item): item is QueueItem =>
+          !!item &&
+          typeof item.id === "string" &&
+          item.id.length > 0 &&
+          item.id.length <= 40 &&
+          !seenQ.has(item.id) &&
+          !!seenQ.add(item.id) &&
+          (item.kind === "clip"
+            ? typeof item.src === "string" && isBlobUrl(item.src)
+            : typeof item.videoId === "string" && VIDEO_ID_RE.test(item.videoId)),
+      )
+      .map((item) => ({
+        id: item.id,
+        kind: item.kind === "clip" ? ("clip" as const) : ("yt" as const),
+        videoId: item.kind === "clip" ? null : item.videoId,
+        src: item.kind === "clip" ? item.src : null,
+        title: String(item.title ?? "").slice(0, 140),
+      }))
+      .slice(0, QUEUE_MAX);
   }
   if (Array.isArray(patch.library)) {
     const seen = new Set<string>();

@@ -31,11 +31,12 @@ const LIKES_ID = "__likes__";
 type Props = {
   room: string;
   onLoad: (deck: DeckId, videoId: string, title: string) => void;
+  onEnqueue: (videoId: string, title: string) => void;
 };
 
 const emptySubscribe = () => () => {};
 
-export default function LibraryPanel({ room, onLoad }: Props) {
+export default function LibraryPanel({ room, onLoad, onEnqueue }: Props) {
   const [status, setStatus] = useState<AuthStatus | null>(null);
   const [tab, setTab] = useState<"search" | "library">("search");
 
@@ -235,6 +236,14 @@ export default function LibraryPanel({ room, onLoad }: Props) {
           className="rounded-md bg-fuchsia-500/15 px-3 py-2 text-xs font-bold text-fuchsia-300 transition hover:bg-fuchsia-500/30 disabled:opacity-30"
         >
           → B
+        </button>
+        <button
+          onClick={() => onEnqueue(video.videoId, video.title)}
+          disabled={video.embeddable === false}
+          className="rounded-md bg-zinc-800 px-2 py-2 text-xs text-zinc-300 transition hover:bg-zinc-700 disabled:opacity-30"
+          title="Agregar a la cola"
+        >
+          + cola
         </button>
       </div>
     </li>

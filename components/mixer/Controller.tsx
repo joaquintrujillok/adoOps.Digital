@@ -21,6 +21,7 @@ import {
   type DeckId,
   type DeckPatch,
   type FxSound,
+  type QueueItem,
   type MixBroadcast,
   type RoomPatch,
   type RoomProgress,
@@ -34,6 +35,9 @@ import { loadYouTubeApi, type YTPlayer } from "./youtube";
 import "./mixer.css";
 
 const RATES = [0.75, 1, 1.25] as const;
+
+/** Los videos arrancan este offset (s) adentro, para saltarse la intro. */
+const START_OFFSET_S = 15;
 
 /** Mensajes para los códigos de onError que reporta la TV. */
 const PLAYER_ERROR_MESSAGES: Record<number, string> = {
@@ -318,8 +322,17 @@ export default function Controller({ room }: { room: string }) {
       }
 
       const decks: Partial<Record<DeckId, DeckPatch>> = {};
-      // kind/src explícitos: el deck puede venir de un clip propio
-      decks[deck] = { videoId, title, kind: "yt", src: null, playing: false };
+      // kind/src explícitos: el deck puede venir de un clip propio.
+      // seek al offset de inicio para saltarse la intro.
+      decks[deck] = {
+        videoId,
+        title,
+        kind: "yt",
+        src: null,
+        playing: false,
+        seekTo: START_OFFSET_S,
+        seekNonce: (stateRef.current?.decks[deck].seekNonce ?? 0) + 1,
+      };
       const library = [
         { videoId, title },
         ...(stateRef.current?.library ?? []),
@@ -342,6 +355,8 @@ export default function Controller({ room }: { room: string }) {
         videoId: null,
         title: clip.name,
         playing: false,
+        seekTo: START_OFFSET_S,
+        seekNonce: (stateRef.current?.decks[deck].seekNonce ?? 0) + 1,
       };
       sendPatch({ decks });
       closePreview(deck);
@@ -384,6 +399,57 @@ export default function Controller({ room }: { room: string }) {
       }
     },
     [room, sendPatch],
+  );
+
+  /** Deck donde cae el próximo: prefiere el vacío; si no, el opuesto al activo. */
+  const freeDeck = useCallback((): DeckId => {
+    const s = stateRef.current;
+    if (!s) return "a";
+    const aEmpty = !s.decks.a.videoId && !s.decks.a.src;
+    const bEmpty = !s.decks.b.videoId && !s.decks.b.src;
+    if (aEmpty && !bEmpty) return "a";
+    if (bEmpty && !aEmpty) return "b";
+    return s.crossfader <= 50 ? "b" : "a";
+  }, []);
+
+  /** Carga un ítem de la cola (YouTube o clip) en el deck indicado. */
+  const loadQueueItem = useCallback(
+    (deck: DeckId, item: QueueItem) => {
+      if (item.kind === "clip" && item.src) {
+        loadClipToDeck(deck, { id: item.id, url: item.src, name: item.title });
+      } else if (item.videoId) {
+        loadToDeck(deck, item.videoId, item.title);
+      }
+    },
+    [loadClipToDeck, loadToDeck],
+  );
+
+  /** Agrega un video/clip al final de la cola de próximos. */
+  const enqueue = useCallback(
+    (item: Omit<QueueItem, "id">) => {
+      const entry: QueueItem = { ...item, id: Math.random().toString(36).slice(2, 10) };
+      sendPatch({ queue: [...(stateRef.current?.queue ?? []), entry] });
+    },
+    [sendPatch],
+  );
+
+  const removeFromQueue = useCallback(
+    (id: string) => {
+      sendPatch({ queue: (stateRef.current?.queue ?? []).filter((x) => x.id !== id) });
+    },
+    [sendPatch],
+  );
+
+  /** Saca el primero de la cola y lo carga en el deck libre (o el indicado). */
+  const loadNextFromQueue = useCallback(
+    (deckArg?: DeckId) => {
+      const q = stateRef.current?.queue ?? [];
+      if (!q.length) return;
+      const [next, ...rest] = q;
+      loadQueueItem(deckArg ?? freeDeck(), next);
+      sendPatch({ queue: rest });
+    },
+    [freeDeck, loadQueueItem, sendPatch],
   );
 
   const patchDeck = useCallback(
@@ -799,6 +865,30 @@ export default function Controller({ room }: { room: string }) {
     [loadingSuggestion, resolveSuggestion, loadToDeck],
   );
 
+  /** Resuelve una alternativa del DJ IA y la agrega a la cola. */
+  const enqueueSuggestion = useCallback(
+    async (s: Suggestion) => {
+      const key = suggestionKey(s);
+      if (loadingSuggestion) return;
+      setLoadingSuggestion(key);
+      setSuggestError(null);
+      try {
+        const video = await resolveSuggestion(s);
+        if (!video) {
+          setSuggestError(`No encontré "${s.tema}" reproducible en YouTube`);
+          return;
+        }
+        enqueue({ kind: "yt", videoId: video.videoId, title: video.title });
+        setUsedKeys((prev) => (prev.includes(key) ? prev : [...prev, key]));
+      } catch {
+        setSuggestError("No se pudo agregar a la cola");
+      } finally {
+        setLoadingSuggestion(null);
+      }
+    },
+    [loadingSuggestion, resolveSuggestion, enqueue],
+  );
+
   /**
    * Modo DJ asistido (Mix eterno): apenas suena un tema pide 5 alternativas y
    * las muestra para que las cargues tú (→ A / → B). Si no intervienes, a
@@ -852,15 +942,26 @@ export default function Controller({ room }: { room: string }) {
       if (remaining > AUTODJ_MIX_AT) return;
 
       // Si el deck opuesto ya trae un tema distinto al que sale, solo mezclar.
+      const tgt = current.decks[target];
       const targetReady =
-        !!current.decks[target].videoId &&
-        current.decks[target].videoId !== srcDeck.videoId;
+        !!(tgt.kind === "clip" ? tgt.src : tgt.videoId) &&
+        tgt.videoId !== srcDeck.videoId;
 
       if (!targetReady) {
-        // Auto-elegir: primera alternativa no usada que resuelva a un video.
         autoDjBusyRef.current = true;
-        setAutoDjStatus("cargando el próximo…");
         try {
+          // 1) La cola manda: si dejaste próximos, se usan antes que la IA.
+          const q = stateRef.current?.queue ?? [];
+          if (q.length) {
+            const [nextItem, ...rest] = q;
+            loadQueueItem(target, nextItem);
+            sendPatch({ queue: rest });
+            autoDjPreparedForRef.current = srcDeck.videoId;
+            setAutoDjStatus(`próximo (cola): ${nextItem.title}`);
+            return;
+          }
+          // 2) Sin cola: primera alternativa de la IA que resuelva a un video.
+          setAutoDjStatus("cargando el próximo…");
           const pending = suggestionsRef.current.filter(
             (s) => !usedKeysRef.current.includes(suggestionKey(s)),
           );
@@ -885,7 +986,15 @@ export default function Controller({ room }: { room: string }) {
     };
     const id = window.setInterval(tick, 2000);
     return () => window.clearInterval(id);
-  }, [autoDj, fetchSuggestions, resolveSuggestion, startAutoMix, loadToDeck]);
+  }, [
+    autoDj,
+    fetchSuggestions,
+    resolveSuggestion,
+    startAutoMix,
+    loadToDeck,
+    loadQueueItem,
+    sendPatch,
+  ]);
 
   const copyTvLink = useCallback(async () => {
     try {
@@ -1242,10 +1351,71 @@ export default function Controller({ room }: { room: string }) {
           </label>
         </section>
 
+        {/* Cola de próximos: se cargan al deck libre (auto A/B). */}
+        <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-500">
+              ⏭ Cola{state?.queue?.length ? ` · ${state.queue.length}` : ""}
+            </h2>
+            <button
+              onClick={() => loadNextFromQueue()}
+              disabled={!state?.queue?.length}
+              className="rounded-lg bg-zinc-100 px-3 py-1.5 text-xs font-semibold text-zinc-950 transition hover:bg-white disabled:opacity-40"
+              title="Carga el primero de la cola en el deck libre"
+            >
+              ▶ Cargar siguiente
+            </button>
+          </div>
+          {state?.queue?.length ? (
+            <ul className="flex flex-col gap-2">
+              {state.queue.map((item, i) => (
+                <li
+                  key={item.id}
+                  className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2"
+                >
+                  <span className="w-5 shrink-0 text-center text-xs font-bold text-zinc-500">
+                    {i + 1}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-sm text-zinc-200">
+                    {item.kind === "clip" ? "📱 " : ""}
+                    {item.title}
+                  </span>
+                  <button
+                    onClick={() => loadQueueItem("a", item)}
+                    className="shrink-0 rounded-md bg-emerald-500/15 px-2.5 py-1 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/30"
+                  >
+                    → A
+                  </button>
+                  <button
+                    onClick={() => loadQueueItem("b", item)}
+                    className="shrink-0 rounded-md bg-fuchsia-500/15 px-2.5 py-1 text-xs font-bold text-fuchsia-300 transition hover:bg-fuchsia-500/30"
+                  >
+                    → B
+                  </button>
+                  <button
+                    onClick={() => removeFromQueue(item.id)}
+                    className="shrink-0 rounded-md bg-zinc-800 px-2 py-1 text-xs text-zinc-400 transition hover:bg-zinc-700"
+                    title="Quitar de la cola"
+                  >
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-zinc-600">
+              Agrega videos con &quot;+ cola&quot; desde la búsqueda, tus videos o
+              recientes. &quot;Cargar siguiente&quot; los manda al deck libre; con ♾ Mix
+              eterno se encadenan solos.
+            </p>
+          )}
+        </section>
+
         {/* Buscador visual + playlists de YouTube / YouTube Music. */}
         <LibraryPanel
           room={room}
           onLoad={(deck, videoId, title) => loadToDeck(deck, videoId, title)}
+          onEnqueue={(videoId, title) => enqueue({ kind: "yt", videoId, title })}
         />
 
         {/* Biblioteca: últimos videos de la sala. */}
@@ -1281,6 +1451,15 @@ export default function Controller({ room }: { room: string }) {
                       className="flex-1 rounded-md bg-fuchsia-500/15 py-1 text-xs font-bold text-fuchsia-300 transition hover:bg-fuchsia-500/30"
                     >
                       → B
+                    </button>
+                    <button
+                      onClick={() =>
+                        enqueue({ kind: "yt", videoId: item.videoId, title: item.title })
+                      }
+                      className="rounded-md bg-zinc-800 px-2 py-1 text-xs text-zinc-300 transition hover:bg-zinc-700"
+                      title="Agregar a la cola"
+                    >
+                      + cola
                     </button>
                   </div>
                 </div>
@@ -1344,6 +1523,15 @@ export default function Controller({ room }: { room: string }) {
                       className="flex-1 rounded-md bg-fuchsia-500/15 py-1 text-xs font-bold text-fuchsia-300 transition hover:bg-fuchsia-500/30"
                     >
                       → B
+                    </button>
+                    <button
+                      onClick={() =>
+                        enqueue({ kind: "clip", src: clip.url, title: clip.name })
+                      }
+                      className="rounded-md bg-zinc-800 px-2 py-1 text-xs text-zinc-300 transition hover:bg-zinc-700"
+                      title="Agregar a la cola"
+                    >
+                      + cola
                     </button>
                   </div>
                 </div>
@@ -1464,6 +1652,14 @@ export default function Controller({ room }: { room: string }) {
                             className="rounded-md bg-fuchsia-500/15 px-3 py-1.5 text-xs font-bold text-fuchsia-300 transition hover:bg-fuchsia-500/30 disabled:opacity-40"
                           >
                             → B
+                          </button>
+                          <button
+                            onClick={() => enqueueSuggestion(s)}
+                            disabled={!!loadingSuggestion}
+                            className="rounded-md bg-zinc-800 px-2 py-1.5 text-xs text-zinc-300 transition hover:bg-zinc-700 disabled:opacity-40"
+                            title="Agregar a la cola"
+                          >
+                            + cola
                           </button>
                           <a
                             href={`https://www.youtube.com/results?search_query=${encodeURIComponent(
