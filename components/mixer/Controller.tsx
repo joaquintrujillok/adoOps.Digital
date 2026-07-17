@@ -83,6 +83,27 @@ const PARTY_ARC_OPTIONS: { id: PartyArc; label: string; hint: string }[] = [
 
 type Suggestion = { artista: string; tema: string; motivo: string };
 
+/** Alternativa del DJ IA ya resuelta a un video concreto (con sus datos). */
+type ResolvedAlt = {
+  videoId: string;
+  title: string;
+  duration: number;
+  views: number;
+  likes: number;
+};
+
+/** 1234567 → "1,2 M" (para vistas y likes). */
+const compact = (n: number) =>
+  new Intl.NumberFormat("es-CL", { notation: "compact", maximumFractionDigits: 1 }).format(n);
+
+/** Para comparar títulos sin tildes ni mayúsculas. */
+const normalizeText = (s: string) =>
+  s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+/** Versiones que un DJ no quiere por accidente al resolver una sugerencia. */
+const BAD_VERSION_RE =
+  /cover|karaoke|8d|sped ?up|slowed|reverb|reacci[oó]n|reaction|tutorial|instrumental|ensayo/;
+
 const DECK_META: Record<
   DeckId,
   { label: string; accent: string; badge: string; faderClass: string }
@@ -162,6 +183,8 @@ export default function Controller({ room }: { room: string }) {
   // sugerencias ya cargadas a un deck (key artista|tema) y la que está cargando
   const [usedKeys, setUsedKeys] = useState<string[]>([]);
   const [loadingSuggestion, setLoadingSuggestion] = useState<string | null>(null);
+  // alternativas resueltas a video real (key → datos; null = sin video utilizable)
+  const [resolvedAlts, setResolvedAlts] = useState<Record<string, ResolvedAlt | null>>({});
 
   const stateRef = useRef<RoomState | null>(null);
   const versionRef = useRef(0);
@@ -182,10 +205,17 @@ export default function Controller({ room }: { room: string }) {
    * "sucesor listo" y el Mix eterno hace ping-pong A↔B repitiendo temas.
    */
   const spentRef = useRef<Record<DeckId, string | null>>({ a: null, b: null });
+  // espejo reactivo del spentRef solo para la vista "Sonando → Siguiente"
+  const [spentView, setSpentView] = useState<Record<DeckId, string | null>>({
+    a: null,
+    b: null,
+  });
   const autoDjCooldownRef = useRef(0);
   // el loop lee estas listas sin re-crearse: refs que espejan el estado.
   const suggestionsRef = useRef<Suggestion[]>([]);
   const usedKeysRef = useRef<string[]>([]);
+  const resolvedAltsRef = useRef<Record<string, ResolvedAlt | null>>({});
+  const resolvingRef = useRef(false);
   /** videoId del tema activo para el que ya se pidieron alternativas. */
   const suggestForRef = useRef<string | null>(null);
   // el offset se lee al momento de cargar sin recrear loadToDeck/loadClipToDeck
@@ -682,6 +712,7 @@ export default function Controller({ room }: { room: string }) {
         const src = current.decks[source];
         spentRef.current[source] =
           (src.kind === "clip" ? src.src : src.videoId) ?? null;
+        setSpentView({ ...spentRef.current });
         // el deck que salió queda libre: la cola pone ahí el siguiente
         const q = stateRef.current?.queue ?? [];
         if (q.length) {
@@ -860,17 +891,19 @@ export default function Controller({ room }: { room: string }) {
     );
     const data = (await res.json()) as { sugerencias?: Suggestion[]; error?: string };
     if (!res.ok) return { error: data.error ?? "falló el DJ IA" };
-    return (data.sugerencias ?? []).slice(0, 6);
+    // 5 alternativas: cada una se resuelve con una búsqueda (cuota YouTube)
+    return (data.sugerencias ?? []).slice(0, 5);
   }, [vibe, partyArc]);
 
   /**
-   * Resuelve una sugerencia (texto) al mejor video de YouTube utilizable:
-   * entre los primeros candidatos embebibles y no repetidos, filtra a duración
-   * de tema normal (1.5–9 min — fuera mega-mixes y shorts) y elige el más
-   * popular (reproducciones, con likes de desempate).
+   * Resuelve una sugerencia (texto) al mejor video de YouTube utilizable.
+   * Puntaje = coincidencia de artista y tema en título/canal (evita que un
+   * video popular pero equivocado gane) − castigo a covers/karaoke/reacciones
+   * + popularidad (log de reproducciones). Duración acotada a tema normal
+   * (1.5–9 min — fuera mega-mixes y shorts).
    */
   const resolveSuggestion = useCallback(
-    async (s: Suggestion): Promise<{ videoId: string; title: string } | null> => {
+    async (s: Suggestion): Promise<ResolvedAlt | null> => {
       const current = stateRef.current;
       const played = new Set(
         [
@@ -889,6 +922,7 @@ export default function Controller({ room }: { room: string }) {
         items?: {
           videoId: string;
           title: string;
+          channel?: string;
           embeddable?: boolean;
           duration?: number;
           views?: number;
@@ -897,20 +931,76 @@ export default function Controller({ room }: { room: string }) {
       };
       const usable = (found.items ?? [])
         .filter((v) => v.embeddable !== false && !played.has(v.videoId))
-        .slice(0, 5);
+        .slice(0, 8);
       if (!usable.length) return null;
       const normalLength = usable.filter(
         (v) => (v.duration ?? 0) >= 90 && (v.duration ?? 0) <= 540,
       );
       const pool = normalLength.length ? normalLength : usable;
-      const pick = pool.reduce((best, v) =>
-        (v.views ?? 0) + (v.likes ?? 0) * 50 > (best.views ?? 0) + (best.likes ?? 0) * 50
-          ? v
-          : best,
-      );
-      return { videoId: pick.videoId, title: pick.title };
+
+      const artista = normalizeText(s.artista);
+      const tema = normalizeText(s.tema);
+      const score = (v: (typeof pool)[number]): number => {
+        const texto = normalizeText(`${v.title} ${v.channel ?? ""}`);
+        let match = 0;
+        if (texto.includes(artista)) match += 3;
+        if (texto.includes(tema)) match += 4;
+        if (BAD_VERSION_RE.test(texto) && !BAD_VERSION_RE.test(tema)) match -= 5;
+        return match * 2 + Math.log10((v.views ?? 0) + 1);
+      };
+      const pick = pool.reduce((best, v) => (score(v) > score(best) ? v : best));
+      return {
+        videoId: pick.videoId,
+        title: pick.title,
+        duration: pick.duration ?? 0,
+        views: pick.views ?? 0,
+        likes: pick.likes ?? 0,
+      };
     },
     [],
+  );
+
+  /**
+   * Resuelve TODAS las alternativas apenas llegan (en orden, en segundo
+   * plano): la lista muestra duración/vistas/likes reales y el sucesor queda
+   * listo para cargarse de inmediato. Costo: 1 búsqueda por alternativa.
+   */
+  const resolveAllSuggestions = useCallback(
+    async (sugs: Suggestion[]) => {
+      if (resolvingRef.current) return;
+      resolvingRef.current = true;
+      try {
+        for (const s of sugs) {
+          const key = suggestionKey(s);
+          if (resolvedAltsRef.current[key] !== undefined) continue;
+          let alt: ResolvedAlt | null = null;
+          try {
+            alt = await resolveSuggestion(s);
+          } catch {
+            alt = null;
+          }
+          resolvedAltsRef.current = { ...resolvedAltsRef.current, [key]: alt };
+          setResolvedAlts(resolvedAltsRef.current);
+        }
+      } finally {
+        resolvingRef.current = false;
+      }
+    },
+    [resolveSuggestion],
+  );
+
+  /** Video de una alternativa: reutiliza lo resuelto o busca (y lo guarda). */
+  const videoForSuggestion = useCallback(
+    async (s: Suggestion): Promise<ResolvedAlt | null> => {
+      const key = suggestionKey(s);
+      const cached = resolvedAltsRef.current[key];
+      if (cached !== undefined) return cached;
+      const alt = await resolveSuggestion(s);
+      resolvedAltsRef.current = { ...resolvedAltsRef.current, [key]: alt };
+      setResolvedAlts(resolvedAltsRef.current);
+      return alt;
+    },
+    [resolveSuggestion],
   );
 
   /** Carga manual de una alternativa al deck elegido (botones → A / → B). */
@@ -921,7 +1011,7 @@ export default function Controller({ room }: { room: string }) {
       setLoadingSuggestion(key);
       setSuggestError(null);
       try {
-        const video = await resolveSuggestion(s);
+        const video = await videoForSuggestion(s);
         if (!video) {
           setSuggestError(`No encontré "${s.tema}" reproducible en YouTube`);
           return;
@@ -938,7 +1028,7 @@ export default function Controller({ room }: { room: string }) {
         setLoadingSuggestion(null);
       }
     },
-    [loadingSuggestion, resolveSuggestion, loadToDeck],
+    [loadingSuggestion, videoForSuggestion, loadToDeck],
   );
 
   /** Resuelve una alternativa del DJ IA y la agrega a la cola. */
@@ -949,7 +1039,7 @@ export default function Controller({ room }: { room: string }) {
       setLoadingSuggestion(key);
       setSuggestError(null);
       try {
-        const video = await resolveSuggestion(s);
+        const video = await videoForSuggestion(s);
         if (!video) {
           setSuggestError(`No encontré "${s.tema}" reproducible en YouTube`);
           return;
@@ -962,7 +1052,7 @@ export default function Controller({ room }: { room: string }) {
         setLoadingSuggestion(null);
       }
     },
-    [loadingSuggestion, resolveSuggestion, enqueue],
+    [loadingSuggestion, videoForSuggestion, enqueue],
   );
 
   /**
@@ -1004,18 +1094,17 @@ export default function Controller({ room }: { room: string }) {
           } else {
             setSuggestions(result);
             setUsedKeys([]);
-            setAutoDjStatus(
-              `${result.length} alternativas — carga una a A/B o dejo que mezcle solo`,
-            );
+            resolvedAltsRef.current = {};
+            setResolvedAlts({});
+            // resolver todas en segundo plano: datos visibles + sucesor listo
+            void resolveAllSuggestions(result);
+            setAutoDjStatus(`${result.length} alternativas — eligiendo el siguiente…`);
           }
         } finally {
           autoDjBusyRef.current = false;
         }
         return;
       }
-
-      // Cerca del final: asegurar que el deck opuesto tenga sucesor y mezclar.
-      if (remaining > AUTODJ_MIX_AT) return;
 
       // Solo mezclar si el deck opuesto trae un tema FRESCO: distinto al que
       // suena y distinto a lo que ese deck ya reprodujo (sin esto, el tema
@@ -1029,7 +1118,8 @@ export default function Controller({ room }: { room: string }) {
         tgtSource !== srcSource &&
         tgtSource !== spentRef.current[target];
 
-      if (!targetReady) {
+      // El sucesor se prepara DE INMEDIATO (no se espera al final del tema).
+      if (!targetReady && autoDjPreparedForRef.current !== srcDeck.videoId) {
         autoDjBusyRef.current = true;
         try {
           // 1) La cola manda: si dejaste próximos, se usan antes que la IA.
@@ -1039,23 +1129,22 @@ export default function Controller({ room }: { room: string }) {
             loadQueueItem(target, nextItem);
             sendPatch({ queue: rest });
             autoDjPreparedForRef.current = srcDeck.videoId;
-            setAutoDjStatus(`próximo (cola): ${nextItem.title}`);
+            setAutoDjStatus(`⏭ siguiente (cola): ${nextItem.title}`);
             return;
           }
-          // 2) Sin cola: primera alternativa de la IA que resuelva a un video.
-          setAutoDjStatus("cargando el próximo…");
-          const pending = suggestionsRef.current.filter(
-            (s) => !usedKeysRef.current.includes(suggestionKey(s)),
-          );
-          for (const s of pending) {
-            const video = await resolveSuggestion(s);
-            if (video) {
-              await loadToDeck(target, video.videoId, video.title);
-              setUsedKeys((prev) => [...prev, suggestionKey(s)]);
-              autoDjPreparedForRef.current = srcDeck.videoId;
-              setAutoDjStatus(`próximo: ${video.title}`);
-              break;
-            }
+          // 2) Sin cola: primera alternativa resuelta y no usada, en el orden
+          // de la IA. Si aún se está resolviendo, se reintenta al tick.
+          for (const s of suggestionsRef.current) {
+            const key = suggestionKey(s);
+            if (usedKeysRef.current.includes(key)) continue;
+            const alt = resolvedAltsRef.current[key];
+            if (alt === undefined) return; // resolución en curso
+            if (!alt) continue; // sin video utilizable: probar la siguiente
+            await loadToDeck(target, alt.videoId, alt.title);
+            setUsedKeys((prev) => [...prev, key]);
+            autoDjPreparedForRef.current = srcDeck.videoId;
+            setAutoDjStatus(`⏭ siguiente: ${alt.title}`);
+            return;
           }
         } finally {
           autoDjBusyRef.current = false;
@@ -1063,6 +1152,8 @@ export default function Controller({ room }: { room: string }) {
         return;
       }
 
+      // Cerca del final y con sucesor fresco: mezclar.
+      if (remaining > AUTODJ_MIX_AT || !targetReady) return;
       setAutoDjStatus("mezclando…");
       startAutoMix();
     };
@@ -1071,7 +1162,7 @@ export default function Controller({ room }: { room: string }) {
   }, [
     autoDj,
     fetchSuggestions,
-    resolveSuggestion,
+    resolveAllSuggestions,
     startAutoMix,
     loadToDeck,
     loadQueueItem,
@@ -1100,6 +1191,9 @@ export default function Controller({ room }: { room: string }) {
       }
       setSuggestions(result);
       setUsedKeys([]);
+      resolvedAltsRef.current = {};
+      setResolvedAlts({});
+      void resolveAllSuggestions(result);
     } catch (error) {
       setSuggestError(
         error instanceof DOMException && error.name === "AbortError"
@@ -1109,7 +1203,7 @@ export default function Controller({ room }: { room: string }) {
     } finally {
       setSuggesting(false);
     }
-  }, [vibe, suggesting, fetchSuggestions]);
+  }, [vibe, suggesting, fetchSuggestions, resolveAllSuggestions]);
 
   const renderDeck = (deck: DeckId) => {
     const meta = DECK_META[deck];
@@ -1719,6 +1813,7 @@ export default function Controller({ room }: { room: string }) {
                   autoDjCooldownRef.current = 0;
                   suggestForRef.current = null;
                   spentRef.current = { a: null, b: null };
+                  setSpentView({ a: null, b: null });
                   setAutoDjStatus("activo — alternativas apenas parta el tema");
                   setAutoDj(true);
                 }
@@ -1750,6 +1845,30 @@ export default function Controller({ room }: { room: string }) {
               </button>
             ))}
           </div>
+          {autoDj &&
+            state &&
+            (() => {
+              const side: DeckId = state.crossfader <= 50 ? "a" : "b";
+              const other: DeckId = side === "a" ? "b" : "a";
+              const cur = state.decks[side];
+              const nxt = state.decks[other];
+              const nxtSource = (nxt.kind === "clip" ? nxt.src : nxt.videoId) ?? null;
+              const nxtFresco = !!nxtSource && nxtSource !== spentView[other];
+              return (
+                <div className="mt-2 flex flex-col gap-0.5 rounded-lg bg-zinc-950 px-3 py-2 text-xs">
+                  <p className="truncate">
+                    <span className="text-zinc-500">▶ Sonando: </span>
+                    <span className="text-zinc-200">{cur.title ?? "—"}</span>
+                  </p>
+                  <p className="truncate">
+                    <span className="text-zinc-500">⏭ Siguiente: </span>
+                    <span className={nxtFresco ? "text-emerald-300" : "text-zinc-500"}>
+                      {nxtFresco ? nxt.title : "eligiendo…"}
+                    </span>
+                  </p>
+                </div>
+              );
+            })()}
           {autoDj && autoDjStatus && (
             <p className="mt-2 text-xs text-emerald-300">♾ {autoDjStatus}</p>
           )}
@@ -1765,19 +1884,39 @@ export default function Controller({ room }: { room: string }) {
                 const key = suggestionKey(s);
                 const used = usedKeys.includes(key);
                 const loading = loadingSuggestion === key;
+                const alt = resolvedAlts[key]; // undefined = resolviendo · null = sin video
                 return (
                   <li
                     key={i}
-                    className={`flex items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 ${
+                    className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 ${
                       used ? "opacity-45" : ""
                     }`}
                   >
-                    <div className="min-w-0">
+                    {alt ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- miniatura externa de YouTube
+                      <img
+                        src={thumbnailUrl(alt.videoId)}
+                        alt=""
+                        className="h-10 w-16 shrink-0 rounded-md object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-10 w-16 shrink-0 items-center justify-center rounded-md bg-zinc-900 text-[10px] text-zinc-600">
+                        {alt === null ? "✕" : "…"}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
                       <p className="truncate text-sm text-zinc-100">
                         <span className="font-semibold">{s.artista}</span> — {s.tema}
                         {used && " ✓"}
                       </p>
-                      <p className="truncate text-xs text-zinc-500">{s.motivo}</p>
+                      <p className="truncate text-xs text-zinc-500">
+                        {alt
+                          ? `${alt.duration > 0 ? `${formatTime(alt.duration)} · ` : ""}${compact(alt.views)} vistas · 👍 ${compact(alt.likes)}`
+                          : alt === null
+                            ? "sin video reproducible en YouTube"
+                            : "buscando el video…"}
+                      </p>
+                      <p className="truncate text-[11px] text-zinc-600">{s.motivo}</p>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
                       {loading ? (
@@ -1786,21 +1925,21 @@ export default function Controller({ room }: { room: string }) {
                         <>
                           <button
                             onClick={() => loadSuggestion("a", s)}
-                            disabled={!!loadingSuggestion}
+                            disabled={!!loadingSuggestion || alt === null}
                             className="rounded-md bg-emerald-500/15 px-3 py-2.5 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/30 disabled:opacity-40 md:py-1.5"
                           >
                             → A
                           </button>
                           <button
                             onClick={() => loadSuggestion("b", s)}
-                            disabled={!!loadingSuggestion}
+                            disabled={!!loadingSuggestion || alt === null}
                             className="rounded-md bg-fuchsia-500/15 px-3 py-2.5 text-xs font-bold text-fuchsia-300 transition hover:bg-fuchsia-500/30 disabled:opacity-40 md:py-1.5"
                           >
                             → B
                           </button>
                           <button
                             onClick={() => enqueueSuggestion(s)}
-                            disabled={!!loadingSuggestion}
+                            disabled={!!loadingSuggestion || alt === null}
                             className="rounded-md bg-zinc-800 px-3 py-2.5 text-xs text-zinc-300 transition hover:bg-zinc-700 disabled:opacity-40 md:px-2 md:py-1.5"
                             title="Agregar a la cola"
                           >
