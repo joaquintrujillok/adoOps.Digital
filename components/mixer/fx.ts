@@ -9,10 +9,34 @@ import type { FxSound } from "@/lib/mix-types";
 
 let ctx: AudioContext | null = null;
 
+type WebkitWindow = Window & { webkitAudioContext?: typeof AudioContext };
+
 function audioContext(): AudioContext {
-  if (!ctx) ctx = new AudioContext();
+  if (!ctx) {
+    const Ctor =
+      window.AudioContext ?? (window as WebkitWindow).webkitAudioContext;
+    ctx = new Ctor!();
+  }
   if (ctx.state === "suspended") void ctx.resume();
   return ctx;
+}
+
+/**
+ * Desbloquea el audio DENTRO de un gesto del usuario (el toque de "Iniciar
+ * pantalla"). Sin esto, el AudioContext se crearía al llegar el primer efecto
+ * —fuera de un gesto— y el navegador lo dejaría suspendido: los FX no sonarían.
+ * Reproduce un buffer mudo de 1 sample, el truco estándar para iOS/Safari.
+ */
+export function unlockFxAudio() {
+  try {
+    const ac = audioContext();
+    const src = ac.createBufferSource();
+    src.buffer = ac.createBuffer(1, 1, ac.sampleRate);
+    src.connect(ac.destination);
+    src.start(0);
+  } catch {
+    // sin Web Audio: los FX simplemente no sonarán
+  }
 }
 
 /** Bus con el volumen del efecto (escala con el master de la sala). */

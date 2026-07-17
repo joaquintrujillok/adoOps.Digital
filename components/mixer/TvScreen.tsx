@@ -21,7 +21,7 @@ import {
   type RoomState,
 } from "@/lib/mix-types";
 import { useHost } from "./useHost";
-import { playFx } from "./fx";
+import { playFx, unlockFxAudio } from "./fx";
 import { loadYouTubeApi, type YTPlayer } from "./youtube";
 import "./mixer.css";
 
@@ -216,8 +216,9 @@ export default function TvScreen({ room }: { room: string }) {
     setStarted(true);
 
     // Antes de cualquier await: la activación de usuario del toque expira y
-    // el navegador rechazaría la petición de fullscreen en silencio.
+    // el navegador rechazaría fullscreen / el desbloqueo de audio en silencio.
     enterFullscreen();
+    unlockFxAudio();
 
     const initial = stateRef.current;
     if (initial) {
