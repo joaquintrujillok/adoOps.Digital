@@ -186,8 +186,11 @@ export default function TvScreen({ room }: { room: string }) {
     for (const deck of DECKS) {
       const element = document.getElementById(`tv-player-${deck}`);
       if (!element) continue;
+      // La IFrame API lanza "Invalid video id" si videoId viene undefined;
+      // con el deck vacío hay que omitir la clave (embed vacío + onReady OK).
+      const initialVideoId = initial?.decks[deck].videoId;
       playersRef.current[deck] = new YT.Player(element, {
-        videoId: initial?.decks[deck].videoId ?? undefined,
+        ...(initialVideoId ? { videoId: initialVideoId } : {}),
         playerVars: {
           autoplay: 0,
           controls: 0,
