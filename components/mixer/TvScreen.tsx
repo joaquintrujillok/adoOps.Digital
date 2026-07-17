@@ -435,12 +435,15 @@ export default function TvScreen({ room }: { room: string }) {
             className="mix-tv-layer pointer-events-none absolute inset-0 transition-opacity duration-200"
             style={{ opacity: started ? layerOpacity(deck) : 0, zIndex: deck === "a" ? 1 : 2 }}
           >
-            {/* iframe de YouTube y <video> del clip conviven; se muestra el activo */}
+            {/* iframe de YouTube y <video> del clip conviven; se muestra el activo.
+                El display va en este wrapper: la IFrame API reemplaza el div de
+                adentro por su <iframe> y se llevaría cualquier estilo puesto ahí. */}
             <div
-              id={`tv-player-${deck}`}
               className="h-full w-full"
               style={{ display: isClip ? "none" : "block" }}
-            />
+            >
+              <div id={`tv-player-${deck}`} className="h-full w-full" />
+            </div>
             <video
               ref={(el) => {
                 clipElsRef.current[deck] = el;

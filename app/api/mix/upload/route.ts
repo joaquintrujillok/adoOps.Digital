@@ -12,9 +12,11 @@ const MAX_BYTES = 200 * 1024 * 1024; // 200 MB por clip
  * aquí solo se firma el token de subida y se valida la sala.
  */
 export async function POST(req: Request) {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+  // Dos modos de auth del SDK: OIDC (stores nuevos: BLOB_STORE_ID + el token
+  // OIDC que Vercel inyecta) o el token clásico BLOB_READ_WRITE_TOKEN.
+  if (!process.env.BLOB_STORE_ID && !process.env.BLOB_READ_WRITE_TOKEN) {
     return NextResponse.json(
-      { error: "Subida no disponible: falta BLOB_READ_WRITE_TOKEN" },
+      { error: "Subida no disponible: falta el Blob store (BLOB_STORE_ID)" },
       { status: 503 },
     );
   }
