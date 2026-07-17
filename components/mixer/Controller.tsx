@@ -176,6 +176,12 @@ export default function Controller({ room }: { room: string }) {
   const autoDjBusyRef = useRef(false);
   /** videoId del deck activo para el que ya preparamos sucesor. */
   const autoDjPreparedForRef = useRef<string | null>(null);
+  /**
+   * Qué quedó "gastado" en cada deck tras un mix automático (videoId o src).
+   * Sin esto, el tema anterior que queda en el deck saliente cuenta como
+   * "sucesor listo" y el Mix eterno hace ping-pong A↔B repitiendo temas.
+   */
+  const spentRef = useRef<Record<DeckId, string | null>>({ a: null, b: null });
   const autoDjCooldownRef = useRef(0);
   // el loop lee estas listas sin re-crearse: refs que espejan el estado.
   const suggestionsRef = useRef<Suggestion[]>([]);
@@ -672,6 +678,10 @@ export default function Controller({ room }: { room: string }) {
         endDecks[source] = { playing: false };
         sendPatch({ crossfader: to, decks: endDecks });
         stopAutoMix();
+        // lo que quedó en el deck saliente ya sonó: no cuenta como sucesor
+        const src = current.decks[source];
+        spentRef.current[source] =
+          (src.kind === "clip" ? src.src : src.videoId) ?? null;
         // el deck que salió queda libre: la cola pone ahí el siguiente
         const q = stateRef.current?.queue ?? [];
         if (q.length) {
@@ -1007,11 +1017,17 @@ export default function Controller({ room }: { room: string }) {
       // Cerca del final: asegurar que el deck opuesto tenga sucesor y mezclar.
       if (remaining > AUTODJ_MIX_AT) return;
 
-      // Si el deck opuesto ya trae un tema distinto al que sale, solo mezclar.
+      // Solo mezclar si el deck opuesto trae un tema FRESCO: distinto al que
+      // suena y distinto a lo que ese deck ya reprodujo (sin esto, el tema
+      // anterior que queda cargado provoca ping-pong A↔B repitiendo temas).
       const tgt = current.decks[target];
+      const tgtSource = (tgt.kind === "clip" ? tgt.src : tgt.videoId) ?? null;
+      const srcSource =
+        (srcDeck.kind === "clip" ? srcDeck.src : srcDeck.videoId) ?? null;
       const targetReady =
-        !!(tgt.kind === "clip" ? tgt.src : tgt.videoId) &&
-        tgt.videoId !== srcDeck.videoId;
+        !!tgtSource &&
+        tgtSource !== srcSource &&
+        tgtSource !== spentRef.current[target];
 
       if (!targetReady) {
         autoDjBusyRef.current = true;
@@ -1702,6 +1718,7 @@ export default function Controller({ room }: { room: string }) {
                   autoDjPreparedForRef.current = null;
                   autoDjCooldownRef.current = 0;
                   suggestForRef.current = null;
+                  spentRef.current = { a: null, b: null };
                   setAutoDjStatus("activo — alternativas apenas parta el tema");
                   setAutoDj(true);
                 }
