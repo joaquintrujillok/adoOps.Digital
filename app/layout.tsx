@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Sora } from "next/font/google";
 import Preloader from "@/components/Preloader";
 import "./globals.css";
@@ -16,6 +16,11 @@ const sora = Sora({
 });
 
 const BASE_URL = "https://adoops.digital";
+
+// cover: habilita env(safe-area-inset-*) en iPhone (tab bar de la consola /mix)
+export const viewport: Viewport = {
+  viewportFit: "cover",
+};
 
 export const metadata: Metadata = {
   title: "adoOps — Adoptamos IA. Operamos IA. Escalamos IA.",

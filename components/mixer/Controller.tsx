@@ -63,6 +63,15 @@ const FX_PAD: { sound: FxSound; label: string }[] = [
 // ya se piden al empezar el tema, así que aquí solo se resuelve+carga y mezcla.
 const AUTODJ_MIX_AT = 35;
 
+/** Tabs del modo app en celular (en desktop se muestra todo en una columna). */
+type MobileTab = "mix" | "search" | "queue" | "dj";
+const MOBILE_TABS: { id: MobileTab; icon: string; label: string }[] = [
+  { id: "mix", icon: "🎛", label: "Mezcla" },
+  { id: "search", icon: "🔍", label: "Buscar" },
+  { id: "queue", icon: "⏭", label: "Cola" },
+  { id: "dj", icon: "♾", label: "DJ IA" },
+];
+
 /** Arco de la fiesta: elegido a mano pesa más que la hora local. */
 type PartyArc = "auto" | "warmup" | "peak" | "cooldown";
 const PARTY_ARC_OPTIONS: { id: PartyArc; label: string; hint: string }[] = [
@@ -141,6 +150,8 @@ export default function Controller({ room }: { room: string }) {
   const [uploading, setUploading] = useState<number | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [startOffset, setStartOffset] = useState(START_OFFSET_DEFAULT);
+  const [mobileTab, setMobileTab] = useState<MobileTab>("mix");
+  const [pasteUrl, setPasteUrl] = useState("");
   const host = useHost();
 
   const [vibe, setVibe] = useState("");
@@ -1128,7 +1139,8 @@ export default function Controller({ room }: { room: string }) {
           </p>
         )}
 
-        <div className="flex gap-2">
+        {/* URL directa: en celular vive en el tab Buscar */}
+        <div className="hidden gap-2 md:flex">
           <input
             value={urls[deck]}
             onChange={(e) => setUrls((prev) => ({ ...prev, [deck]: e.target.value }))}
@@ -1147,16 +1159,16 @@ export default function Controller({ room }: { room: string }) {
         {deckError[deck] && <p className="text-xs text-red-400">{deckError[deck]}</p>}
 
         <div className="flex flex-wrap items-center justify-center gap-2">
-          <button onClick={() => cue(deck)} className="rounded-lg bg-zinc-800 px-3 py-2 text-sm text-zinc-200 transition hover:bg-zinc-700" title="Volver al inicio">
+          <button onClick={() => cue(deck)} className="rounded-lg bg-zinc-800 px-4 py-3 text-sm text-zinc-200 transition hover:bg-zinc-700 md:px-3 md:py-2" title="Volver al inicio">
             ⏮ Cue
           </button>
-          <button onClick={() => seekBy(deck, -10)} className="rounded-lg bg-zinc-800 px-3 py-2 text-sm text-zinc-200 transition hover:bg-zinc-700">
+          <button onClick={() => seekBy(deck, -10)} className="rounded-lg bg-zinc-800 px-4 py-3 text-sm text-zinc-200 transition hover:bg-zinc-700 md:px-3 md:py-2">
             −10s
           </button>
           <button
             onClick={() => d && patchDeck(deck, { playing: !d.playing })}
-            disabled={!d?.videoId}
-            className={`rounded-xl px-6 py-2 text-lg font-bold text-black transition disabled:opacity-40 ${
+            disabled={!(d?.kind === "clip" ? d?.src : d?.videoId)}
+            className={`rounded-xl px-7 py-3 text-lg font-bold text-black transition disabled:opacity-40 md:px-6 md:py-2 ${
               deck === "a"
                 ? "bg-emerald-500 hover:bg-emerald-400"
                 : "bg-fuchsia-500 hover:bg-fuchsia-400"
@@ -1164,10 +1176,10 @@ export default function Controller({ room }: { room: string }) {
           >
             {d?.playing ? "❚❚" : "▶"}
           </button>
-          <button onClick={() => seekBy(deck, 10)} className="rounded-lg bg-zinc-800 px-3 py-2 text-sm text-zinc-200 transition hover:bg-zinc-700">
+          <button onClick={() => seekBy(deck, 10)} className="rounded-lg bg-zinc-800 px-4 py-3 text-sm text-zinc-200 transition hover:bg-zinc-700 md:px-3 md:py-2">
             +10s
           </button>
-          <div className="flex overflow-hidden rounded-lg border border-zinc-700">
+          <div className="hidden overflow-hidden rounded-lg border border-zinc-700 md:flex">
             {RATES.map((rate) => (
               <button
                 key={rate}
@@ -1202,7 +1214,7 @@ export default function Controller({ room }: { room: string }) {
           <button
             onClick={() => (previewOpen[deck] ? closePreview(deck) : openPreview(deck))}
             disabled={!d?.videoId}
-            className="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs text-zinc-300 transition hover:bg-zinc-700 disabled:opacity-40"
+            className="min-h-11 rounded-lg bg-zinc-800 px-3 text-xs text-zinc-300 transition hover:bg-zinc-700 disabled:opacity-40 md:min-h-0 md:py-1.5"
           >
             {previewOpen[deck] ? "✕ Cerrar pre-escucha" : "🎧 Pre-escucha"}
           </button>
@@ -1236,7 +1248,7 @@ export default function Controller({ room }: { room: string }) {
 
   return (
     <div
-      className="min-h-dvh bg-zinc-950 pb-16 text-zinc-100"
+      className="min-h-dvh bg-zinc-950 pb-44 text-zinc-100 md:pb-16"
       style={{ fontFamily: "var(--font-inter), sans-serif" }}
     >
       <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 pt-6">
@@ -1246,7 +1258,7 @@ export default function Controller({ room }: { room: string }) {
               ← TV Mix
             </Link>
             <h1
-              className="text-2xl font-bold"
+              className="text-xl font-bold md:text-2xl"
               style={{ fontFamily: "var(--font-sora), sans-serif" }}
             >
               Consola{" "}
@@ -1257,7 +1269,11 @@ export default function Controller({ room }: { room: string }) {
           </div>
           <div className="flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-2 text-sm">
             <span className="text-zinc-400">
-              TV: <span className="text-zinc-100">{host || "…"}/tv/{room}</span>
+              TV:{" "}
+              <span className="hidden text-zinc-100 sm:inline">
+                {host || "…"}/tv/{room}
+              </span>
+              <span className="text-zinc-100 sm:hidden">{room}</span>
             </span>
             <button
               onClick={copyTvLink}
@@ -1276,7 +1292,10 @@ export default function Controller({ room }: { room: string }) {
           </div>
         </header>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        {/* ——— Grupo Mezcla (tab "mix" en celular; siempre visible en desktop) ——— */}
+        <div className={`${mobileTab === "mix" ? "flex" : "hidden"} flex-col gap-4 md:flex`}>
+        {/* grid-cols-1 explícito: el track auto crecía al min-content y desbordaba en 375px */}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {renderDeck("a")}
           {renderDeck("b")}
         </div>
@@ -1312,7 +1331,7 @@ export default function Controller({ room }: { room: string }) {
                     ? `Carga un video en el deck ${nextTarget.toUpperCase()} primero`
                     : undefined
                 }
-                className={`mx-auto rounded-xl px-6 py-2 text-sm font-bold transition disabled:opacity-40 ${
+                className={`mx-auto min-h-11 rounded-xl px-6 py-2 text-sm font-bold transition disabled:opacity-40 md:min-h-0 ${
                   autoMixTarget
                     ? "bg-amber-500 text-black hover:bg-amber-400"
                     : "bg-zinc-100 text-zinc-950 hover:bg-white"
@@ -1329,7 +1348,7 @@ export default function Controller({ room }: { room: string }) {
               <button
                 key={sound}
                 onClick={() => triggerFx(sound)}
-                className="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-200 transition hover:bg-zinc-700 active:bg-zinc-600"
+                className="min-h-11 rounded-lg bg-zinc-800 px-4 text-xs font-semibold text-zinc-200 transition hover:bg-zinc-700 active:bg-zinc-600 md:min-h-0 md:px-3 md:py-1.5"
                 title="Suena en la TV"
               >
                 {label}
@@ -1341,7 +1360,7 @@ export default function Controller({ room }: { room: string }) {
             <span className="text-xs text-zinc-500">En vivo:</span>
             <button
               onClick={() => (liveMode === "mic" ? stopLive() : startLive("mic"))}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+              className={`min-h-11 rounded-lg px-3 text-xs font-semibold transition md:min-h-0 md:py-1.5 ${
                 liveMode === "mic"
                   ? "bg-red-600 text-white hover:bg-red-500"
                   : "bg-zinc-800 text-zinc-200 hover:bg-zinc-700"
@@ -1352,7 +1371,7 @@ export default function Controller({ room }: { room: string }) {
             </button>
             <button
               onClick={() => (liveMode === "cam" ? stopLive() : startLive("cam"))}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+              className={`min-h-11 rounded-lg px-3 text-xs font-semibold transition md:min-h-0 md:py-1.5 ${
                 liveMode === "cam"
                   ? "bg-red-600 text-white hover:bg-red-500"
                   : "bg-zinc-800 text-zinc-200 hover:bg-zinc-700"
@@ -1386,7 +1405,7 @@ export default function Controller({ room }: { room: string }) {
               <button
                 key={v}
                 onClick={() => changeStartOffset(v)}
-                className={`rounded-full px-3 py-1 transition ${
+                className={`rounded-full px-3 py-2 transition md:py-1 ${
                   startOffset === v
                     ? "bg-zinc-100 font-semibold text-zinc-950"
                     : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
@@ -1397,8 +1416,10 @@ export default function Controller({ room }: { room: string }) {
             ))}
           </div>
         </section>
+        </div>
 
-        {/* Cola de próximos: se cargan al deck libre (auto A/B). */}
+        {/* ——— Grupo Cola (tab "queue") ——— */}
+        <div className={`${mobileTab === "queue" ? "flex" : "hidden"} flex-col gap-4 md:flex`}>
         <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-500">
@@ -1429,19 +1450,19 @@ export default function Controller({ room }: { room: string }) {
                   </span>
                   <button
                     onClick={() => loadQueueItem("a", item)}
-                    className="shrink-0 rounded-md bg-emerald-500/15 px-2.5 py-1 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/30"
+                    className="shrink-0 rounded-md bg-emerald-500/15 px-3 py-2.5 text-xs md:px-2.5 md:py-1 font-bold text-emerald-300 transition hover:bg-emerald-500/30"
                   >
                     → A
                   </button>
                   <button
                     onClick={() => loadQueueItem("b", item)}
-                    className="shrink-0 rounded-md bg-fuchsia-500/15 px-2.5 py-1 text-xs font-bold text-fuchsia-300 transition hover:bg-fuchsia-500/30"
+                    className="shrink-0 rounded-md bg-fuchsia-500/15 px-3 py-2.5 text-xs md:px-2.5 md:py-1 font-bold text-fuchsia-300 transition hover:bg-fuchsia-500/30"
                   >
                     → B
                   </button>
                   <button
                     onClick={() => removeFromQueue(item.id)}
-                    className="shrink-0 rounded-md bg-zinc-800 px-2 py-1 text-xs text-zinc-400 transition hover:bg-zinc-700"
+                    className="shrink-0 rounded-md bg-zinc-800 px-3 py-2.5 text-xs text-zinc-400 md:px-2 md:py-1 transition hover:bg-zinc-700"
                     title="Quitar de la cola"
                   >
                     ✕
@@ -1457,13 +1478,6 @@ export default function Controller({ room }: { room: string }) {
             </p>
           )}
         </section>
-
-        {/* Buscador visual + playlists de YouTube / YouTube Music. */}
-        <LibraryPanel
-          room={room}
-          onLoad={(deck, videoId, title) => loadToDeck(deck, videoId, title)}
-          onEnqueue={(videoId, title) => enqueue({ kind: "yt", videoId, title })}
-        />
 
         {/* Biblioteca: últimos videos de la sala. */}
         {!!state?.library.length && (
@@ -1489,13 +1503,13 @@ export default function Controller({ room }: { room: string }) {
                   <div className="flex gap-1">
                     <button
                       onClick={() => loadToDeck("a", item.videoId, item.title)}
-                      className="flex-1 rounded-md bg-emerald-500/15 py-1 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/30"
+                      className="flex-1 rounded-md bg-emerald-500/15 py-2 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/30 md:py-1"
                     >
                       → A
                     </button>
                     <button
                       onClick={() => loadToDeck("b", item.videoId, item.title)}
-                      className="flex-1 rounded-md bg-fuchsia-500/15 py-1 text-xs font-bold text-fuchsia-300 transition hover:bg-fuchsia-500/30"
+                      className="flex-1 rounded-md bg-fuchsia-500/15 py-2 text-xs font-bold text-fuchsia-300 transition hover:bg-fuchsia-500/30 md:py-1"
                     >
                       → B
                     </button>
@@ -1503,7 +1517,7 @@ export default function Controller({ room }: { room: string }) {
                       onClick={() =>
                         enqueue({ kind: "yt", videoId: item.videoId, title: item.title })
                       }
-                      className="rounded-md bg-zinc-800 px-2 py-1 text-xs text-zinc-300 transition hover:bg-zinc-700"
+                      className="rounded-md bg-zinc-800 px-2 py-2 text-xs text-zinc-300 transition hover:bg-zinc-700 md:py-1"
                       title="Agregar a la cola"
                     >
                       + cola
@@ -1514,6 +1528,40 @@ export default function Controller({ room }: { room: string }) {
             </div>
           </section>
         )}
+        </div>
+
+        {/* ——— Grupo Buscar (tab "search") ——— */}
+        <div className={`${mobileTab === "search" ? "flex" : "hidden"} flex-col gap-4 md:flex`}>
+        {/* Pegar URL directo (en desktop vive en cada deck). */}
+        <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-3 md:hidden">
+          <div className="flex gap-2">
+            <input
+              value={pasteUrl}
+              onChange={(e) => setPasteUrl(e.target.value)}
+              placeholder="Pega una URL de YouTube…"
+              className="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-zinc-500 focus:outline-none"
+            />
+            <button
+              onClick={() => {
+                if (pasteUrl.trim()) {
+                  loadToDeck(freeDeck(), pasteUrl);
+                  setPasteUrl("");
+                }
+              }}
+              disabled={!pasteUrl.trim()}
+              className="rounded-lg bg-zinc-100 px-4 py-2.5 text-sm font-semibold text-zinc-950 transition hover:bg-white disabled:opacity-40"
+            >
+              Cargar
+            </button>
+          </div>
+        </section>
+
+        {/* Buscador visual + playlists de YouTube / YouTube Music. */}
+        <LibraryPanel
+          room={room}
+          onLoad={(deck, videoId, title) => loadToDeck(deck, videoId, title)}
+          onEnqueue={(videoId, title) => enqueue({ kind: "yt", videoId, title })}
+        />
 
         {/* Mis videos: clips propios subidos desde el celular. */}
         <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
@@ -1561,13 +1609,13 @@ export default function Controller({ room }: { room: string }) {
                   <div className="flex gap-1">
                     <button
                       onClick={() => loadClipToDeck("a", clip)}
-                      className="flex-1 rounded-md bg-emerald-500/15 py-1 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/30"
+                      className="flex-1 rounded-md bg-emerald-500/15 py-2 text-xs md:py-1 font-bold text-emerald-300 transition hover:bg-emerald-500/30"
                     >
                       → A
                     </button>
                     <button
                       onClick={() => loadClipToDeck("b", clip)}
-                      className="flex-1 rounded-md bg-fuchsia-500/15 py-1 text-xs font-bold text-fuchsia-300 transition hover:bg-fuchsia-500/30"
+                      className="flex-1 rounded-md bg-fuchsia-500/15 py-2 text-xs md:py-1 font-bold text-fuchsia-300 transition hover:bg-fuchsia-500/30"
                     >
                       → B
                     </button>
@@ -1591,7 +1639,10 @@ export default function Controller({ room }: { room: string }) {
             </p>
           )}
         </section>
+        </div>
 
+        {/* ——— Grupo DJ IA (tab "dj") ——— */}
+        <div className={`${mobileTab === "dj" ? "flex" : "hidden"} flex-col gap-4 md:flex`}>
         {/* DJ asistente (IA). */}
         <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-zinc-500">
@@ -1642,7 +1693,7 @@ export default function Controller({ room }: { room: string }) {
                 key={a.id}
                 onClick={() => setPartyArc(a.id)}
                 title={a.hint}
-                className={`rounded-full px-3 py-1 transition ${
+                className={`rounded-full px-3 py-2 transition md:py-1 ${
                   partyArc === a.id
                     ? "bg-zinc-100 font-semibold text-zinc-950"
                     : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
@@ -1689,21 +1740,21 @@ export default function Controller({ room }: { room: string }) {
                           <button
                             onClick={() => loadSuggestion("a", s)}
                             disabled={!!loadingSuggestion}
-                            className="rounded-md bg-emerald-500/15 px-3 py-1.5 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/30 disabled:opacity-40"
+                            className="rounded-md bg-emerald-500/15 px-3 py-2.5 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/30 disabled:opacity-40 md:py-1.5"
                           >
                             → A
                           </button>
                           <button
                             onClick={() => loadSuggestion("b", s)}
                             disabled={!!loadingSuggestion}
-                            className="rounded-md bg-fuchsia-500/15 px-3 py-1.5 text-xs font-bold text-fuchsia-300 transition hover:bg-fuchsia-500/30 disabled:opacity-40"
+                            className="rounded-md bg-fuchsia-500/15 px-3 py-2.5 text-xs font-bold text-fuchsia-300 transition hover:bg-fuchsia-500/30 disabled:opacity-40 md:py-1.5"
                           >
                             → B
                           </button>
                           <button
                             onClick={() => enqueueSuggestion(s)}
                             disabled={!!loadingSuggestion}
-                            className="rounded-md bg-zinc-800 px-2 py-1.5 text-xs text-zinc-300 transition hover:bg-zinc-700 disabled:opacity-40"
+                            className="rounded-md bg-zinc-800 px-3 py-2.5 text-xs text-zinc-300 transition hover:bg-zinc-700 disabled:opacity-40 md:px-2 md:py-1.5"
                             title="Agregar a la cola"
                           >
                             + cola
@@ -1733,12 +1784,98 @@ export default function Controller({ room }: { room: string }) {
             mezcle solo.
           </p>
         </section>
+        </div>
 
-        <p className="text-center text-xs text-zinc-600">
+        <p className="hidden text-center text-xs text-zinc-600 md:block">
           Fase espejo: abre la TV en otra pestaña y castéala (Chrome → Enviar).
           Doble pantalla real: abre {host || "…"}/tv/{room} en el navegador del televisor.
         </p>
       </div>
+
+      {/* ——— Barra "sonando" (celular, tabs distintos de Mezcla) ——— */}
+      {(() => {
+        if (mobileTab === "mix" || !state) return null;
+        const side: DeckId = state.crossfader <= 50 ? "a" : "b";
+        const active: DeckId = state.decks[side].playing
+          ? side
+          : state.decks[side === "a" ? "b" : "a"].playing
+            ? side === "a"
+              ? "b"
+              : "a"
+            : side;
+        const d = state.decks[active];
+        const hasSource = d.kind === "clip" ? !!d.src : !!d.videoId;
+        if (!hasSource) return null;
+        const p = progress?.decks[active];
+        return (
+          <div className="fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-40 border-t border-zinc-800 bg-zinc-900/95 px-4 py-2 backdrop-blur md:hidden">
+            <div className="mx-auto flex max-w-5xl items-center gap-3">
+              <span
+                className={`h-2 w-2 shrink-0 rounded-full ${
+                  active === "a" ? "bg-emerald-400" : "bg-fuchsia-400"
+                } ${d.playing ? "" : "opacity-40"}`}
+              />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs text-zinc-100">{d.title}</p>
+                <p className="text-[10px] tabular-nums text-zinc-500">
+                  {p?.d ? `${formatTime(p.t)} / ${formatTime(p.d)}` : "—:—"}
+                  {d.playing ? "" : " · pausado"}
+                </p>
+              </div>
+              <button
+                onClick={() => patchDeck(active, { playing: !d.playing })}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-lg text-zinc-100 transition hover:bg-zinc-700"
+                aria-label={d.playing ? "Pausar" : "Reproducir"}
+              >
+                {d.playing ? "❚❚" : "▶"}
+              </button>
+              <button
+                onClick={startAutoMix}
+                className={`flex h-11 shrink-0 items-center justify-center rounded-full px-4 text-sm font-bold transition ${
+                  autoMixTarget
+                    ? "bg-amber-500 text-black"
+                    : "bg-zinc-100 text-zinc-950 hover:bg-white"
+                }`}
+                aria-label="Mix automático"
+              >
+                ⇄
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ——— Tab bar inferior (solo celular) ——— */}
+      <nav
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-zinc-800 bg-zinc-950/95 backdrop-blur md:hidden"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        <div className="mx-auto flex h-14 max-w-5xl">
+          {MOBILE_TABS.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setMobileTab(t.id)}
+              className={`flex flex-1 flex-col items-center justify-center gap-0.5 transition ${
+                mobileTab === t.id ? "text-emerald-400" : "text-zinc-500"
+              }`}
+            >
+              <span className="relative text-lg leading-none">
+                {t.icon}
+                {t.id === "queue" && !!state?.queue?.length && (
+                  <span className="absolute -right-3 -top-1 rounded-full bg-emerald-500 px-1 text-[9px] font-bold leading-3 text-black">
+                    {state.queue.length}
+                  </span>
+                )}
+              </span>
+              <span
+                className={`text-[10px] ${mobileTab === t.id ? "font-semibold" : ""}`}
+              >
+                {t.label}
+              </span>
+            </button>
+          ))}
+        </div>
+      </nav>
     </div>
   );
 }

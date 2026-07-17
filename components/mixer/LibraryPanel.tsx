@@ -226,21 +226,21 @@ export default function LibraryPanel({ room, onLoad, onEnqueue }: Props) {
         <button
           onClick={() => onLoad("a", video.videoId, video.title)}
           disabled={video.embeddable === false}
-          className="rounded-md bg-emerald-500/15 px-3 py-2 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/30 disabled:opacity-30"
+          className="rounded-md bg-emerald-500/15 px-3 py-3 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/30 disabled:opacity-30 md:py-2"
         >
           → A
         </button>
         <button
           onClick={() => onLoad("b", video.videoId, video.title)}
           disabled={video.embeddable === false}
-          className="rounded-md bg-fuchsia-500/15 px-3 py-2 text-xs font-bold text-fuchsia-300 transition hover:bg-fuchsia-500/30 disabled:opacity-30"
+          className="rounded-md bg-fuchsia-500/15 px-3 py-3 text-xs font-bold text-fuchsia-300 transition hover:bg-fuchsia-500/30 disabled:opacity-30 md:py-2"
         >
           → B
         </button>
         <button
           onClick={() => onEnqueue(video.videoId, video.title)}
           disabled={video.embeddable === false}
-          className="rounded-md bg-zinc-800 px-2 py-2 text-xs text-zinc-300 transition hover:bg-zinc-700 disabled:opacity-30"
+          className="rounded-md bg-zinc-800 px-2 py-3 text-xs text-zinc-300 transition hover:bg-zinc-700 disabled:opacity-30 md:py-2"
           title="Agregar a la cola"
         >
           + cola
@@ -255,7 +255,7 @@ export default function LibraryPanel({ room, onLoad, onEnqueue }: Props) {
         <div className="flex gap-1 rounded-lg border border-zinc-800 p-1">
           <button
             onClick={() => setTab("search")}
-            className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+            className={`rounded-md px-3 py-2.5 text-xs font-semibold transition md:py-1.5 ${
               tab === "search" ? "bg-zinc-100 text-zinc-950" : "text-zinc-400 hover:text-zinc-200"
             }`}
           >
@@ -263,7 +263,7 @@ export default function LibraryPanel({ room, onLoad, onEnqueue }: Props) {
           </button>
           <button
             onClick={openLibraryTab}
-            className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+            className={`rounded-md px-3 py-2.5 text-xs font-semibold transition md:py-1.5 ${
               tab === "library" ? "bg-zinc-100 text-zinc-950" : "text-zinc-400 hover:text-zinc-200"
             }`}
           >
