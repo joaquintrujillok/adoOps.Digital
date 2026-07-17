@@ -287,9 +287,12 @@ export default function Controller({ room }: { room: string }) {
           setProgress(data.progress ?? null);
         }
         if (data.unchanged || typeof data.version !== "number") return;
-        versionRef.current = data.version;
-        // No pisar ediciones locales en vuelo.
+        // No pisar ediciones locales en vuelo. OJO: la versión se avanza solo
+        // al aplicar — si no, un cambio externo (otra consola, un patch por
+        // API) que llegue durante una edición local queda tragado para siempre
+        // (mismo bug que tenía el poll de la TV).
         if (data.state && Date.now() - lastEditAtRef.current > 2500) {
+          versionRef.current = data.version;
           stateRef.current = data.state;
           setState(data.state);
         }
@@ -477,17 +480,35 @@ export default function Controller({ room }: { room: string }) {
     [sendPatch],
   );
 
-  /** Saca el primero de la cola y lo carga en el deck libre (o el indicado). */
-  const loadNextFromQueue = useCallback(
-    (deckArg?: DeckId) => {
-      const q = stateRef.current?.queue ?? [];
-      if (!q.length) return;
-      const [next, ...rest] = q;
-      loadQueueItem(deckArg ?? freeDeck(), next);
-      sendPatch({ queue: rest });
+  /** Mueve un ítem de la cola una posición hacia arriba o abajo. */
+  const moveInQueue = useCallback(
+    (id: string, dir: -1 | 1) => {
+      const q = [...(stateRef.current?.queue ?? [])];
+      const i = q.findIndex((x) => x.id === id);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= q.length) return;
+      [q[i], q[j]] = [q[j], q[i]];
+      sendPatch({ queue: q });
     },
-    [freeDeck, loadQueueItem, sendPatch],
+    [sendPatch],
   );
+
+  /**
+   * La cola alimenta los decks sola: apenas hay un deck vacío, el primero de
+   * la cola se carga ahí (cueado en el offset de inicio). Así el próximo tema
+   * siempre está listo en A o B sin apretar nada.
+   */
+  useEffect(() => {
+    if (!state?.queue?.length) return;
+    const empty = (["a", "b"] as const).find(
+      (d) => !state.decks[d].videoId && !state.decks[d].src,
+    );
+    if (!empty) return;
+    const [next, ...rest] = state.queue;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincroniza la sala (servidor+TV), no solo estado local; termina al vaciar la cola o llenar los decks
+    loadQueueItem(empty, next);
+    sendPatch({ queue: rest });
+  }, [state, loadQueueItem, sendPatch]);
 
   const patchDeck = useCallback(
     (deck: DeckId, patch: DeckPatch) => {
@@ -630,7 +651,8 @@ export default function Controller({ room }: { room: string }) {
     if (!current) return;
     const source: DeckId = current.crossfader <= 50 ? "a" : "b";
     const target: DeckId = source === "a" ? "b" : "a";
-    if (!current.decks[target].videoId) return;
+    const tgt = current.decks[target];
+    if (!(tgt.kind === "clip" ? tgt.src : tgt.videoId)) return;
 
     const from = current.crossfader;
     const to = target === "b" ? 100 : 0;
@@ -650,11 +672,18 @@ export default function Controller({ room }: { room: string }) {
         endDecks[source] = { playing: false };
         sendPatch({ crossfader: to, decks: endDecks });
         stopAutoMix();
+        // el deck que salió queda libre: la cola pone ahí el siguiente
+        const q = stateRef.current?.queue ?? [];
+        if (q.length) {
+          const [nextItem, ...rest] = q;
+          loadQueueItem(source, nextItem);
+          sendPatch({ queue: rest });
+        }
       } else {
         sendPatch({ crossfader: Math.round(from + (to - from) * eased) });
       }
     }, 150);
-  }, [sendPatch, stopAutoMix]);
+  }, [sendPatch, stopAutoMix, loadQueueItem]);
 
   useEffect(() => {
     return () => {
@@ -1425,21 +1454,16 @@ export default function Controller({ room }: { room: string }) {
             <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-500">
               ⏭ Cola{state?.queue?.length ? ` · ${state.queue.length}` : ""}
             </h2>
-            <button
-              onClick={() => loadNextFromQueue()}
-              disabled={!state?.queue?.length}
-              className="rounded-lg bg-zinc-100 px-3 py-1.5 text-xs font-semibold text-zinc-950 transition hover:bg-white disabled:opacity-40"
-              title="Carga el primero de la cola en el deck libre"
-            >
-              ▶ Cargar siguiente
-            </button>
+            <span className="text-[10px] text-zinc-600">
+              el siguiente se carga solo al deck libre
+            </span>
           </div>
           {state?.queue?.length ? (
             <ul className="flex flex-col gap-2">
               {state.queue.map((item, i) => (
                 <li
                   key={item.id}
-                  className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2"
+                  className="flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2"
                 >
                   <span className="w-5 shrink-0 text-center text-xs font-bold text-zinc-500">
                     {i + 1}
@@ -1449,20 +1473,26 @@ export default function Controller({ room }: { room: string }) {
                     {item.title}
                   </span>
                   <button
-                    onClick={() => loadQueueItem("a", item)}
-                    className="shrink-0 rounded-md bg-emerald-500/15 px-3 py-2.5 text-xs md:px-2.5 md:py-1 font-bold text-emerald-300 transition hover:bg-emerald-500/30"
+                    onClick={() => moveInQueue(item.id, -1)}
+                    disabled={i === 0}
+                    className="shrink-0 rounded-md bg-zinc-800 px-3 py-2.5 text-xs text-zinc-300 transition hover:bg-zinc-700 disabled:opacity-30 md:px-2.5 md:py-1"
+                    title="Subir en la cola"
+                    aria-label="Subir"
                   >
-                    → A
+                    ↑
                   </button>
                   <button
-                    onClick={() => loadQueueItem("b", item)}
-                    className="shrink-0 rounded-md bg-fuchsia-500/15 px-3 py-2.5 text-xs md:px-2.5 md:py-1 font-bold text-fuchsia-300 transition hover:bg-fuchsia-500/30"
+                    onClick={() => moveInQueue(item.id, 1)}
+                    disabled={i === (state.queue?.length ?? 0) - 1}
+                    className="shrink-0 rounded-md bg-zinc-800 px-3 py-2.5 text-xs text-zinc-300 transition hover:bg-zinc-700 disabled:opacity-30 md:px-2.5 md:py-1"
+                    title="Bajar en la cola"
+                    aria-label="Bajar"
                   >
-                    → B
+                    ↓
                   </button>
                   <button
                     onClick={() => removeFromQueue(item.id)}
-                    className="shrink-0 rounded-md bg-zinc-800 px-3 py-2.5 text-xs text-zinc-400 md:px-2 md:py-1 transition hover:bg-zinc-700"
+                    className="shrink-0 rounded-md bg-zinc-800 px-3 py-2.5 text-xs text-zinc-400 transition hover:bg-zinc-700 md:px-2 md:py-1"
                     title="Quitar de la cola"
                   >
                     ✕
@@ -1472,9 +1502,9 @@ export default function Controller({ room }: { room: string }) {
             </ul>
           ) : (
             <p className="text-xs text-zinc-600">
-              Agrega videos con &quot;+ cola&quot; desde la búsqueda, tus videos o
-              recientes. &quot;Cargar siguiente&quot; los manda al deck libre; con ♾ Mix
-              eterno se encadenan solos.
+              Agrega videos con &quot;+ cola&quot; desde la búsqueda, tus videos,
+              recientes o sugerencias. El primero de la cola se carga solo al deck
+              libre; ordénalos con ↑ ↓ y con ♾ Mix eterno se encadenan solos.
             </p>
           )}
         </section>
