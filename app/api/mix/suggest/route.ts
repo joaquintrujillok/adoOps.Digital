@@ -4,7 +4,9 @@ import OpenAI from "openai";
 export const runtime = "nodejs";
 
 // Proveedor: Z.AI (GLM, API OpenAI-compatible) si hay ZAI_API_KEY; si no, OpenAI.
-const ZAI_BASE_URL = "https://api.z.ai/api/paas/v4";
+// El default es el endpoint del GLM Coding Plan (suscripción); para pago por
+// uso: ZAI_BASE_URL=https://api.z.ai/api/paas/v4
+const ZAI_BASE_URL = process.env.ZAI_BASE_URL || "https://api.z.ai/api/coding/paas/v4";
 const usingZai = () => !!process.env.ZAI_API_KEY;
 
 function suggestModel(): string {
