@@ -3,14 +3,26 @@ import OpenAI from "openai";
 
 export const runtime = "nodejs";
 
-const MODEL = process.env.SUGGEST_MODEL || process.env.EXTRACT_MODEL || "gpt-4o-mini";
+// Proveedor: Z.AI (GLM, API OpenAI-compatible) si hay ZAI_API_KEY; si no, OpenAI.
+const ZAI_BASE_URL = "https://api.z.ai/api/paas/v4";
+const usingZai = () => !!process.env.ZAI_API_KEY;
+
+function suggestModel(): string {
+  if (process.env.SUGGEST_MODEL) return process.env.SUGGEST_MODEL;
+  if (usingZai()) return "glm-5.2";
+  return process.env.EXTRACT_MODEL || "gpt-4o-mini";
+}
 
 let _client: OpenAI | null = null;
 function client(): OpenAI {
   if (!_client) {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) throw new Error("OPENAI_API_KEY no configurada");
-    _client = new OpenAI({ apiKey });
+    if (usingZai()) {
+      _client = new OpenAI({ apiKey: process.env.ZAI_API_KEY, baseURL: ZAI_BASE_URL });
+    } else {
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) throw new Error("sin API key para el asistente");
+      _client = new OpenAI({ apiKey });
+    }
   }
   return _client;
 }
@@ -45,9 +57,9 @@ const PARAMETERS = {
  * Body: { prompt: string, current?: string[] } → { sugerencias: MixSuggestion[] }
  */
 export async function POST(req: Request) {
-  if (!process.env.OPENAI_API_KEY) {
+  if (!process.env.ZAI_API_KEY && !process.env.OPENAI_API_KEY) {
     return NextResponse.json(
-      { error: "El asistente IA no está configurado (falta OPENAI_API_KEY)" },
+      { error: "El asistente IA no está configurado (falta ZAI_API_KEY u OPENAI_API_KEY)" },
       { status: 503 },
     );
   }
@@ -69,8 +81,10 @@ export async function POST(req: Request) {
 
   try {
     const completion = await client().chat.completions.create({
-      model: MODEL,
+      model: suggestModel(),
       temperature: 0.8,
+      // GLM razona por defecto; para sugerencias rápidas se desactiva.
+      ...(usingZai() ? { thinking: { type: "disabled" } } : {}),
       messages: [
         {
           role: "system",
@@ -106,7 +120,13 @@ export async function POST(req: Request) {
     }
     const parsed = JSON.parse(args) as { sugerencias?: MixSuggestion[] };
     return NextResponse.json({ sugerencias: (parsed.sugerencias ?? []).slice(0, 6) });
-  } catch {
-    return NextResponse.json({ error: "falló el asistente IA" }, { status: 502 });
+  } catch (error) {
+    // el detalle del proveedor ayuda a diagnosticar (saldo, modelo, etc.)
+    const detail =
+      error instanceof OpenAI.APIError ? ` (${String(error.message).slice(0, 120)})` : "";
+    return NextResponse.json(
+      { error: `falló el asistente IA${detail}` },
+      { status: 502 },
+    );
   }
 }

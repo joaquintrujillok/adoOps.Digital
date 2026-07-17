@@ -67,9 +67,10 @@ Consola /mix/SALA (celular o computador)
 
 ## Setup
 
-1. **Variables**: solo `DATABASE_URL` (ya existe). `OPENAI_API_KEY` es opcional
-   y habilita el DJ asistente (usa `SUGGEST_MODEL` o `EXTRACT_MODEL`, default
-   `gpt-4o-mini`).
+1. **Variables**: solo `DATABASE_URL` (ya existe). El DJ asistente y el Mix
+   eterno son opcionales y usan `ZAI_API_KEY` (Z.AI, modelo `glm-5.2` vía su
+   API OpenAI-compatible — tiene prioridad) o `OPENAI_API_KEY` (default
+   `gpt-4o-mini`); el modelo se puede forzar con `SUGGEST_MODEL`.
 2. **Tabla en Neon**: se crea sola en el primer request. Si prefieres crearla
    antes: `node scripts/create-mix-tables.mjs`.
 
