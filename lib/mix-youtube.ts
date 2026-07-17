@@ -16,6 +16,8 @@ export type YtVideo = {
   channel: string;
   /** duración en segundos (0 si desconocida) */
   duration: number;
+  /** false = el dueño bloqueó la reproducción embebida (solo sirve en YouTube) */
+  embeddable: boolean;
 };
 
 export type YtPlaylist = {
@@ -85,6 +87,7 @@ type VideoListResponse = {
     id: string;
     snippet?: { title?: string; channelTitle?: string };
     contentDetails?: { duration?: string };
+    status?: { embeddable?: boolean };
   }[];
   nextPageToken?: string;
 };
@@ -94,7 +97,7 @@ async function hydrateVideos(auth: YtAuth, ids: string[]): Promise<Map<string, Y
   const map = new Map<string, YtVideo>();
   if (!ids.length) return map;
   const data = await ytFetch<VideoListResponse>(auth, "videos", {
-    part: "snippet,contentDetails",
+    part: "snippet,contentDetails,status",
     id: ids.join(","),
     maxResults: String(ids.length),
   });
@@ -104,6 +107,7 @@ async function hydrateVideos(auth: YtAuth, ids: string[]): Promise<Map<string, Y
       title: item.snippet?.title ?? item.id,
       channel: item.snippet?.channelTitle ?? "",
       duration: parseIsoDuration(item.contentDetails?.duration),
+      embeddable: item.status?.embeddable !== false,
     });
   }
   return map;
@@ -187,7 +191,7 @@ export async function listLikedVideos(
   pageToken?: string,
 ): Promise<YtPage<YtVideo>> {
   const params: Record<string, string> = {
-    part: "snippet,contentDetails",
+    part: "snippet,contentDetails,status",
     myRating: "like",
     maxResults: "25",
   };
@@ -199,6 +203,7 @@ export async function listLikedVideos(
       title: item.snippet?.title ?? item.id,
       channel: item.snippet?.channelTitle ?? "",
       duration: parseIsoDuration(item.contentDetails?.duration),
+      embeddable: item.status?.embeddable !== false,
     })),
     nextPage: data.nextPageToken ?? null,
   };

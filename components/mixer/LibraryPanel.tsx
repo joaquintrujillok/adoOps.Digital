@@ -9,7 +9,14 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { formatTime, thumbnailUrl, type DeckId } from "@/lib/mix-types";
 
-type Video = { videoId: string; title: string; channel: string; duration: number };
+type Video = {
+  videoId: string;
+  title: string;
+  channel: string;
+  duration: number;
+  /** false = el dueño bloqueó la reproducción embebida (solo sirve en YouTube) */
+  embeddable?: boolean;
+};
 type Playlist = { id: string; title: string; itemCount: number; thumb: string | null };
 type AuthStatus = { oauthConfigured: boolean; connected: boolean; searchAvailable: boolean };
 
@@ -184,17 +191,24 @@ export default function LibraryPanel({ room, onLoad }: Props) {
           {video.channel}
           {video.duration > 0 && ` · ${formatTime(video.duration)}`}
         </p>
+        {video.embeddable === false && (
+          <p className="mt-0.5 text-[10px] font-semibold text-amber-400">
+            🚫 Solo en YouTube — su dueño bloqueó reproducirlo fuera
+          </p>
+        )}
       </div>
       <div className="flex shrink-0 gap-1">
         <button
           onClick={() => onLoad("a", video.videoId, video.title)}
-          className="rounded-md bg-emerald-500/15 px-3 py-2 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/30"
+          disabled={video.embeddable === false}
+          className="rounded-md bg-emerald-500/15 px-3 py-2 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/30 disabled:opacity-30"
         >
           → A
         </button>
         <button
           onClick={() => onLoad("b", video.videoId, video.title)}
-          className="rounded-md bg-fuchsia-500/15 px-3 py-2 text-xs font-bold text-fuchsia-300 transition hover:bg-fuchsia-500/30"
+          disabled={video.embeddable === false}
+          className="rounded-md bg-fuchsia-500/15 px-3 py-2 text-xs font-bold text-fuchsia-300 transition hover:bg-fuchsia-500/30 disabled:opacity-30"
         >
           → B
         </button>

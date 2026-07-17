@@ -26,9 +26,19 @@ import {
 } from "@/lib/mix-types";
 import LibraryPanel from "./LibraryPanel";
 import { useHost } from "./useHost";
+import { loadYouTubeApi, type YTPlayer } from "./youtube";
 import "./mixer.css";
 
 const RATES = [0.75, 1, 1.25] as const;
+
+/** Mensajes para los códigos de onError que reporta la TV. */
+const PLAYER_ERROR_MESSAGES: Record<number, string> = {
+  2: "No se pudo reproducir este video",
+  5: "No se pudo reproducir este video",
+  100: "Video no disponible (privado o eliminado)",
+  101: "🚫 El dueño no permite reproducirlo fuera de YouTube — busca otra versión (live, lyric video…)",
+  150: "🚫 El dueño no permite reproducirlo fuera de YouTube — busca otra versión (live, lyric video…)",
+};
 
 type Suggestion = { artista: string; tema: string; motivo: string };
 
@@ -71,6 +81,12 @@ export default function Controller({ room }: { room: string }) {
   });
   const [loadingDeck, setLoadingDeck] = useState<DeckId | null>(null);
   const [copied, setCopied] = useState(false);
+  const [autoMixTarget, setAutoMixTarget] = useState<DeckId | null>(null);
+  const [previewOpen, setPreviewOpen] = useState<Record<DeckId, boolean>>({
+    a: false,
+    b: false,
+  });
+  const [scrub, setScrub] = useState<Record<DeckId, number | null>>({ a: null, b: null });
   const host = useHost();
 
   const [vibe, setVibe] = useState("");
@@ -84,6 +100,9 @@ export default function Controller({ room }: { room: string }) {
   const pendingPatchRef = useRef<RoomPatch | null>(null);
   const flushTimerRef = useRef(0);
   const bcRef = useRef<BroadcastChannel | null>(null);
+  const autoMixTimerRef = useRef(0);
+  const previewPlayersRef = useRef<Record<DeckId, YTPlayer | null>>({ a: null, b: null });
+  const scrubRef = useRef<Record<DeckId, number | null>>({ a: null, b: null });
 
   /** Envía al servidor lo acumulado por el throttle. */
   const flush = useCallback(async () => {
@@ -126,6 +145,17 @@ export default function Controller({ room }: { room: string }) {
     },
     [flush],
   );
+
+  /** Cierra la pre-escucha local de un deck y libera su player. */
+  const closePreview = useCallback((deck: DeckId) => {
+    try {
+      previewPlayersRef.current[deck]?.destroy();
+    } catch {
+      // el player puede estar a medio crear
+    }
+    previewPlayersRef.current[deck] = null;
+    setPreviewOpen((prev) => ({ ...prev, [deck]: false }));
+  }, []);
 
   // Poll: estado inicial, progreso reportado por la TV y cambios remotos.
   useEffect(() => {
@@ -204,8 +234,10 @@ export default function Controller({ room }: { room: string }) {
       ];
       sendPatch({ decks, library });
       setUrls((prev) => ({ ...prev, [deck]: "" }));
+      // la pre-escucha quedó apuntando al video anterior
+      closePreview(deck);
     },
-    [urls, sendPatch],
+    [urls, sendPatch, closePreview],
   );
 
   const patchDeck = useCallback(
@@ -245,6 +277,141 @@ export default function Controller({ room }: { room: string }) {
     },
     [patchDeck],
   );
+
+  /**
+   * Pre-escucha: player local con controles nativos de YouTube. Suena solo en
+   * el dispositivo de la consola (auriculares) — la TV no se entera.
+   */
+  const openPreview = useCallback(async (deck: DeckId) => {
+    const videoId = stateRef.current?.decks[deck].videoId;
+    if (!videoId) return;
+    setPreviewOpen((prev) => ({ ...prev, [deck]: true }));
+
+    const YT = await loadYouTubeApi();
+    // el contenedor aparece con el re-render de arriba
+    const element = await new Promise<HTMLElement | null>((resolve) => {
+      const find = (tries: number) => {
+        const el = document.getElementById(`mix-preview-${deck}`);
+        if (el || tries <= 0) resolve(el);
+        else requestAnimationFrame(() => find(tries - 1));
+      };
+      find(20);
+    });
+    if (!element) return;
+
+    try {
+      previewPlayersRef.current[deck]?.destroy();
+    } catch {
+      // sin player previo
+    }
+    previewPlayersRef.current[deck] = new YT.Player(element, {
+      videoId,
+      playerVars: { controls: 1, playsinline: 1, rel: 0, iv_load_policy: 3 },
+    });
+  }, []);
+
+  /** Copia el punto actual de la pre-escucha al deck (seek en la TV). */
+  const applyPreviewPoint = useCallback(
+    (deck: DeckId) => {
+      const player = previewPlayersRef.current[deck];
+      const current = stateRef.current;
+      if (!player || !current) return;
+      let t = 0;
+      try {
+        t = player.getCurrentTime() || 0;
+        player.pauseVideo();
+      } catch {
+        return;
+      }
+      patchDeck(deck, {
+        seekTo: Math.max(0, t),
+        seekNonce: current.decks[deck].seekNonce + 1,
+      });
+    },
+    [patchDeck],
+  );
+
+  useEffect(() => {
+    const players = previewPlayersRef.current;
+    return () => {
+      for (const deck of ["a", "b"] as const) {
+        try {
+          players[deck]?.destroy();
+        } catch {
+          // desmontando igual
+        }
+      }
+    };
+  }, []);
+
+  /** Confirma el arrastre de la barra de progreso: seek real en la TV. */
+  const commitScrub = useCallback(
+    (deck: DeckId) => {
+      const value = scrubRef.current[deck];
+      scrubRef.current[deck] = null;
+      setScrub((prev) => ({ ...prev, [deck]: null }));
+      const current = stateRef.current;
+      if (value === null || !current) return;
+      patchDeck(deck, {
+        seekTo: value,
+        seekNonce: current.decks[deck].seekNonce + 1,
+      });
+    },
+    [patchDeck],
+  );
+
+  const stopAutoMix = useCallback(() => {
+    if (autoMixTimerRef.current) {
+      window.clearInterval(autoMixTimerRef.current);
+      autoMixTimerRef.current = 0;
+    }
+    setAutoMixTarget(null);
+  }, []);
+
+  /**
+   * Mix automático: arranca el deck de destino y lleva el crossfader al otro
+   * lado con una curva suave; al llegar, pausa el deck de origen.
+   */
+  const startAutoMix = useCallback(() => {
+    if (autoMixTimerRef.current) {
+      stopAutoMix();
+      return;
+    }
+    const current = stateRef.current;
+    if (!current) return;
+    const source: DeckId = current.crossfader <= 50 ? "a" : "b";
+    const target: DeckId = source === "a" ? "b" : "a";
+    if (!current.decks[target].videoId) return;
+
+    const from = current.crossfader;
+    const to = target === "b" ? 100 : 0;
+    const durationMs = 8000;
+    const startedAt = Date.now();
+
+    const startDecks: Partial<Record<DeckId, DeckPatch>> = {};
+    startDecks[target] = { playing: true };
+    sendPatch({ decks: startDecks });
+    setAutoMixTarget(target);
+
+    autoMixTimerRef.current = window.setInterval(() => {
+      const t = Math.min(1, (Date.now() - startedAt) / durationMs);
+      const eased = t * t * (3 - 2 * t); // smoothstep
+      if (t >= 1) {
+        const endDecks: Partial<Record<DeckId, DeckPatch>> = {};
+        endDecks[source] = { playing: false };
+        sendPatch({ crossfader: to, decks: endDecks });
+        stopAutoMix();
+      } else {
+        sendPatch({ crossfader: Math.round(from + (to - from) * eased) });
+      }
+    }, 150);
+  }, [sendPatch, stopAutoMix]);
+
+  useEffect(() => {
+    return () => {
+      if (autoMixTimerRef.current) window.clearInterval(autoMixTimerRef.current);
+    };
+  }, []);
 
   const copyTvLink = useCallback(async () => {
     try {
@@ -290,7 +457,11 @@ export default function Controller({ room }: { room: string }) {
     const meta = DECK_META[deck];
     const d = state?.decks[deck];
     const p = progress?.decks[deck] ?? null;
-    const pct = p && p.d > 0 ? Math.min(100, (p.t / p.d) * 100) : 0;
+    const shownT = scrub[deck] ?? p?.t ?? 0;
+    const playerError =
+      d?.videoId && p?.err
+        ? (PLAYER_ERROR_MESSAGES[p.err] ?? "No se pudo reproducir este video")
+        : null;
 
     return (
       <section
@@ -325,17 +496,35 @@ export default function Controller({ room }: { room: string }) {
             <p className="truncate text-sm text-zinc-100">
               {d?.title ?? "Carga un video de YouTube"}
             </p>
-            <p className="text-xs text-zinc-500">
-              {p ? `${formatTime(p.t)} / ${formatTime(p.d)}` : "—:—"}
+            <p className="text-sm font-medium tabular-nums text-zinc-300">
+              {p?.d ? `${formatTime(shownT)} / ${formatTime(p.d)}` : "—:—"}
             </p>
-            <div className="mt-1 h-1 overflow-hidden rounded-full bg-zinc-800">
-              <div
-                className={`h-full ${deck === "a" ? "bg-emerald-500" : "bg-fuchsia-500"}`}
-                style={{ width: `${pct}%` }}
-              />
-            </div>
           </div>
         </div>
+
+        {/* Barra de progreso arrastrable: suelta para saltar a ese punto. */}
+        <input
+          type="range"
+          min={0}
+          max={Math.max(1, Math.floor(p?.d ?? 0))}
+          value={Math.floor(shownT)}
+          disabled={!p?.d}
+          onChange={(e) => {
+            const value = Number(e.target.value);
+            scrubRef.current[deck] = value;
+            setScrub((prev) => ({ ...prev, [deck]: value }));
+          }}
+          onPointerUp={() => commitScrub(deck)}
+          onKeyUp={() => commitScrub(deck)}
+          className={`${meta.faderClass} w-full disabled:opacity-40`}
+          aria-label={`Posición de ${meta.label}`}
+        />
+
+        {playerError && (
+          <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-400">
+            {playerError}
+          </p>
+        )}
 
         <div className="flex gap-2">
           <input
@@ -405,6 +594,40 @@ export default function Controller({ room }: { room: string }) {
           />
           <span className="w-8 text-right">{d?.volume ?? 80}</span>
         </label>
+
+        {/* Pre-escucha local: para encontrar el punto fuerte sin sonar en la TV. */}
+        <div className="flex items-center justify-between gap-2">
+          <button
+            onClick={() => (previewOpen[deck] ? closePreview(deck) : openPreview(deck))}
+            disabled={!d?.videoId}
+            className="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs text-zinc-300 transition hover:bg-zinc-700 disabled:opacity-40"
+          >
+            {previewOpen[deck] ? "✕ Cerrar pre-escucha" : "🎧 Pre-escucha"}
+          </button>
+          {previewOpen[deck] && (
+            <button
+              onClick={() => applyPreviewPoint(deck)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold text-black transition ${
+                deck === "a"
+                  ? "bg-emerald-500 hover:bg-emerald-400"
+                  : "bg-fuchsia-500 hover:bg-fuchsia-400"
+              }`}
+            >
+              ⤓ Usar este punto en el deck
+            </button>
+          )}
+        </div>
+        {previewOpen[deck] && (
+          <div>
+            <div className="aspect-video overflow-hidden rounded-xl border border-zinc-800 bg-black">
+              <div id={`mix-preview-${deck}`} className="h-full w-full" />
+            </div>
+            <p className="mt-1 text-[10px] text-zinc-600">
+              Suena solo en este dispositivo, no en la TV. Busca el punto fuerte con la
+              barra de YouTube y tócalo con &quot;Usar este punto&quot;.
+            </p>
+          </div>
+        )}
       </section>
     );
   };
@@ -465,12 +688,40 @@ export default function Controller({ room }: { room: string }) {
               min={0}
               max={100}
               value={state?.crossfader ?? 50}
-              onChange={(e) => sendPatch({ crossfader: Number(e.target.value) })}
+              onChange={(e) => {
+                stopAutoMix();
+                sendPatch({ crossfader: Number(e.target.value) });
+              }}
               className="mix-fader mix-fader--big"
               aria-label="Crossfader"
             />
             <span className="w-6 text-center text-sm font-bold text-fuchsia-400">B</span>
           </div>
+          {(() => {
+            const nextTarget: DeckId =
+              (state?.crossfader ?? 50) <= 50 ? "b" : "a";
+            const canMix = !!state?.decks[nextTarget].videoId;
+            return (
+              <button
+                onClick={startAutoMix}
+                disabled={!autoMixTarget && !canMix}
+                title={
+                  !autoMixTarget && !canMix
+                    ? `Carga un video en el deck ${nextTarget.toUpperCase()} primero`
+                    : undefined
+                }
+                className={`mx-auto rounded-xl px-6 py-2 text-sm font-bold transition disabled:opacity-40 ${
+                  autoMixTarget
+                    ? "bg-amber-500 text-black hover:bg-amber-400"
+                    : "bg-zinc-100 text-zinc-950 hover:bg-white"
+                }`}
+              >
+                {autoMixTarget
+                  ? `Mezclando → ${autoMixTarget.toUpperCase()}… tocar para cancelar`
+                  : `⇄ Mix automático → ${nextTarget.toUpperCase()}`}
+              </button>
+            );
+          })()}
           <label className="flex items-center gap-3 text-xs text-zinc-400">
             <span className="w-12">Master</span>
             <input

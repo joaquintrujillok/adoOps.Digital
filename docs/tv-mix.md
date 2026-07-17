@@ -25,7 +25,16 @@ Consola /mix/SALA (celular o computador)
 3. En `/mix/XK42` elige la música: busca videos visualmente (🔍 Buscar), navega
    tus playlists de YouTube Music y tus "Me gusta" (♪ Mi música, con la cuenta
    conectada) o pega una URL directo en el deck. Dale play y mezcla con el
-   crossfader. El video y el audio salen por la TV.
+   crossfader — o toca **⇄ Mix automático** para que la transición al otro
+   deck se haga sola (8 s de crossfade y pausa del deck saliente). El video y
+   el audio salen por la TV.
+4. Para preparar un tema: arrastra la **barra de progreso** del deck para
+   saltar a cualquier punto (si el deck está pausado, el salto es silencioso),
+   o abre **🎧 Pre-escucha** — un player local que suena solo en la consola
+   (ideal con auriculares), con los controles nativos de YouTube para ubicar
+   el punto fuerte y copiarlo al deck con "Usar este punto". Los videos cuyo
+   dueño bloquea la reproducción embebida se marcan 🚫 en la biblioteca, y si
+   uno se cuela igual, el deck muestra el motivo.
 
 ### Fases del desafío original
 
@@ -76,9 +85,11 @@ siempre queda el fallback de pegar URLs):
    personal).
 2. **Conectar la cuenta (playlists de YT Music + "Me gusta")** —
    `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET`: en el mismo proyecto →
-   Pantalla de consentimiento OAuth (tipo Externo, con tu correo como usuario
-   de prueba basta) → Credenciales → ID de cliente OAuth → "Aplicación web"
-   con redirect URI `https://adoops.digital/api/mix/auth/callback` (y
+   Pantalla de consentimiento OAuth (tipo Externo; cada cuenta que se conecte
+   debe estar en "Usuarios de prueba" mientras la app no esté publicada) →
+   Credenciales → ID de cliente OAuth → "Aplicación web" con redirect URI
+   `https://www.adoops.digital/api/mix/auth/callback` — **con `www`**: el
+   apex redirige 308 a `www`, y Google exige la URI exacta — (y
    `http://localhost:3000/api/mix/auth/callback` para dev). Opcional:
    `MIX_AUTH_SECRET` (`openssl rand -hex 32`) para sellar la cookie.
 

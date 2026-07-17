@@ -28,6 +28,31 @@ const DECKS: DeckId[] = ["a", "b"];
 const DECK_LABEL: Record<DeckId, string> = { a: "DECK A", b: "DECK B" };
 const DECK_COLOR: Record<DeckId, string> = { a: "text-emerald-400", b: "text-fuchsia-400" };
 
+// Fullscreen con fallback webkit: Safari viejo y varios navegadores de TV no
+// tienen la API sin prefijo.
+type FsElement = HTMLElement & { webkitRequestFullscreen?: () => void };
+type FsDocument = Document & {
+  webkitFullscreenElement?: Element | null;
+  webkitExitFullscreen?: () => void;
+};
+
+function enterFullscreen() {
+  const el = document.documentElement as FsElement;
+  if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+  else el.webkitRequestFullscreen?.();
+}
+
+function exitFullscreen() {
+  const doc = document as FsDocument;
+  if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+  else doc.webkitExitFullscreen?.();
+}
+
+function fullscreenActive(): boolean {
+  const doc = document as FsDocument;
+  return !!(document.fullscreenElement ?? doc.webkitFullscreenElement);
+}
+
 export default function TvScreen({ room }: { room: string }) {
   const [state, setState] = useState<RoomState | null>(null);
   const [started, setStarted] = useState(false);
@@ -39,6 +64,7 @@ export default function TvScreen({ room }: { room: string }) {
   const playersRef = useRef<Record<DeckId, YTPlayer | null>>({ a: null, b: null });
   const readyRef = useRef<Record<DeckId, boolean>>({ a: false, b: false });
   const currentVideoRef = useRef<Record<DeckId, string | null>>({ a: null, b: null });
+  const playerErrorRef = useRef<Record<DeckId, number | null>>({ a: null, b: null });
   const appliedSeekRef = useRef<Record<DeckId, number>>({ a: 0, b: 0 });
   const versionRef = useRef(0);
   const lastLocalAtRef = useRef(0);
@@ -63,6 +89,7 @@ export default function TvScreen({ room }: { room: string }) {
 
       if (target.videoId !== currentVideoRef.current[deck]) {
         currentVideoRef.current[deck] = target.videoId;
+        playerErrorRef.current[deck] = null;
         if (target.videoId) {
           if (target.playing) player.loadVideoById(target.videoId);
           else player.cueVideoById(target.videoId);
@@ -145,7 +172,11 @@ export default function TvScreen({ room }: { room: string }) {
         const player = playersRef.current[deck];
         if (!player || !readyRef.current[deck] || !current.decks[deck].videoId) continue;
         try {
-          decks[deck] = { t: player.getCurrentTime() || 0, d: player.getDuration() || 0 };
+          decks[deck] = {
+            t: player.getCurrentTime() || 0,
+            d: player.getDuration() || 0,
+            ...(playerErrorRef.current[deck] ? { err: playerErrorRef.current[deck] } : {}),
+          };
           hasAny = true;
         } catch {
           // el player puede no estar listo aún
@@ -173,6 +204,10 @@ export default function TvScreen({ room }: { room: string }) {
     if (startedRef.current) return;
     startedRef.current = true;
     setStarted(true);
+
+    // Antes de cualquier await: la activación de usuario del toque expira y
+    // el navegador rechazaría la petición de fullscreen en silencio.
+    enterFullscreen();
 
     const initial = stateRef.current;
     if (initial) {
@@ -207,16 +242,18 @@ export default function TvScreen({ room }: { room: string }) {
             const latest = stateRef.current;
             if (latest) applyState(latest);
           },
+          onError: (event) => {
+            // La consola muestra el motivo (ej: embedding bloqueado por derechos).
+            playerErrorRef.current[deck] = event.data;
+          },
         },
       });
     }
-
-    document.documentElement.requestFullscreen?.().catch(() => {});
   }, [applyState]);
 
   const toggleFullscreen = useCallback(() => {
-    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-    else document.documentElement.requestFullscreen().catch(() => {});
+    if (fullscreenActive()) exitFullscreen();
+    else enterFullscreen();
   }, []);
 
   const layerOpacity = (deck: DeckId): number => {

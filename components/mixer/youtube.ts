@@ -37,6 +37,8 @@ export type YTNamespace = {
       events?: {
         onReady?: (event: { target: YTPlayer }) => void;
         onStateChange?: (event: { target: YTPlayer; data: number }) => void;
+        /** data: 2 id inválido · 5 error HTML5 · 100 no existe · 101/150 embedding bloqueado */
+        onError?: (event: { target: YTPlayer; data: number }) => void;
       };
     },
   ) => YTPlayer;

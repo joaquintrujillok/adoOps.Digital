@@ -33,7 +33,12 @@ export type RoomState = {
   library: LibraryItem[];
 };
 
-export type DeckProgress = { t: number; d: number };
+export type DeckProgress = {
+  t: number;
+  d: number;
+  /** Código de error del player de YouTube (101/150 = embedding bloqueado). */
+  err?: number | null;
+};
 
 export type RoomProgress = {
   decks: Record<DeckId, DeckProgress | null>;

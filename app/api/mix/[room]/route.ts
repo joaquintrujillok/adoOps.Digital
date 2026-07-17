@@ -80,10 +80,16 @@ export async function POST(req: Request, { params }: Ctx) {
   return NextResponse.json({ error: "se espera { patch } o { progress }" }, { status: 400 });
 }
 
+/** Códigos de onError del player de YouTube que la TV puede reportar. */
+const PLAYER_ERROR_CODES = [2, 5, 100, 101, 150];
+
 function sanitizeProgress(input: DeckProgress | null | undefined): DeckProgress | null {
   if (!input || typeof input.t !== "number" || typeof input.d !== "number") return null;
   return {
     t: Math.max(0, input.t),
     d: Math.max(0, input.d),
+    ...(typeof input.err === "number" && PLAYER_ERROR_CODES.includes(input.err)
+      ? { err: input.err }
+      : {}),
   };
 }
