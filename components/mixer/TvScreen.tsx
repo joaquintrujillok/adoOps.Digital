@@ -24,7 +24,7 @@ import {
 import { useHost } from "./useHost";
 import { attachLiveAudio, playFx, unlockFxAudio } from "./fx";
 import { RTC_CONFIG, waitIceComplete } from "./live";
-import { loadYouTubeApi, type YTPlayer } from "./youtube";
+import { clipPlayer, loadYouTubeApi, type YTPlayer } from "./youtube";
 import "./mixer.css";
 
 const DECKS: DeckId[] = ["a", "b"];
@@ -69,6 +69,8 @@ export default function TvScreen({ room }: { room: string }) {
   const stateRef = useRef<RoomState | null>(null);
   const startedRef = useRef(false);
   const playersRef = useRef<Record<DeckId, YTPlayer | null>>({ a: null, b: null });
+  const clipPlayersRef = useRef<Record<DeckId, YTPlayer | null>>({ a: null, b: null });
+  const clipElsRef = useRef<Record<DeckId, HTMLVideoElement | null>>({ a: null, b: null });
   const readyRef = useRef<Record<DeckId, boolean>>({ a: false, b: false });
   const currentVideoRef = useRef<Record<DeckId, string | null>>({ a: null, b: null });
   const playerErrorRef = useRef<Record<DeckId, number | null>>({ a: null, b: null });
@@ -102,16 +104,31 @@ export default function TvScreen({ room }: { room: string }) {
     }
 
     for (const deck of DECKS) {
-      const player = playersRef.current[deck];
-      if (!player || !readyRef.current[deck]) continue;
       const target = next.decks[deck];
+      const isClip = target.kind === "clip" && !!target.src;
+      // un clip usa el <video> adaptado; YouTube su iframe. Misma interfaz.
+      const player = isClip ? clipPlayersRef.current[deck] : playersRef.current[deck];
+      if (!player) continue;
+      if (!isClip && !readyRef.current[deck]) continue;
 
-      if (target.videoId !== currentVideoRef.current[deck]) {
-        currentVideoRef.current[deck] = target.videoId;
+      // al cambiar de fuente, silenciar la otra para que no suenen las dos
+      const other = isClip ? playersRef.current[deck] : clipPlayersRef.current[deck];
+      if (other && readyRef.current[deck]) {
+        try {
+          other.pauseVideo();
+        } catch {
+          // el otro player puede no estar listo
+        }
+      }
+
+      // el "id" de un clip es su URL
+      const sourceId = isClip ? target.src! : target.videoId;
+      if (sourceId !== currentVideoRef.current[deck]) {
+        currentVideoRef.current[deck] = sourceId;
         playerErrorRef.current[deck] = null;
-        if (target.videoId) {
-          if (target.playing) player.loadVideoById(target.videoId);
-          else player.cueVideoById(target.videoId);
+        if (sourceId) {
+          if (target.playing) player.loadVideoById(sourceId);
+          else player.cueVideoById(sourceId);
         } else {
           player.pauseVideo();
         }
@@ -119,13 +136,13 @@ export default function TvScreen({ room }: { room: string }) {
 
       if (target.seekNonce !== appliedSeekRef.current[deck]) {
         appliedSeekRef.current[deck] = target.seekNonce;
-        if (target.videoId) player.seekTo(target.seekTo, true);
+        if (sourceId) player.seekTo(target.seekTo, true);
       }
 
       player.setPlaybackRate(target.rate);
       // ducking: con el micrófono en vivo, la música baja para que se escuche la voz
       player.setVolume(Math.round(deckVolume(next, deck) * (liveActiveRef.current ? 0.4 : 1)));
-      if (target.videoId) {
+      if (sourceId) {
         if (target.playing) player.playVideo();
         else player.pauseVideo();
       }
@@ -287,8 +304,11 @@ export default function TvScreen({ room }: { room: string }) {
       const decks: RoomProgress["decks"] = { a: null, b: null };
       let hasAny = false;
       for (const deck of DECKS) {
-        const player = playersRef.current[deck];
-        if (!player || !readyRef.current[deck] || !current.decks[deck].videoId) continue;
+        const d = current.decks[deck];
+        const isClip = d.kind === "clip" && !!d.src;
+        const player = isClip ? clipPlayersRef.current[deck] : playersRef.current[deck];
+        if (!player) continue;
+        if (!isClip && (!readyRef.current[deck] || !d.videoId)) continue;
         try {
           decks[deck] = {
             t: player.getCurrentTime() || 0,
@@ -338,6 +358,12 @@ export default function TvScreen({ room }: { room: string }) {
       appliedFxRef.current = initial.fx?.nonce ?? 0;
     }
 
+    // players de clips propios: el <video> ya está en el DOM
+    for (const deck of DECKS) {
+      const el = clipElsRef.current[deck];
+      if (el) clipPlayersRef.current[deck] = clipPlayer(el);
+    }
+
     const YT = await loadYouTubeApi();
     for (const deck of DECKS) {
       const element = document.getElementById(`tv-player-${deck}`);
@@ -381,14 +407,19 @@ export default function TvScreen({ room }: { room: string }) {
     return () => teardownLive();
   }, [teardownLive]);
 
+  /** Un deck tiene contenido si trae video de YouTube o un clip propio. */
+  const deckHasSource = (deck: DeckId): boolean => {
+    const d = state?.decks[deck];
+    return !!(d && (d.kind === "clip" ? d.src : d.videoId));
+  };
+
   const layerOpacity = (deck: DeckId): number => {
-    if (!state || !state.decks[deck].videoId) return 0;
+    if (!state || !deckHasSource(deck)) return 0;
     const gain = deckGain(deck, state.crossfader);
     return Math.round(gain * gain * 100) / 100;
   };
 
-  const nothingLoaded =
-    !!state && !state.decks.a.videoId && !state.decks.b.videoId;
+  const nothingLoaded = !!state && !deckHasSource("a") && !deckHasSource("b");
 
   return (
     <div
@@ -396,15 +427,31 @@ export default function TvScreen({ room }: { room: string }) {
       style={{ fontFamily: "var(--font-sora), var(--font-inter), sans-serif" }}
     >
       {/* Capas de video (una por deck), mezcladas por opacidad. */}
-      {DECKS.map((deck) => (
-        <div
-          key={deck}
-          className="mix-tv-layer pointer-events-none absolute inset-0 transition-opacity duration-200"
-          style={{ opacity: started ? layerOpacity(deck) : 0, zIndex: deck === "a" ? 1 : 2 }}
-        >
-          <div id={`tv-player-${deck}`} className="h-full w-full" />
-        </div>
-      ))}
+      {DECKS.map((deck) => {
+        const isClip = state?.decks[deck].kind === "clip" && !!state.decks[deck].src;
+        return (
+          <div
+            key={deck}
+            className="mix-tv-layer pointer-events-none absolute inset-0 transition-opacity duration-200"
+            style={{ opacity: started ? layerOpacity(deck) : 0, zIndex: deck === "a" ? 1 : 2 }}
+          >
+            {/* iframe de YouTube y <video> del clip conviven; se muestra el activo */}
+            <div
+              id={`tv-player-${deck}`}
+              className="h-full w-full"
+              style={{ display: isClip ? "none" : "block" }}
+            />
+            <video
+              ref={(el) => {
+                clipElsRef.current[deck] = el;
+              }}
+              playsInline
+              className="h-full w-full object-contain"
+              style={{ display: isClip ? "block" : "none" }}
+            />
+          </div>
+        );
+      })}
 
       {/* Pantalla de inicio: el toque habilita el audio (política de autoplay). */}
       {!started && (
@@ -473,7 +520,7 @@ export default function TvScreen({ room }: { room: string }) {
         </p>
         {DECKS.map((deck) => {
           const d = state?.decks[deck];
-          if (!d?.videoId) return null;
+          if (!d || !deckHasSource(deck)) return null;
           return (
             <p key={deck} className="max-w-[70vw] truncate text-sm">
               <span className={`font-bold ${DECK_COLOR[deck]}`}>{DECK_LABEL[deck]}</span>{" "}

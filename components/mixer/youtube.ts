@@ -59,6 +59,51 @@ declare global {
   }
 }
 
+/**
+ * Adapta un <video> (clip propio) a la interfaz del player de YouTube, para
+ * que la TV mezcle clips y videos de YouTube con el mismo código.
+ */
+export function clipPlayer(el: HTMLVideoElement): YTPlayer {
+  let currentSrc = "";
+  const load = (src: string, autoplay: boolean) => {
+    if (currentSrc !== src) {
+      currentSrc = src;
+      el.src = src;
+      el.load();
+    }
+    if (autoplay) void el.play().catch(() => {});
+  };
+  return {
+    // el "videoId" de un clip es su URL
+    loadVideoById: (src) => load(src, true),
+    cueVideoById: (src) => load(src, false),
+    playVideo: () => void el.play().catch(() => {}),
+    pauseVideo: () => el.pause(),
+    seekTo: (seconds) => {
+      if (Number.isFinite(seconds)) el.currentTime = Math.max(0, seconds);
+    },
+    setVolume: (volume) => {
+      el.volume = Math.min(1, Math.max(0, volume / 100));
+    },
+    getCurrentTime: () => el.currentTime || 0,
+    getDuration: () => (Number.isFinite(el.duration) ? el.duration : 0),
+    setPlaybackRate: (rate) => {
+      el.playbackRate = rate;
+    },
+    mute: () => {
+      el.muted = true;
+    },
+    unMute: () => {
+      el.muted = false;
+    },
+    destroy: () => {
+      el.pause();
+      el.removeAttribute("src");
+      el.load();
+    },
+  };
+}
+
 let apiPromise: Promise<YTNamespace> | null = null;
 
 export function loadYouTubeApi(): Promise<YTNamespace> {

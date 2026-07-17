@@ -10,6 +10,10 @@ export type DeckId = "a" | "b";
 export type DeckState = {
   videoId: string | null;
   title: string | null;
+  /** Fuente del deck: video de YouTube o clip propio subido a la sala. */
+  kind?: "yt" | "clip";
+  /** URL del clip cuando kind === "clip" (Vercel Blob). */
+  src?: string | null;
   playing: boolean;
   /** Volumen propio del deck, 0–100. */
   volume: number;
@@ -22,6 +26,9 @@ export type DeckState = {
 };
 
 export type LibraryItem = { videoId: string; title: string };
+
+/** Clip propio subido a la sala (video del celular en Vercel Blob). */
+export type ClipItem = { id: string; url: string; name: string };
 
 /** Efectos de DJ sintetizados en la TV (Web Audio, no dependen de YouTube). */
 export const FX_SOUNDS = ["horn", "siren", "scratch", "rewind"] as const;
@@ -39,6 +46,8 @@ export type RoomState = {
   library: LibraryItem[];
   /** Último efecto pedido desde la consola (opcional: salas viejas no lo tienen). */
   fx?: FxEvent;
+  /** Videos propios subidos a la sala (opcional: salas viejas no lo tienen). */
+  clips?: ClipItem[];
 };
 
 export type DeckProgress = {
@@ -70,7 +79,15 @@ export type RoomSnapshot = {
 export type DeckPatch = Partial<
   Pick<
     DeckState,
-    "videoId" | "title" | "playing" | "volume" | "rate" | "seekTo" | "seekNonce"
+    | "videoId"
+    | "title"
+    | "kind"
+    | "src"
+    | "playing"
+    | "volume"
+    | "rate"
+    | "seekTo"
+    | "seekNonce"
   >
 >;
 
@@ -80,6 +97,7 @@ export type RoomPatch = {
   master?: number;
   library?: LibraryItem[];
   fx?: FxEvent;
+  clips?: ClipItem[];
 };
 
 /** Mensajes del canal local (BroadcastChannel) entre consola y TV. */
@@ -100,10 +118,24 @@ export function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
+const CLIPS_MAX = 24;
+
+/** Solo se aceptan URLs https de Vercel Blob (evita inyectar orígenes ajenos). */
+export function isBlobUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" && u.hostname.endsWith(".public.blob.vercel-storage.com");
+  } catch {
+    return false;
+  }
+}
+
 export function defaultDeck(): DeckState {
   return {
     videoId: null,
     title: null,
+    kind: "yt",
+    src: null,
     playing: false,
     volume: 80,
     rate: 1,
@@ -200,6 +232,16 @@ function sanitizeDeckPatch(patch: DeckPatch): DeckPatch {
           : undefined;
     if (out.videoId === undefined) delete out.videoId;
   }
+  if (patch.kind === "yt" || patch.kind === "clip") out.kind = patch.kind;
+  if ("src" in patch) {
+    out.src =
+      patch.src === null
+        ? null
+        : typeof patch.src === "string" && isBlobUrl(patch.src)
+          ? patch.src
+          : undefined;
+    if (out.src === undefined) delete out.src;
+  }
   if ("title" in patch) {
     out.title =
       patch.title === null ? null : String(patch.title ?? "").slice(0, 140);
@@ -242,6 +284,27 @@ export function mergePatch(state: RoomState, patch: RoomPatch): RoomState {
     patch.fx.nonce >= 0
   ) {
     next.fx = { sound: patch.fx.sound, nonce: Math.floor(patch.fx.nonce) };
+  }
+  if (Array.isArray(patch.clips)) {
+    const seenClips = new Set<string>();
+    next.clips = patch.clips
+      .filter(
+        (item): item is ClipItem =>
+          !!item &&
+          typeof item.id === "string" &&
+          item.id.length > 0 &&
+          item.id.length <= 40 &&
+          typeof item.url === "string" &&
+          isBlobUrl(item.url) &&
+          !seenClips.has(item.id) &&
+          !!seenClips.add(item.id),
+      )
+      .map((item) => ({
+        id: item.id,
+        url: item.url,
+        name: String(item.name ?? "").slice(0, 80),
+      }))
+      .slice(0, CLIPS_MAX);
   }
   if (Array.isArray(patch.library)) {
     const seen = new Set<string>();

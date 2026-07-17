@@ -9,6 +9,7 @@
  */
 
 import Link from "next/link";
+import { upload } from "@vercel/blob/client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   broadcastChannelName,
@@ -16,6 +17,7 @@ import {
   mergePatch,
   parseYouTubeId,
   thumbnailUrl,
+  type ClipItem,
   type DeckId,
   type DeckPatch,
   type FxSound,
@@ -130,6 +132,8 @@ export default function Controller({ room }: { room: string }) {
   const [autoDjStatus, setAutoDjStatus] = useState<string | null>(null);
   const [liveMode, setLiveMode] = useState<"off" | "mic" | "cam">("off");
   const [liveStatus, setLiveStatus] = useState<string | null>(null);
+  const [uploading, setUploading] = useState<number | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const host = useHost();
 
   const [vibe, setVibe] = useState("");
@@ -314,7 +318,8 @@ export default function Controller({ room }: { room: string }) {
       }
 
       const decks: Partial<Record<DeckId, DeckPatch>> = {};
-      decks[deck] = { videoId, title, playing: false };
+      // kind/src explícitos: el deck puede venir de un clip propio
+      decks[deck] = { videoId, title, kind: "yt", src: null, playing: false };
       const library = [
         { videoId, title },
         ...(stateRef.current?.library ?? []),
@@ -325,6 +330,60 @@ export default function Controller({ room }: { room: string }) {
       closePreview(deck);
     },
     [urls, sendPatch, closePreview],
+  );
+
+  /** Carga un clip propio (video subido) en un deck. */
+  const loadClipToDeck = useCallback(
+    (deck: DeckId, clip: ClipItem) => {
+      const decks: Partial<Record<DeckId, DeckPatch>> = {};
+      decks[deck] = {
+        kind: "clip",
+        src: clip.url,
+        videoId: null,
+        title: clip.name,
+        playing: false,
+      };
+      sendPatch({ decks });
+      closePreview(deck);
+    },
+    [sendPatch, closePreview],
+  );
+
+  /**
+   * Sube un video del dispositivo a la sala. El archivo va directo del
+   * navegador a Vercel Blob (client upload): las funciones no admiten cuerpos
+   * de este tamaño.
+   */
+  const uploadClip = useCallback(
+    async (file: File) => {
+      setUploadError(null);
+      setUploading(0);
+      try {
+        const safeName = file.name.replace(/[^\w.\-]+/g, "_").slice(-60);
+        const blob = await upload(`mix/${room}/${safeName}`, file, {
+          access: "public",
+          handleUploadUrl: "/api/mix/upload",
+          clientPayload: room,
+          onUploadProgress: ({ percentage }) => setUploading(Math.round(percentage)),
+        });
+        const clip: ClipItem = {
+          id: Math.random().toString(36).slice(2, 10),
+          url: blob.url,
+          name: file.name.slice(0, 80),
+        };
+        sendPatch({ clips: [clip, ...(stateRef.current?.clips ?? [])] });
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : "";
+        setUploadError(
+          detail.includes("BLOB_READ_WRITE_TOKEN")
+            ? "Falta configurar el almacenamiento (BLOB_READ_WRITE_TOKEN)"
+            : `No se pudo subir el video${detail ? `: ${detail.slice(0, 80)}` : ""}`,
+        );
+      } finally {
+        setUploading(null);
+      }
+    },
+    [room, sendPatch],
   );
 
   const patchDeck = useCallback(
@@ -1229,6 +1288,74 @@ export default function Controller({ room }: { room: string }) {
             </div>
           </section>
         )}
+
+        {/* Mis videos: clips propios subidos desde el celular. */}
+        <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-500">
+              📱 Mis videos
+            </h2>
+            <label
+              className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                uploading !== null
+                  ? "bg-zinc-800 text-zinc-400"
+                  : "bg-zinc-100 text-zinc-950 hover:bg-white"
+              }`}
+            >
+              {uploading !== null ? `Subiendo… ${uploading}%` : "+ Subir video"}
+              <input
+                type="file"
+                accept="video/*"
+                className="hidden"
+                disabled={uploading !== null}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = ""; // permite resubir el mismo archivo
+                  if (file) uploadClip(file);
+                }}
+              />
+            </label>
+          </div>
+          {uploadError && <p className="mb-2 text-xs text-red-400">{uploadError}</p>}
+          {state?.clips?.length ? (
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {state.clips.map((clip) => (
+                <div
+                  key={clip.id}
+                  className="w-36 shrink-0 rounded-xl border border-zinc-800 bg-zinc-950 p-2"
+                >
+                  <video
+                    src={clip.url}
+                    muted
+                    playsInline
+                    preload="metadata"
+                    className="mb-2 h-20 w-full rounded-lg bg-black object-cover"
+                  />
+                  <p className="mb-2 line-clamp-2 min-h-8 text-xs text-zinc-300">{clip.name}</p>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => loadClipToDeck("a", clip)}
+                      className="flex-1 rounded-md bg-emerald-500/15 py-1 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/30"
+                    >
+                      → A
+                    </button>
+                    <button
+                      onClick={() => loadClipToDeck("b", clip)}
+                      className="flex-1 rounded-md bg-fuchsia-500/15 py-1 text-xs font-bold text-fuchsia-300 transition hover:bg-fuchsia-500/30"
+                    >
+                      → B
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-zinc-600">
+              Sube videos desde tu celular y cárgalos a un deck: se mezclan con el
+              crossfader igual que los de YouTube.
+            </p>
+          )}
+        </section>
 
         {/* DJ asistente (IA). */}
         <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">

@@ -15,6 +15,7 @@
     "@getbrevo/brevo": "^5.0.4",
     "@neondatabase/serverless": "^1.1.0",
     "@sentry/nextjs": "^10.59.0",
+    "@vercel/blob": "^2.6.1",
     "drizzle-kit": "^0.31.10",
     "drizzle-orm": "^0.45.2",
     "next": "16.2.9",
