@@ -393,6 +393,13 @@ export default function TvScreen({ room }: { room: string }) {
             // La consola muestra el motivo (ej: embedding bloqueado por derechos).
             playerErrorRef.current[deck] = event.data;
           },
+          onStateChange: (event) => {
+            // Si llegó a reproducir, cualquier error anterior fue transitorio:
+            // sin esto el cartel "no se pudo reproducir" quedaba pegado.
+            if (event.data === YT.PlayerState.PLAYING) {
+              playerErrorRef.current[deck] = null;
+            }
+          },
         },
       });
     }
