@@ -50,8 +50,9 @@ const FX_PAD: { sound: FxSound; label: string }[] = [
 ];
 
 /** Mix eterno: umbrales sobre el tiempo restante del deck activo. */
-const AUTODJ_PREPARE_AT = 65; // s restantes: elegir y cargar el próximo tema
-const AUTODJ_MIX_AT = 35; // s restantes: disparar el mix automático (dura 8 s)
+// s restantes cuando se dispara el mix automático (dura 8 s). Las alternativas
+// ya se piden al empezar el tema, así que aquí solo se resuelve+carga y mezcla.
+const AUTODJ_MIX_AT = 35;
 
 type Suggestion = { artista: string; tema: string; motivo: string };
 
@@ -123,6 +124,9 @@ export default function Controller({ room }: { room: string }) {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [suggestError, setSuggestError] = useState<string | null>(null);
   const [suggesting, setSuggesting] = useState(false);
+  // sugerencias ya cargadas a un deck (key artista|tema) y la que está cargando
+  const [usedKeys, setUsedKeys] = useState<string[]>([]);
+  const [loadingSuggestion, setLoadingSuggestion] = useState<string | null>(null);
 
   const stateRef = useRef<RoomState | null>(null);
   const versionRef = useRef(0);
@@ -138,6 +142,20 @@ export default function Controller({ room }: { room: string }) {
   /** videoId del deck activo para el que ya preparamos sucesor. */
   const autoDjPreparedForRef = useRef<string | null>(null);
   const autoDjCooldownRef = useRef(0);
+  // el loop lee estas listas sin re-crearse: refs que espejan el estado.
+  const suggestionsRef = useRef<Suggestion[]>([]);
+  const usedKeysRef = useRef<string[]>([]);
+  /** videoId del tema activo para el que ya se pidieron alternativas. */
+  const suggestForRef = useRef<string | null>(null);
+
+  const suggestionKey = (s: Suggestion) => `${s.artista}|${s.tema}`;
+
+  useEffect(() => {
+    suggestionsRef.current = suggestions;
+  }, [suggestions]);
+  useEffect(() => {
+    usedKeysRef.current = usedKeys;
+  }, [usedKeys]);
 
   /** Envía al servidor lo acumulado por el throttle. */
   const flush = useCallback(async () => {
@@ -464,17 +482,96 @@ export default function Controller({ room }: { room: string }) {
     [sendPatch],
   );
 
+  /** Pide alternativas al DJ IA (solo texto; no resuelve videos todavía). */
+  const fetchSuggestions = useCallback(async (): Promise<
+    Suggestion[] | { error: string }
+  > => {
+    const currentTitles = (["a", "b"] as const)
+      .map((deck) => stateRef.current?.decks[deck].title)
+      .filter((t): t is string => !!t);
+    const res = await fetchWithTimeout(
+      `/api/mix/suggest`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: vibe.trim() || "mantén la energía y el género de lo que está sonando",
+          current: currentTitles,
+        }),
+      },
+      45_000,
+    );
+    const data = (await res.json()) as { sugerencias?: Suggestion[]; error?: string };
+    if (!res.ok) return { error: data.error ?? "falló el DJ IA" };
+    return (data.sugerencias ?? []).slice(0, 6);
+  }, [vibe]);
+
+  /** Resuelve una sugerencia (texto) al primer video de YouTube utilizable. */
+  const resolveSuggestion = useCallback(
+    async (s: Suggestion): Promise<{ videoId: string; title: string } | null> => {
+      const current = stateRef.current;
+      const played = new Set(
+        [
+          ...(current?.library.map((item) => item.videoId) ?? []),
+          current?.decks.a.videoId,
+          current?.decks.b.videoId,
+        ].filter((id): id is string => !!id),
+      );
+      const res = await fetchWithTimeout(
+        `/api/mix/search?q=${encodeURIComponent(`${s.artista} ${s.tema}`)}`,
+        {},
+        15_000,
+      );
+      if (!res.ok) return null;
+      const found = (await res.json()) as {
+        items?: { videoId: string; title: string; embeddable?: boolean }[];
+      };
+      const pick = (found.items ?? []).find(
+        (v) => v.embeddable !== false && !played.has(v.videoId),
+      );
+      return pick ? { videoId: pick.videoId, title: pick.title } : null;
+    },
+    [],
+  );
+
+  /** Carga manual de una alternativa al deck elegido (botones → A / → B). */
+  const loadSuggestion = useCallback(
+    async (deck: DeckId, s: Suggestion) => {
+      const key = suggestionKey(s);
+      if (loadingSuggestion) return;
+      setLoadingSuggestion(key);
+      setSuggestError(null);
+      try {
+        const video = await resolveSuggestion(s);
+        if (!video) {
+          setSuggestError(`No encontré "${s.tema}" reproducible en YouTube`);
+          return;
+        }
+        await loadToDeck(deck, video.videoId, video.title);
+        setUsedKeys((prev) => (prev.includes(key) ? prev : [...prev, key]));
+        // marca este ciclo como preparado: el auto no volverá a pisar el deck.
+        const srcId =
+          stateRef.current?.decks[deck === "a" ? "b" : "a"].videoId ?? null;
+        if (srcId) autoDjPreparedForRef.current = srcId;
+      } catch {
+        setSuggestError("No se pudo cargar la alternativa");
+      } finally {
+        setLoadingSuggestion(null);
+      }
+    },
+    [loadingSuggestion, resolveSuggestion, loadToDeck],
+  );
+
   /**
-   * Mix eterno: cuando al deck activo le quedan AUTODJ_PREPARE_AT segundos,
-   * el DJ IA elige el próximo tema (según la vibra escrita), se busca en
-   * YouTube y se carga al deck libre; a AUTODJ_MIX_AT segundos del final se
-   * dispara el mix automático. Corre mientras la consola esté abierta.
+   * Modo DJ asistido (Mix eterno): apenas suena un tema pide 5 alternativas y
+   * las muestra para que las cargues tú (→ A / → B). Si no intervienes, a
+   * AUTODJ_MIX_AT segundos del final elige la primera libre, la carga en el
+   * deck opuesto y dispara el mix automático. Corre con la consola abierta.
    */
   useEffect(() => {
     if (!autoDj) return;
     const tick = async () => {
       if (autoMixTimerRef.current || autoDjBusyRef.current) return;
-      if (Date.now() < autoDjCooldownRef.current) return;
       const current = stateRef.current;
       const prog = progressRef.current;
       if (!current || !prog) return;
@@ -486,89 +583,72 @@ export default function Controller({ room }: { room: string }) {
       if (!srcDeck.videoId || !srcDeck.playing || !p || p.d <= 0) return;
       const remaining = p.d - p.t;
 
-      // Etapa 2: sucesor listo y queda poco → mezclar.
+      // Apenas cambia el tema activo: pedir alternativas (temprano, sin bloquear
+      // el final). Reset de la selección previa.
       if (
-        remaining <= AUTODJ_MIX_AT &&
-        autoDjPreparedForRef.current === srcDeck.videoId &&
-        current.decks[target].videoId
+        srcDeck.videoId !== suggestForRef.current &&
+        Date.now() >= autoDjCooldownRef.current
       ) {
-        setAutoDjStatus("mezclando…");
-        startAutoMix();
+        suggestForRef.current = srcDeck.videoId;
+        autoDjBusyRef.current = true;
+        setAutoDjStatus("buscando alternativas…");
+        try {
+          const result = await fetchSuggestions();
+          if ("error" in result) {
+            setAutoDjStatus(`⚠ ${result.error} — reintento en 30 s`);
+            autoDjCooldownRef.current = Date.now() + 30_000;
+            suggestForRef.current = null;
+          } else {
+            setSuggestions(result);
+            setUsedKeys([]);
+            setAutoDjStatus(
+              `${result.length} alternativas — carga una a A/B o dejo que mezcle solo`,
+            );
+          }
+        } finally {
+          autoDjBusyRef.current = false;
+        }
         return;
       }
 
-      // Etapa 1: elegir y cargar el sucesor en el deck libre.
-      if (remaining > AUTODJ_PREPARE_AT) return;
-      if (autoDjPreparedForRef.current === srcDeck.videoId) return;
+      // Cerca del final: asegurar que el deck opuesto tenga sucesor y mezclar.
+      if (remaining > AUTODJ_MIX_AT) return;
 
-      autoDjBusyRef.current = true;
-      setAutoDjStatus("eligiendo el próximo tema…");
-      try {
-        const currentTitles = (["a", "b"] as const)
-          .map((deck) => current.decks[deck].title)
-          .filter((t): t is string => !!t);
-        const res = await fetchWithTimeout(
-          `/api/mix/suggest`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              prompt: vibe.trim() || "mantén la energía y el género de lo que está sonando",
-              current: currentTitles,
-            }),
-          },
-          45_000,
-        );
-        const data = (await res.json()) as {
-          sugerencias?: Suggestion[];
-          error?: string;
-        };
-        if (!res.ok) {
-          setAutoDjStatus(`⚠ ${data.error ?? "falló el DJ IA"} — reintento en 30 s`);
-          autoDjCooldownRef.current = Date.now() + 30_000;
-          return;
-        }
+      // Si el deck opuesto ya trae un tema distinto al que sale, solo mezclar.
+      const targetReady =
+        !!current.decks[target].videoId &&
+        current.decks[target].videoId !== srcDeck.videoId;
 
-        const played = new Set(
-          [
-            ...current.library.map((item) => item.videoId),
-            current.decks.a.videoId,
-            current.decks.b.videoId,
-          ].filter((id): id is string => !!id),
-        );
-        for (const s of data.sugerencias ?? []) {
-          const q = `${s.artista} ${s.tema}`;
-          const searchRes = await fetchWithTimeout(
-            `/api/mix/search?q=${encodeURIComponent(q)}`,
-            {},
-            15_000,
+      if (!targetReady) {
+        // Auto-elegir: primera alternativa no usada que resuelva a un video.
+        autoDjBusyRef.current = true;
+        setAutoDjStatus("cargando el próximo…");
+        try {
+          const pending = suggestionsRef.current.filter(
+            (s) => !usedKeysRef.current.includes(suggestionKey(s)),
           );
-          if (!searchRes.ok) continue;
-          const found = (await searchRes.json()) as {
-            items?: { videoId: string; title: string; embeddable?: boolean }[];
-          };
-          const pick = (found.items ?? []).find(
-            (v) => v.embeddable !== false && !played.has(v.videoId),
-          );
-          if (pick) {
-            await loadToDeck(target, pick.videoId, pick.title);
-            autoDjPreparedForRef.current = srcDeck.videoId;
-            setAutoDjStatus(`próximo: ${pick.title}`);
-            return;
+          for (const s of pending) {
+            const video = await resolveSuggestion(s);
+            if (video) {
+              await loadToDeck(target, video.videoId, video.title);
+              setUsedKeys((prev) => [...prev, suggestionKey(s)]);
+              autoDjPreparedForRef.current = srcDeck.videoId;
+              setAutoDjStatus(`próximo: ${video.title}`);
+              break;
+            }
           }
+        } finally {
+          autoDjBusyRef.current = false;
         }
-        setAutoDjStatus("⚠ no encontré tema nuevo — reintento en 30 s");
-        autoDjCooldownRef.current = Date.now() + 30_000;
-      } catch {
-        setAutoDjStatus("⚠ sin conexión con el DJ IA — reintento en 30 s");
-        autoDjCooldownRef.current = Date.now() + 30_000;
-      } finally {
-        autoDjBusyRef.current = false;
+        return;
       }
+
+      setAutoDjStatus("mezclando…");
+      startAutoMix();
     };
     const id = window.setInterval(tick, 2000);
     return () => window.clearInterval(id);
-  }, [autoDj, vibe, startAutoMix, loadToDeck]);
+  }, [autoDj, fetchSuggestions, resolveSuggestion, startAutoMix, loadToDeck]);
 
   const copyTvLink = useCallback(async () => {
     try {
@@ -581,32 +661,17 @@ export default function Controller({ room }: { room: string }) {
   }, [room]);
 
   const askSuggestions = useCallback(async () => {
-    const prompt = vibe.trim();
-    if (!prompt || suggesting) return;
+    if (!vibe.trim() || suggesting) return;
     setSuggesting(true);
     setSuggestError(null);
     try {
-      const current = (["a", "b"] as const)
-        .map((deck) => stateRef.current?.decks[deck].title)
-        .filter((t): t is string => !!t);
-      const res = await fetchWithTimeout(
-        `/api/mix/suggest`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt, current }),
-        },
-        45_000,
-      );
-      const data = (await res.json()) as {
-        sugerencias?: Suggestion[];
-        error?: string;
-      };
-      if (!res.ok) {
-        setSuggestError(data.error ?? "No se pudieron obtener sugerencias");
+      const result = await fetchSuggestions();
+      if ("error" in result) {
+        setSuggestError(result.error);
         return;
       }
-      setSuggestions(data.sugerencias ?? []);
+      setSuggestions(result);
+      setUsedKeys([]);
     } catch (error) {
       setSuggestError(
         error instanceof DOMException && error.name === "AbortError"
@@ -616,7 +681,7 @@ export default function Controller({ room }: { room: string }) {
     } finally {
       setSuggesting(false);
     }
-  }, [vibe, suggesting]);
+  }, [vibe, suggesting, fetchSuggestions]);
 
   const renderDeck = (deck: DeckId) => {
     const meta = DECK_META[deck];
@@ -988,7 +1053,8 @@ export default function Controller({ room }: { room: string }) {
                 } else {
                   autoDjPreparedForRef.current = null;
                   autoDjCooldownRef.current = 0;
-                  setAutoDjStatus("activo — al acercarse el final elijo el próximo tema");
+                  suggestForRef.current = null;
+                  setAutoDjStatus("activo — alternativas apenas parta el tema");
                   setAutoDj(true);
                 }
               }}
@@ -997,7 +1063,7 @@ export default function Controller({ room }: { room: string }) {
                   ? "bg-emerald-500 text-black hover:bg-emerald-400"
                   : "bg-zinc-800 text-zinc-200 hover:bg-zinc-700"
               }`}
-              title="Encadena temas solo: la IA elige el siguiente y mezcla al terminar cada uno"
+              title="Apenas parte cada tema te propone 5 alternativas; cárgalas a A/B o deja que mezcle solo al final"
             >
               {autoDj ? "♾ Mix eterno ON" : "♾ Mix eterno"}
             </button>
@@ -1013,33 +1079,66 @@ export default function Controller({ room }: { room: string }) {
           {suggestError && <p className="mt-2 text-xs text-red-400">{suggestError}</p>}
           {!!suggestions.length && (
             <ul className="mt-3 flex flex-col gap-2">
-              {suggestions.map((s, i) => (
-                <li
-                  key={i}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm text-zinc-100">
-                      <span className="font-semibold">{s.artista}</span> — {s.tema}
-                    </p>
-                    <p className="truncate text-xs text-zinc-500">{s.motivo}</p>
-                  </div>
-                  <a
-                    href={`https://www.youtube.com/results?search_query=${encodeURIComponent(
-                      `${s.artista} ${s.tema}`,
-                    )}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="shrink-0 rounded-lg bg-zinc-800 px-3 py-1.5 text-xs text-zinc-200 transition hover:bg-zinc-700"
+              {suggestions.map((s, i) => {
+                const key = suggestionKey(s);
+                const used = usedKeys.includes(key);
+                const loading = loadingSuggestion === key;
+                return (
+                  <li
+                    key={i}
+                    className={`flex items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 ${
+                      used ? "opacity-45" : ""
+                    }`}
                   >
-                    Buscar ↗
-                  </a>
-                </li>
-              ))}
+                    <div className="min-w-0">
+                      <p className="truncate text-sm text-zinc-100">
+                        <span className="font-semibold">{s.artista}</span> — {s.tema}
+                        {used && " ✓"}
+                      </p>
+                      <p className="truncate text-xs text-zinc-500">{s.motivo}</p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      {loading ? (
+                        <span className="px-2 text-xs text-zinc-400">cargando…</span>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => loadSuggestion("a", s)}
+                            disabled={!!loadingSuggestion}
+                            className="rounded-md bg-emerald-500/15 px-3 py-1.5 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/30 disabled:opacity-40"
+                          >
+                            → A
+                          </button>
+                          <button
+                            onClick={() => loadSuggestion("b", s)}
+                            disabled={!!loadingSuggestion}
+                            className="rounded-md bg-fuchsia-500/15 px-3 py-1.5 text-xs font-bold text-fuchsia-300 transition hover:bg-fuchsia-500/30 disabled:opacity-40"
+                          >
+                            → B
+                          </button>
+                          <a
+                            href={`https://www.youtube.com/results?search_query=${encodeURIComponent(
+                              `${s.artista} ${s.tema}`,
+                            )}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="rounded-md bg-zinc-800 px-2 py-1.5 text-xs text-zinc-300 transition hover:bg-zinc-700"
+                            title="Ver en YouTube"
+                          >
+                            ↗
+                          </a>
+                        </>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
           <p className="mt-3 text-xs text-zinc-600">
-            Abre la búsqueda, copia la URL del video que te guste y pégala en un deck.
+            Escribe una vibra y pulsa Sugerir, o activa ♾ Mix eterno para recibir
+            alternativas apenas parte cada tema. Cárgalas con → A / → B, o deja que
+            mezcle solo.
           </p>
         </section>
 
