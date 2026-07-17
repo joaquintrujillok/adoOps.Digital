@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 
 export const runtime = "nodejs";
+// GLM tarda ~8-13s y a veces se cuelga; damos margen a la función y cortamos
+// nosotros antes con el timeout del cliente para responder un error limpio.
+export const maxDuration = 60;
 
 // Proveedor: Z.AI (GLM, API OpenAI-compatible) si hay ZAI_API_KEY; si no, OpenAI.
 // El default es el endpoint del GLM Coding Plan (suscripción); para pago por
@@ -19,11 +22,18 @@ let _client: OpenAI | null = null;
 function client(): OpenAI {
   if (!_client) {
     if (usingZai()) {
-      _client = new OpenAI({ apiKey: process.env.ZAI_API_KEY, baseURL: ZAI_BASE_URL });
+      _client = new OpenAI({
+        apiKey: process.env.ZAI_API_KEY,
+        baseURL: ZAI_BASE_URL,
+        // si GLM se cuelga, cortamos a los 40s con error en vez de esperar a
+        // que Vercel mate la función (deja al cliente colgado en "Pensando…").
+        timeout: 40_000,
+        maxRetries: 1,
+      });
     } else {
       const apiKey = process.env.OPENAI_API_KEY;
       if (!apiKey) throw new Error("sin API key para el asistente");
-      _client = new OpenAI({ apiKey });
+      _client = new OpenAI({ apiKey, timeout: 40_000, maxRetries: 1 });
     }
   }
   return _client;

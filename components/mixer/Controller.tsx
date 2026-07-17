@@ -73,6 +73,21 @@ const DECK_META: Record<
   },
 };
 
+/** fetch con timeout: el DJ IA (GLM) puede colgarse y dejar la UI trabada. */
+async function fetchWithTimeout(
+  input: string,
+  init: RequestInit,
+  ms: number,
+): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = window.setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(input, { ...init, signal: ctrl.signal });
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
 function combinePatches(base: RoomPatch, extra: RoomPatch): RoomPatch {
   return {
     ...base,
@@ -492,14 +507,18 @@ export default function Controller({ room }: { room: string }) {
         const currentTitles = (["a", "b"] as const)
           .map((deck) => current.decks[deck].title)
           .filter((t): t is string => !!t);
-        const res = await fetch(`/api/mix/suggest`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            prompt: vibe.trim() || "mantén la energía y el género de lo que está sonando",
-            current: currentTitles,
-          }),
-        });
+        const res = await fetchWithTimeout(
+          `/api/mix/suggest`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              prompt: vibe.trim() || "mantén la energía y el género de lo que está sonando",
+              current: currentTitles,
+            }),
+          },
+          45_000,
+        );
         const data = (await res.json()) as {
           sugerencias?: Suggestion[];
           error?: string;
@@ -519,7 +538,11 @@ export default function Controller({ room }: { room: string }) {
         );
         for (const s of data.sugerencias ?? []) {
           const q = `${s.artista} ${s.tema}`;
-          const searchRes = await fetch(`/api/mix/search?q=${encodeURIComponent(q)}`);
+          const searchRes = await fetchWithTimeout(
+            `/api/mix/search?q=${encodeURIComponent(q)}`,
+            {},
+            15_000,
+          );
           if (!searchRes.ok) continue;
           const found = (await searchRes.json()) as {
             items?: { videoId: string; title: string; embeddable?: boolean }[];
@@ -566,11 +589,15 @@ export default function Controller({ room }: { room: string }) {
       const current = (["a", "b"] as const)
         .map((deck) => stateRef.current?.decks[deck].title)
         .filter((t): t is string => !!t);
-      const res = await fetch(`/api/mix/suggest`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, current }),
-      });
+      const res = await fetchWithTimeout(
+        `/api/mix/suggest`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt, current }),
+        },
+        45_000,
+      );
       const data = (await res.json()) as {
         sugerencias?: Suggestion[];
         error?: string;
@@ -580,8 +607,12 @@ export default function Controller({ room }: { room: string }) {
         return;
       }
       setSuggestions(data.sugerencias ?? []);
-    } catch {
-      setSuggestError("No se pudieron obtener sugerencias");
+    } catch (error) {
+      setSuggestError(
+        error instanceof DOMException && error.name === "AbortError"
+          ? "El DJ IA tardó demasiado (>45 s). Reintenta."
+          : "No se pudieron obtener sugerencias",
+      );
     } finally {
       setSuggesting(false);
     }
@@ -973,6 +1004,11 @@ export default function Controller({ room }: { room: string }) {
           </div>
           {autoDj && autoDjStatus && (
             <p className="mt-2 text-xs text-emerald-300">♾ {autoDjStatus}</p>
+          )}
+          {suggesting && (
+            <p className="mt-2 text-xs text-zinc-500">
+              El DJ IA está eligiendo… puede tardar unos segundos.
+            </p>
           )}
           {suggestError && <p className="mt-2 text-xs text-red-400">{suggestError}</p>}
           {!!suggestions.length && (
