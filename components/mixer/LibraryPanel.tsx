@@ -200,7 +200,7 @@ export default function LibraryPanel({ room, onLoad, onEnqueue }: Props) {
   const videoRow = (video: Video) => (
     <li
       key={video.videoId}
-      className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-950 p-2"
+      className="flex flex-wrap items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-950 p-2"
     >
       {/* eslint-disable-next-line @next/next/no-img-element -- miniatura externa de YouTube */}
       <img
@@ -208,9 +208,12 @@ export default function LibraryPanel({ room, onLoad, onEnqueue }: Props) {
         alt=""
         className="h-12 w-20 shrink-0 rounded-lg object-cover"
       />
+      {/* En celular el título va a 2 líneas y los datos con salto; en desktop, truncados en 1 */}
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm text-zinc-100">{video.title}</p>
-        <p className="truncate text-xs text-zinc-500">
+        <p className="line-clamp-2 text-sm text-zinc-100 md:line-clamp-none md:truncate">
+          {video.title}
+        </p>
+        <p className="text-xs text-zinc-500 md:truncate">
           {video.channel}
           {video.duration > 0 && ` · ${formatTime(video.duration)}`}
           {(video.views ?? 0) > 0 && ` · ${compact(video.views!)} vistas`}
@@ -222,25 +225,26 @@ export default function LibraryPanel({ room, onLoad, onEnqueue }: Props) {
           </p>
         )}
       </div>
-      <div className="flex shrink-0 gap-1">
+      {/* En celular los botones bajan a su propia fila, a lo ancho */}
+      <div className="flex w-full shrink-0 gap-1 md:w-auto">
         <button
           onClick={() => onLoad("a", video.videoId, video.title)}
           disabled={video.embeddable === false}
-          className="rounded-md bg-emerald-500/15 px-3 py-3 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/30 disabled:opacity-30 md:py-2"
+          className="flex-1 rounded-md bg-emerald-500/15 px-3 py-3 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/30 disabled:opacity-30 md:flex-none md:py-2"
         >
           → A
         </button>
         <button
           onClick={() => onLoad("b", video.videoId, video.title)}
           disabled={video.embeddable === false}
-          className="rounded-md bg-fuchsia-500/15 px-3 py-3 text-xs font-bold text-fuchsia-300 transition hover:bg-fuchsia-500/30 disabled:opacity-30 md:py-2"
+          className="flex-1 rounded-md bg-fuchsia-500/15 px-3 py-3 text-xs font-bold text-fuchsia-300 transition hover:bg-fuchsia-500/30 disabled:opacity-30 md:flex-none md:py-2"
         >
           → B
         </button>
         <button
           onClick={() => onEnqueue(video.videoId, video.title)}
           disabled={video.embeddable === false}
-          className="rounded-md bg-zinc-800 px-2 py-3 text-xs text-zinc-300 transition hover:bg-zinc-700 disabled:opacity-30 md:py-2"
+          className="flex-1 rounded-md bg-zinc-800 px-2 py-3 text-xs text-zinc-300 transition hover:bg-zinc-700 disabled:opacity-30 md:flex-none md:py-2"
           title="Agregar a la cola"
         >
           + cola
