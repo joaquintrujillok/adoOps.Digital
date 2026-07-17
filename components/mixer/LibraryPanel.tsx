@@ -16,8 +16,14 @@ type Video = {
   duration: number;
   /** false = el dueño bloqueó la reproducción embebida (solo sirve en YouTube) */
   embeddable?: boolean;
+  views?: number;
+  likes?: number;
 };
 type Playlist = { id: string; title: string; itemCount: number; thumb: string | null };
+
+/** 1234567 → "1,2 M" */
+const compact = (n: number) =>
+  new Intl.NumberFormat("es-CL", { notation: "compact", maximumFractionDigits: 1 }).format(n);
 type AuthStatus = { oauthConfigured: boolean; connected: boolean; searchAvailable: boolean };
 
 const LIKES_ID = "__likes__";
@@ -35,13 +41,18 @@ export default function LibraryPanel({ room, onLoad }: Props) {
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Video[]>([]);
+  const [resultLists, setResultLists] = useState<Playlist[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
 
   const [playlists, setPlaylists] = useState<Playlist[] | null>(null);
   const [loadingPlaylists, setLoadingPlaylists] = useState(false);
   const [playlistsError, setPlaylistsError] = useState<string | null>(null);
-  const [active, setActive] = useState<{ id: string; title: string } | null>(null);
+  const [active, setActive] = useState<{
+    id: string;
+    title: string;
+    from: "search" | "library";
+  } | null>(null);
   const [items, setItems] = useState<Video[]>([]);
   const [nextPage, setNextPage] = useState<string | null>(null);
   const [loadingItems, setLoadingItems] = useState(false);
@@ -93,12 +104,17 @@ export default function LibraryPanel({ room, onLoad }: Props) {
     setSearchError(null);
     try {
       const res = await fetch(`/api/mix/search?q=${encodeURIComponent(q)}`);
-      const data = (await res.json()) as { items?: Video[]; error?: string };
+      const data = (await res.json()) as {
+        items?: Video[];
+        playlists?: Playlist[];
+        error?: string;
+      };
       if (!res.ok) {
         setSearchError(data.error ?? "falló la búsqueda");
         return;
       }
       setResults(data.items ?? []);
+      setResultLists(data.playlists ?? []);
     } catch {
       setSearchError("falló la búsqueda");
     } finally {
@@ -132,8 +148,14 @@ export default function LibraryPanel({ room, onLoad }: Props) {
     }
   }, [status?.connected, playlists, loadingPlaylists, loadPlaylists]);
 
-  const openPlaylist = useCallback(async (id: string, title: string, page?: string) => {
-    setActive({ id, title });
+  const openPlaylist = useCallback(async (
+    id: string,
+    title: string,
+    page?: string,
+    from: "search" | "library" = "library",
+  ) => {
+    setActive({ id, title, from });
+    if (from === "search") setTab("library");
     setLoadingItems(true);
     setItemsError(null);
     if (!page) {
@@ -190,6 +212,8 @@ export default function LibraryPanel({ room, onLoad }: Props) {
         <p className="truncate text-xs text-zinc-500">
           {video.channel}
           {video.duration > 0 && ` · ${formatTime(video.duration)}`}
+          {(video.views ?? 0) > 0 && ` · ${compact(video.views!)} vistas`}
+          {(video.likes ?? 0) > 0 && ` · 👍 ${compact(video.likes!)}`}
         </p>
         {video.embeddable === false && (
           <p className="mt-0.5 text-[10px] font-semibold text-amber-400">
@@ -300,6 +324,39 @@ export default function LibraryPanel({ room, onLoad }: Props) {
               configura YOUTUBE_API_KEY.
             </p>
           )}
+          {!!resultLists.length && (
+            <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+              {resultLists.map((playlist) => (
+                <li key={playlist.id}>
+                  <button
+                    onClick={() => openPlaylist(playlist.id, playlist.title, undefined, "search")}
+                    className="flex w-full items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-950 p-2 text-left transition hover:border-zinc-600"
+                  >
+                    {playlist.thumb ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- miniatura externa de YouTube
+                      <img
+                        src={playlist.thumb}
+                        alt=""
+                        className="h-12 w-20 shrink-0 rounded-lg object-cover"
+                      />
+                    ) : (
+                      <span className="flex h-12 w-20 shrink-0 items-center justify-center rounded-lg bg-zinc-800 text-xl">
+                        ▤
+                      </span>
+                    )}
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm text-zinc-100">
+                        ▤ {playlist.title}
+                      </span>
+                      <span className="text-xs text-zinc-500">
+                        Playlist{playlist.itemCount > 0 && ` · ${playlist.itemCount} videos`}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
           {!!results.length && (
             <ul className="mt-3 flex max-h-96 flex-col gap-2 overflow-y-auto pr-1">
               {results.map(videoRow)}
@@ -310,7 +367,35 @@ export default function LibraryPanel({ room, onLoad }: Props) {
 
       {tab === "library" && (
         <>
-          {!status?.connected ? (
+          {active ? (
+            <>
+              <div className="mb-2 flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setActive(null);
+                    if (active.from === "search") setTab("search");
+                  }}
+                  className="rounded-md bg-zinc-800 px-2 py-1 text-xs text-zinc-300 transition hover:bg-zinc-700"
+                >
+                  {active.from === "search" ? "← Resultados" : "← Playlists"}
+                </button>
+                <p className="truncate text-sm font-semibold text-zinc-200">{active.title}</p>
+              </div>
+              {itemsError && <p className="mb-2 text-xs text-red-400">{itemsError}</p>}
+              <ul className="flex max-h-96 flex-col gap-2 overflow-y-auto pr-1">
+                {items.map(videoRow)}
+              </ul>
+              {loadingItems && <p className="mt-2 text-xs text-zinc-500">Cargando…</p>}
+              {nextPage && !loadingItems && (
+                <button
+                  onClick={() => openPlaylist(active.id, active.title, nextPage, active.from)}
+                  className="mt-2 w-full rounded-lg bg-zinc-800 py-2 text-xs text-zinc-300 transition hover:bg-zinc-700"
+                >
+                  Cargar más
+                </button>
+              )}
+            </>
+          ) : !status?.connected ? (
             <div className="flex flex-col items-center gap-3 py-6 text-center">
               <p className="max-w-sm text-sm text-zinc-400">
                 Conecta tu cuenta de YouTube para ver tus playlists de YouTube Music y
@@ -330,31 +415,6 @@ export default function LibraryPanel({ room, onLoad }: Props) {
                 </p>
               )}
             </div>
-          ) : active ? (
-            <>
-              <div className="mb-2 flex items-center gap-2">
-                <button
-                  onClick={() => setActive(null)}
-                  className="rounded-md bg-zinc-800 px-2 py-1 text-xs text-zinc-300 transition hover:bg-zinc-700"
-                >
-                  ← Playlists
-                </button>
-                <p className="truncate text-sm font-semibold text-zinc-200">{active.title}</p>
-              </div>
-              {itemsError && <p className="mb-2 text-xs text-red-400">{itemsError}</p>}
-              <ul className="flex max-h-96 flex-col gap-2 overflow-y-auto pr-1">
-                {items.map(videoRow)}
-              </ul>
-              {loadingItems && <p className="mt-2 text-xs text-zinc-500">Cargando…</p>}
-              {nextPage && !loadingItems && (
-                <button
-                  onClick={() => openPlaylist(active.id, active.title, nextPage)}
-                  className="mt-2 w-full rounded-lg bg-zinc-800 py-2 text-xs text-zinc-300 transition hover:bg-zinc-700"
-                >
-                  Cargar más
-                </button>
-              )}
-            </>
           ) : (
             <>
               {playlistsError && <p className="mb-2 text-xs text-red-400">{playlistsError}</p>}

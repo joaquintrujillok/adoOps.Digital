@@ -18,6 +18,7 @@ import {
   thumbnailUrl,
   type DeckId,
   type DeckPatch,
+  type FxSound,
   type MixBroadcast,
   type RoomPatch,
   type RoomProgress,
@@ -39,6 +40,18 @@ const PLAYER_ERROR_MESSAGES: Record<number, string> = {
   101: "🚫 El dueño no permite reproducirlo fuera de YouTube — busca otra versión (live, lyric video…)",
   150: "🚫 El dueño no permite reproducirlo fuera de YouTube — busca otra versión (live, lyric video…)",
 };
+
+/** Pad de efectos: suenan en la TV, sintetizados con Web Audio. */
+const FX_PAD: { sound: FxSound; label: string }[] = [
+  { sound: "horn", label: "📯 Bocina" },
+  { sound: "siren", label: "🚨 Sirena" },
+  { sound: "scratch", label: "💿 Scratch" },
+  { sound: "rewind", label: "⏪ Rewind" },
+];
+
+/** Mix eterno: umbrales sobre el tiempo restante del deck activo. */
+const AUTODJ_PREPARE_AT = 45; // s restantes: elegir y cargar el próximo tema
+const AUTODJ_MIX_AT = 15; // s restantes: disparar el mix automático (dura 8 s)
 
 type Suggestion = { artista: string; tema: string; motivo: string };
 
@@ -87,6 +100,8 @@ export default function Controller({ room }: { room: string }) {
     b: false,
   });
   const [scrub, setScrub] = useState<Record<DeckId, number | null>>({ a: null, b: null });
+  const [autoDj, setAutoDj] = useState(false);
+  const [autoDjStatus, setAutoDjStatus] = useState<string | null>(null);
   const host = useHost();
 
   const [vibe, setVibe] = useState("");
@@ -103,6 +118,11 @@ export default function Controller({ room }: { room: string }) {
   const autoMixTimerRef = useRef(0);
   const previewPlayersRef = useRef<Record<DeckId, YTPlayer | null>>({ a: null, b: null });
   const scrubRef = useRef<Record<DeckId, number | null>>({ a: null, b: null });
+  const progressRef = useRef<RoomProgress | null>(null);
+  const autoDjBusyRef = useRef(false);
+  /** videoId del deck activo para el que ya preparamos sucesor. */
+  const autoDjPreparedForRef = useRef<string | null>(null);
+  const autoDjCooldownRef = useRef(0);
 
   /** Envía al servidor lo acumulado por el throttle. */
   const flush = useCallback(async () => {
@@ -167,7 +187,10 @@ export default function Controller({ room }: { room: string }) {
         });
         if (!res.ok || cancelled) return;
         const data = (await res.json()) as Partial<RoomSnapshot> & { unchanged?: boolean };
-        if (data.progress !== undefined) setProgress(data.progress ?? null);
+        if (data.progress !== undefined) {
+          progressRef.current = data.progress ?? null;
+          setProgress(data.progress ?? null);
+        }
         if (data.unchanged || typeof data.version !== "number") return;
         versionRef.current = data.version;
         // No pisar ediciones locales en vuelo.
@@ -193,7 +216,10 @@ export default function Controller({ room }: { room: string }) {
     const bc = new BroadcastChannel(broadcastChannelName(room));
     bcRef.current = bc;
     bc.onmessage = (event: MessageEvent<MixBroadcast>) => {
-      if (event.data?.kind === "progress") setProgress(event.data.progress);
+      if (event.data?.kind === "progress") {
+        progressRef.current = event.data.progress;
+        setProgress(event.data.progress);
+      }
     };
     return () => {
       bcRef.current = null;
@@ -412,6 +438,114 @@ export default function Controller({ room }: { room: string }) {
       if (autoMixTimerRef.current) window.clearInterval(autoMixTimerRef.current);
     };
   }, []);
+
+  /** Dispara un efecto de DJ en la TV (bocina, sirena, scratch, rewind). */
+  const triggerFx = useCallback(
+    (sound: FxSound) => {
+      const current = stateRef.current;
+      if (!current) return;
+      sendPatch({ fx: { sound, nonce: (current.fx?.nonce ?? 0) + 1 } });
+    },
+    [sendPatch],
+  );
+
+  /**
+   * Mix eterno: cuando al deck activo le quedan AUTODJ_PREPARE_AT segundos,
+   * el DJ IA elige el próximo tema (según la vibra escrita), se busca en
+   * YouTube y se carga al deck libre; a AUTODJ_MIX_AT segundos del final se
+   * dispara el mix automático. Corre mientras la consola esté abierta.
+   */
+  useEffect(() => {
+    if (!autoDj) return;
+    const tick = async () => {
+      if (autoMixTimerRef.current || autoDjBusyRef.current) return;
+      if (Date.now() < autoDjCooldownRef.current) return;
+      const current = stateRef.current;
+      const prog = progressRef.current;
+      if (!current || !prog) return;
+
+      const source: DeckId = current.crossfader <= 50 ? "a" : "b";
+      const target: DeckId = source === "a" ? "b" : "a";
+      const srcDeck = current.decks[source];
+      const p = prog.decks[source];
+      if (!srcDeck.videoId || !srcDeck.playing || !p || p.d <= 0) return;
+      const remaining = p.d - p.t;
+
+      // Etapa 2: sucesor listo y queda poco → mezclar.
+      if (
+        remaining <= AUTODJ_MIX_AT &&
+        autoDjPreparedForRef.current === srcDeck.videoId &&
+        current.decks[target].videoId
+      ) {
+        setAutoDjStatus("mezclando…");
+        startAutoMix();
+        return;
+      }
+
+      // Etapa 1: elegir y cargar el sucesor en el deck libre.
+      if (remaining > AUTODJ_PREPARE_AT) return;
+      if (autoDjPreparedForRef.current === srcDeck.videoId) return;
+
+      autoDjBusyRef.current = true;
+      setAutoDjStatus("eligiendo el próximo tema…");
+      try {
+        const currentTitles = (["a", "b"] as const)
+          .map((deck) => current.decks[deck].title)
+          .filter((t): t is string => !!t);
+        const res = await fetch(`/api/mix/suggest`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: vibe.trim() || "mantén la energía y el género de lo que está sonando",
+            current: currentTitles,
+          }),
+        });
+        const data = (await res.json()) as {
+          sugerencias?: Suggestion[];
+          error?: string;
+        };
+        if (!res.ok) {
+          setAutoDjStatus(`⚠ ${data.error ?? "falló el DJ IA"} — reintento en 30 s`);
+          autoDjCooldownRef.current = Date.now() + 30_000;
+          return;
+        }
+
+        const played = new Set(
+          [
+            ...current.library.map((item) => item.videoId),
+            current.decks.a.videoId,
+            current.decks.b.videoId,
+          ].filter((id): id is string => !!id),
+        );
+        for (const s of data.sugerencias ?? []) {
+          const q = `${s.artista} ${s.tema}`;
+          const searchRes = await fetch(`/api/mix/search?q=${encodeURIComponent(q)}`);
+          if (!searchRes.ok) continue;
+          const found = (await searchRes.json()) as {
+            items?: { videoId: string; title: string; embeddable?: boolean }[];
+          };
+          const pick = (found.items ?? []).find(
+            (v) => v.embeddable !== false && !played.has(v.videoId),
+          );
+          if (pick) {
+            await loadToDeck(target, pick.videoId, pick.title);
+            autoDjPreparedForRef.current = srcDeck.videoId;
+            setAutoDjStatus(`próximo: ${pick.title}`);
+            return;
+          }
+        }
+        setAutoDjStatus("⚠ no encontré tema nuevo — reintento en 30 s");
+        autoDjCooldownRef.current = Date.now() + 30_000;
+      } catch {
+        setAutoDjStatus("⚠ sin conexión con el DJ IA — reintento en 30 s");
+        autoDjCooldownRef.current = Date.now() + 30_000;
+      } finally {
+        autoDjBusyRef.current = false;
+      }
+    };
+    const id = window.setInterval(tick, 2000);
+    return () => window.clearInterval(id);
+  }, [autoDj, vibe, startAutoMix, loadToDeck]);
 
   const copyTvLink = useCallback(async () => {
     try {
@@ -722,6 +856,18 @@ export default function Controller({ room }: { room: string }) {
               </button>
             );
           })()}
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            {FX_PAD.map(({ sound, label }) => (
+              <button
+                key={sound}
+                onClick={() => triggerFx(sound)}
+                className="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-200 transition hover:bg-zinc-700 active:bg-zinc-600"
+                title="Suena en la TV"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <label className="flex items-center gap-3 text-xs text-zinc-400">
             <span className="w-12">Master</span>
             <input
@@ -803,7 +949,31 @@ export default function Controller({ room }: { room: string }) {
             >
               {suggesting ? "Pensando…" : "Sugerir"}
             </button>
+            <button
+              onClick={() => {
+                if (autoDj) {
+                  setAutoDj(false);
+                  setAutoDjStatus(null);
+                } else {
+                  autoDjPreparedForRef.current = null;
+                  autoDjCooldownRef.current = 0;
+                  setAutoDjStatus("activo — al acercarse el final elijo el próximo tema");
+                  setAutoDj(true);
+                }
+              }}
+              className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                autoDj
+                  ? "bg-emerald-500 text-black hover:bg-emerald-400"
+                  : "bg-zinc-800 text-zinc-200 hover:bg-zinc-700"
+              }`}
+              title="Encadena temas solo: la IA elige el siguiente y mezcla al terminar cada uno"
+            >
+              {autoDj ? "♾ Mix eterno ON" : "♾ Mix eterno"}
+            </button>
           </div>
+          {autoDj && autoDjStatus && (
+            <p className="mt-2 text-xs text-emerald-300">♾ {autoDjStatus}</p>
+          )}
           {suggestError && <p className="mt-2 text-xs text-red-400">{suggestError}</p>}
           {!!suggestions.length && (
             <ul className="mt-3 flex flex-col gap-2">

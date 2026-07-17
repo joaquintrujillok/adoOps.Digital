@@ -18,6 +18,10 @@ export type YtVideo = {
   duration: number;
   /** false = el dueño bloqueó la reproducción embebida (solo sirve en YouTube) */
   embeddable: boolean;
+  /** reproducciones (0 si el canal las oculta) */
+  views: number;
+  /** me gusta (0 si el canal los oculta) */
+  likes: number;
 };
 
 export type YtPlaylist = {
@@ -88,49 +92,115 @@ type VideoListResponse = {
     snippet?: { title?: string; channelTitle?: string };
     contentDetails?: { duration?: string };
     status?: { embeddable?: boolean };
+    statistics?: { viewCount?: string; likeCount?: string };
   }[];
   nextPageToken?: string;
 };
 
-/** Duraciones (y metadatos) de un lote de IDs vía videos.list. */
+function toYtVideo(item: NonNullable<VideoListResponse["items"]>[number]): YtVideo {
+  return {
+    videoId: item.id,
+    title: item.snippet?.title ?? item.id,
+    channel: item.snippet?.channelTitle ?? "",
+    duration: parseIsoDuration(item.contentDetails?.duration),
+    embeddable: item.status?.embeddable !== false,
+    views: Number(item.statistics?.viewCount ?? 0) || 0,
+    likes: Number(item.statistics?.likeCount ?? 0) || 0,
+  };
+}
+
+/** Duraciones, stats y metadatos de un lote de IDs vía videos.list. */
 async function hydrateVideos(auth: YtAuth, ids: string[]): Promise<Map<string, YtVideo>> {
   const map = new Map<string, YtVideo>();
   if (!ids.length) return map;
   const data = await ytFetch<VideoListResponse>(auth, "videos", {
-    part: "snippet,contentDetails,status",
+    part: "snippet,contentDetails,status,statistics",
     id: ids.join(","),
     maxResults: String(ids.length),
   });
   for (const item of data.items ?? []) {
-    map.set(item.id, {
-      videoId: item.id,
-      title: item.snippet?.title ?? item.id,
-      channel: item.snippet?.channelTitle ?? "",
-      duration: parseIsoDuration(item.contentDetails?.duration),
-      embeddable: item.status?.embeddable !== false,
-    });
+    map.set(item.id, toYtVideo(item));
   }
   return map;
 }
 
 type SearchResponse = {
-  items?: { id?: { videoId?: string } }[];
+  items?: {
+    id?: { kind?: string; videoId?: string; playlistId?: string };
+    snippet?: {
+      title?: string;
+      channelTitle?: string;
+      thumbnails?: { medium?: { url?: string } };
+    };
+  }[];
 };
 
-export async function searchVideos(auth: YtAuth, query: string): Promise<YtVideo[]> {
+export type YtSearchResults = { videos: YtVideo[]; playlists: YtPlaylist[] };
+
+/**
+ * Búsqueda mixta de videos y playlists. El filtro `videoEmbeddable` de la API
+ * no es compatible con `type=playlist`, así que los videos con embedding
+ * bloqueado vienen igual — se marcan con `embeddable: false` vía videos.list.
+ */
+export async function searchAll(auth: YtAuth, query: string): Promise<YtSearchResults> {
   const data = await ytFetch<SearchResponse>(auth, "search", {
-    part: "id",
+    part: "snippet",
     q: query,
-    type: "video",
-    videoEmbeddable: "true",
-    maxResults: "12",
+    type: "video,playlist",
+    maxResults: "16",
     safeSearch: "none",
   });
-  const ids = (data.items ?? [])
-    .map((item) => item.id?.videoId)
+  const items = data.items ?? [];
+
+  const videoIds = items
+    .map((item) => (item.id?.kind === "youtube#video" ? item.id.videoId : null))
     .filter((id): id is string => !!id);
-  const hydrated = await hydrateVideos(auth, ids);
-  return ids.map((id) => hydrated.get(id)).filter((v): v is YtVideo => !!v);
+  const hydrated = await hydrateVideos(auth, videoIds);
+
+  const playlistIds = items
+    .map((item) => (item.id?.kind === "youtube#playlist" ? item.id.playlistId : null))
+    .filter((id): id is string => !!id);
+  const counts = await hydratePlaylistCounts(auth, playlistIds);
+
+  const playlists = items
+    .filter((item) => item.id?.kind === "youtube#playlist" && item.id.playlistId)
+    .map((item) => ({
+      id: item.id!.playlistId!,
+      title: item.snippet?.title ?? "",
+      itemCount: counts.get(item.id!.playlistId!) ?? 0,
+      thumb: item.snippet?.thumbnails?.medium?.url ?? null,
+    }));
+
+  return {
+    videos: videoIds.map((id) => hydrated.get(id)).filter((v): v is YtVideo => !!v),
+    playlists,
+  };
+}
+
+type PlaylistCountResponse = {
+  items?: { id: string; contentDetails?: { itemCount?: number } }[];
+};
+
+/** Cantidad de videos por playlist (playlists.list cuesta 1 unidad). */
+async function hydratePlaylistCounts(
+  auth: YtAuth,
+  ids: string[],
+): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  if (!ids.length) return map;
+  try {
+    const data = await ytFetch<PlaylistCountResponse>(auth, "playlists", {
+      part: "contentDetails",
+      id: ids.join(","),
+      maxResults: String(ids.length),
+    });
+    for (const item of data.items ?? []) {
+      map.set(item.id, item.contentDetails?.itemCount ?? 0);
+    }
+  } catch {
+    // sin conteo no se pierde nada
+  }
+  return map;
 }
 
 type PlaylistListResponse = {
@@ -191,20 +261,14 @@ export async function listLikedVideos(
   pageToken?: string,
 ): Promise<YtPage<YtVideo>> {
   const params: Record<string, string> = {
-    part: "snippet,contentDetails,status",
+    part: "snippet,contentDetails,status,statistics",
     myRating: "like",
     maxResults: "25",
   };
   if (pageToken) params.pageToken = pageToken;
   const data = await ytFetch<VideoListResponse>({ accessToken }, "videos", params);
   return {
-    items: (data.items ?? []).map((item) => ({
-      videoId: item.id,
-      title: item.snippet?.title ?? item.id,
-      channel: item.snippet?.channelTitle ?? "",
-      duration: parseIsoDuration(item.contentDetails?.duration),
-      embeddable: item.status?.embeddable !== false,
-    })),
+    items: (data.items ?? []).map(toYtVideo),
     nextPage: data.nextPageToken ?? null,
   };
 }

@@ -23,6 +23,12 @@ export type DeckState = {
 
 export type LibraryItem = { videoId: string; title: string };
 
+/** Efectos de DJ sintetizados en la TV (Web Audio, no dependen de YouTube). */
+export const FX_SOUNDS = ["horn", "siren", "scratch", "rewind"] as const;
+export type FxSound = (typeof FX_SOUNDS)[number];
+/** Evento one-shot: la TV lo dispara exactamente una vez por nonce. */
+export type FxEvent = { sound: FxSound; nonce: number };
+
 export type RoomState = {
   decks: Record<DeckId, DeckState>;
   /** 0 = solo deck A · 100 = solo deck B. */
@@ -31,6 +37,8 @@ export type RoomState = {
   master: number;
   /** Últimos videos cargados en la sala (para recargarlos rápido). */
   library: LibraryItem[];
+  /** Último efecto pedido desde la consola (opcional: salas viejas no lo tienen). */
+  fx?: FxEvent;
 };
 
 export type DeckProgress = {
@@ -63,6 +71,7 @@ export type RoomPatch = {
   crossfader?: number;
   master?: number;
   library?: LibraryItem[];
+  fx?: FxEvent;
 };
 
 /** Mensajes del canal local (BroadcastChannel) entre consola y TV. */
@@ -214,6 +223,14 @@ export function mergePatch(state: RoomState, patch: RoomPatch): RoomState {
   }
   if (typeof patch.master === "number") {
     next.master = clamp(Math.round(patch.master), 0, 100);
+  }
+  if (
+    patch.fx &&
+    FX_SOUNDS.includes(patch.fx.sound) &&
+    typeof patch.fx.nonce === "number" &&
+    patch.fx.nonce >= 0
+  ) {
+    next.fx = { sound: patch.fx.sound, nonce: Math.floor(patch.fx.nonce) };
   }
   if (Array.isArray(patch.library)) {
     const seen = new Set<string>();

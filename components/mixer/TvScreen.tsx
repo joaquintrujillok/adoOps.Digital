@@ -21,6 +21,7 @@ import {
   type RoomState,
 } from "@/lib/mix-types";
 import { useHost } from "./useHost";
+import { playFx } from "./fx";
 import { loadYouTubeApi, type YTPlayer } from "./youtube";
 import "./mixer.css";
 
@@ -66,6 +67,7 @@ export default function TvScreen({ room }: { room: string }) {
   const currentVideoRef = useRef<Record<DeckId, string | null>>({ a: null, b: null });
   const playerErrorRef = useRef<Record<DeckId, number | null>>({ a: null, b: null });
   const appliedSeekRef = useRef<Record<DeckId, number>>({ a: 0, b: 0 });
+  const appliedFxRef = useRef(0);
   const versionRef = useRef(0);
   const lastLocalAtRef = useRef(0);
   const bcRef = useRef<BroadcastChannel | null>(null);
@@ -82,6 +84,12 @@ export default function TvScreen({ room }: { room: string }) {
     hudTimerRef.current = window.setTimeout(() => setHudVisible(false), 4500);
 
     if (!startedRef.current) return;
+
+    if (next.fx && next.fx.nonce !== appliedFxRef.current) {
+      appliedFxRef.current = next.fx.nonce;
+      playFx(next.fx.sound, next.master / 100);
+    }
+
     for (const deck of DECKS) {
       const player = playersRef.current[deck];
       if (!player || !readyRef.current[deck]) continue;
@@ -124,10 +132,12 @@ export default function TvScreen({ room }: { room: string }) {
         const data = (await res.json()) as Partial<RoomSnapshot> & { unchanged?: boolean };
         if (data.unchanged || typeof data.version !== "number") return;
         if (data.version === versionRef.current) return;
-        versionRef.current = data.version;
         // Si la consola está en este mismo equipo (BroadcastChannel activo hace
-        // <3s), ella es la fuente viva; el poll solo confirmaría estado viejo.
+        // <3s), ella es la fuente viva. OJO: la versión se avanza solo al
+        // aplicar — si no, un cambio llegado por API durante ese lapso (p. ej.
+        // desde una segunda consola) quedaría tragado para siempre.
         if (data.state && Date.now() - lastLocalAtRef.current > 3000) {
+          versionRef.current = data.version;
           applyState(data.state);
         }
       } catch {
@@ -215,6 +225,8 @@ export default function TvScreen({ room }: { room: string }) {
         a: initial.decks.a.seekNonce,
         b: initial.decks.b.seekNonce,
       };
+      // efectos anteriores al inicio de la pantalla no se re-disparan
+      appliedFxRef.current = initial.fx?.nonce ?? 0;
     }
 
     const YT = await loadYouTubeApi();

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { YT_COOKIE, cookieOptions, getAccess, oauthConfigured, requestOrigin } from "@/lib/mix-auth";
-import { isQuotaOrAuthError, searchVideos } from "@/lib/mix-youtube";
+import { isQuotaOrAuthError, searchAll } from "@/lib/mix-youtube";
 
 export const runtime = "nodejs";
 
@@ -28,8 +28,8 @@ export async function GET(req: Request) {
   }
 
   try {
-    const items = await searchVideos({ accessToken: access.token, apiKey }, q);
-    const res = NextResponse.json({ items });
+    const { videos, playlists } = await searchAll({ accessToken: access.token, apiKey }, q);
+    const res = NextResponse.json({ items: videos, playlists });
     if (access.reseal) res.cookies.set(YT_COOKIE, access.reseal, cookieOptions(origin));
     return res;
   } catch (error) {
