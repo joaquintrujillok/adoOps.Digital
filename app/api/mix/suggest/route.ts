@@ -100,6 +100,7 @@ export async function POST(req: Request) {
     prompt?: string;
     current?: string[];
     history?: string[];
+    avoidArtists?: string[];
     hour?: number;
     arc?: string;
   };
@@ -115,6 +116,8 @@ export async function POST(req: Request) {
   }
   const current = sanitizeTitles(body.current, 4);
   const history = sanitizeTitles(body.history, 40);
+  // artistas de los últimos temas: prohibido repetirlos
+  const avoidArtists = sanitizeTitles(body.avoidArtists, 6);
   const hour =
     typeof body.hour === "number" && body.hour >= 0 && body.hour <= 23
       ? Math.floor(body.hour)
@@ -134,9 +137,12 @@ export async function POST(req: Request) {
             "Eres un DJ asistente. Sugieres temas reales y conocidos que se encuentren " +
             "fácil en YouTube, pensando en transiciones coherentes de energía y género. " +
             "Reglas de DJ: (1) NUNCA sugieras un tema que aparezca en la lista de ya " +
-            "sonados, ni el mismo tema con otro nombre. (2) Evita repetir al artista " +
-            "que está sonando o al de los últimos temas — varía, salvo que la vibra " +
-            "pida un solo artista. (3) Prefiere temas populares y reconocibles por " +
+            "sonados, ni el mismo tema con otro nombre. (2) PROHIBIDO sugerir a los " +
+            "artistas vetados (sonaron en los últimos 3 temas) ni al que está " +
+            "sonando: cada sugerencia debe ser de un artista distinto entre sí y " +
+            "distinto a los vetados. Única excepción: que la vibra pida " +
+            "explícitamente un artista — en ese caso la vibra manda. " +
+            "(3) Prefiere temas populares y reconocibles por " +
             "sobre rarezas, salvo que la vibra pida lo contrario. (4) Si conoces la " +
             "hora local, modula la energía: subir hacia el peak de la noche, aterrizar " +
             "suave de madrugada o temprano. (5) Si te doy el momento de la fiesta " +
@@ -148,7 +154,8 @@ export async function POST(req: Request) {
           content:
             `Vibra pedida: ${prompt}\n` +
             `Sonando ahora: ${current.length ? current.join(" · ") : "nada todavía"}\n` +
-            `Ya sonaron (prohibido repetir): ${history.length ? history.join(" · ") : "ninguno"}` +
+            `Ya sonaron (prohibido repetir): ${history.length ? history.join(" · ") : "ninguno"}\n` +
+            `Artistas vetados (NO los sugieras): ${avoidArtists.length ? avoidArtists.join(" · ") : "ninguno"}` +
             (hour !== null ? `\nHora local: ${hour}:00` : "") +
             (arc ? `\nMomento de la fiesta: ${ARC_LABEL[arc]}` : ""),
         },

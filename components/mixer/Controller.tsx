@@ -100,6 +100,23 @@ const compact = (n: number) =>
 const normalizeText = (s: string) =>
   s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
+/** Artista aproximado desde un título de YouTube ("Artista - Tema (…)"). */
+const artistFromTitle = (title: string): string | null => {
+  const seg = title.split(/\s+[-–—]\s+/)[0]?.trim();
+  return seg && seg.length >= 3 && seg.length <= 40 ? seg : null;
+};
+
+/** Artistas de los últimos 3 temas cargados: vetados para el DJ IA. */
+const recentArtists = (library: { title: string }[]): string[] =>
+  Array.from(
+    new Set(
+      library
+        .slice(0, 3)
+        .map((i) => artistFromTitle(i.title))
+        .filter((a): a is string => !!a),
+    ),
+  );
+
 /** Versiones que un DJ no quiere por accidente al resolver una sugerencia. */
 const BAD_VERSION_RE =
   /cover|karaoke|8d|sped ?up|slowed|reverb|reacci[oó]n|reaction|tutorial|instrumental|ensayo/;
@@ -873,6 +890,7 @@ export default function Controller({ room }: { room: string }) {
       .filter((t): t is string => !!t);
     // historial de la sala = memoria anti-repetición del DJ
     const history = (stateRef.current?.library ?? []).map((item) => item.title);
+    const avoidArtists = recentArtists(stateRef.current?.library ?? []);
     const res = await fetchWithTimeout(
       `/api/mix/suggest`,
       {
@@ -882,6 +900,7 @@ export default function Controller({ room }: { room: string }) {
           prompt: vibe.trim() || "mantén la energía y el género de lo que está sonando",
           current: currentTitles,
           history,
+          avoidArtists,
           hour: new Date().getHours(),
           ...(partyArc !== "auto" ? { arc: partyArc } : {}),
         }),
@@ -1125,9 +1144,21 @@ export default function Controller({ room }: { room: string }) {
           }
           // 2) Sin cola: primera alternativa resuelta y no usada, en el orden
           // de la IA. Si aún se está resolviendo, se reintenta al tick.
+          // filtro duro anti-repetición: nada del mismo artista en 3 temas,
+          // salvo que la vibra lo pida explícitamente por nombre.
+          const vetados = recentArtists(stateRef.current?.library ?? []).map(normalizeText);
+          const vibraNorm = normalizeText(vibe);
           for (const s of suggestionsRef.current) {
             const key = suggestionKey(s);
             if (usedKeysRef.current.includes(key)) continue;
+            const artistaNorm = normalizeText(s.artista);
+            if (
+              artistaNorm.length >= 3 &&
+              !vibraNorm.includes(artistaNorm) &&
+              vetados.some((a) => a.includes(artistaNorm) || artistaNorm.includes(a))
+            ) {
+              continue; // artista repetido en los últimos 3 temas
+            }
             // modo ahorro: resolver recién aquí, solo lo necesario
             let alt = resolvedAltsRef.current[key];
             if (alt === undefined) alt = await videoForSuggestion(s);
@@ -1153,6 +1184,7 @@ export default function Controller({ room }: { room: string }) {
     return () => window.clearInterval(id);
   }, [
     autoDj,
+    vibe,
     fetchSuggestions,
     videoForSuggestion,
     startAutoMix,
