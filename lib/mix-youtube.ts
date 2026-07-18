@@ -22,6 +22,8 @@ export type YtVideo = {
   views: number;
   /** me gusta (0 si el canal los oculta) */
   likes: number;
+  /** true = el video no se puede ver en el país del usuario */
+  blockedInRegion: boolean;
 };
 
 export type YtPlaylist = {
@@ -90,14 +92,31 @@ type VideoListResponse = {
   items?: {
     id: string;
     snippet?: { title?: string; channelTitle?: string };
-    contentDetails?: { duration?: string };
+    contentDetails?: {
+      duration?: string;
+      regionRestriction?: { allowed?: string[]; blocked?: string[] };
+    };
     status?: { embeddable?: boolean };
     statistics?: { viewCount?: string; likeCount?: string };
   }[];
   nextPageToken?: string;
 };
 
-function toYtVideo(item: NonNullable<VideoListResponse["items"]>[number]): YtVideo {
+/** true si la restricción por país del video excluye a `region`. */
+function isBlockedInRegion(
+  rr: { allowed?: string[]; blocked?: string[] } | undefined,
+  region: string | null,
+): boolean {
+  if (!rr || !region) return false;
+  if (rr.allowed) return !rr.allowed.includes(region);
+  if (rr.blocked) return rr.blocked.includes(region);
+  return false;
+}
+
+function toYtVideo(
+  item: NonNullable<VideoListResponse["items"]>[number],
+  region: string | null,
+): YtVideo {
   return {
     videoId: item.id,
     title: item.snippet?.title ?? item.id,
@@ -106,11 +125,16 @@ function toYtVideo(item: NonNullable<VideoListResponse["items"]>[number]): YtVid
     embeddable: item.status?.embeddable !== false,
     views: Number(item.statistics?.viewCount ?? 0) || 0,
     likes: Number(item.statistics?.likeCount ?? 0) || 0,
+    blockedInRegion: isBlockedInRegion(item.contentDetails?.regionRestriction, region),
   };
 }
 
 /** Duraciones, stats y metadatos de un lote de IDs vía videos.list. */
-async function hydrateVideos(auth: YtAuth, ids: string[]): Promise<Map<string, YtVideo>> {
+async function hydrateVideos(
+  auth: YtAuth,
+  ids: string[],
+  region: string | null,
+): Promise<Map<string, YtVideo>> {
   const map = new Map<string, YtVideo>();
   if (!ids.length) return map;
   const data = await ytFetch<VideoListResponse>(auth, "videos", {
@@ -119,7 +143,7 @@ async function hydrateVideos(auth: YtAuth, ids: string[]): Promise<Map<string, Y
     maxResults: String(ids.length),
   });
   for (const item of data.items ?? []) {
-    map.set(item.id, toYtVideo(item));
+    map.set(item.id, toYtVideo(item, region));
   }
   return map;
 }
@@ -142,20 +166,26 @@ export type YtSearchResults = { videos: YtVideo[]; playlists: YtPlaylist[] };
  * no es compatible con `type=playlist`, así que los videos con embedding
  * bloqueado vienen igual — se marcan con `embeddable: false` vía videos.list.
  */
-export async function searchAll(auth: YtAuth, query: string): Promise<YtSearchResults> {
+export async function searchAll(
+  auth: YtAuth,
+  query: string,
+  region: string | null,
+): Promise<YtSearchResults> {
   const data = await ytFetch<SearchResponse>(auth, "search", {
     part: "snippet",
     q: query,
     type: "video,playlist",
     maxResults: "16",
     safeSearch: "none",
+    // prioriza resultados visibles en el país del usuario
+    ...(region ? { regionCode: region } : {}),
   });
   const items = data.items ?? [];
 
   const videoIds = items
     .map((item) => (item.id?.kind === "youtube#video" ? item.id.videoId : null))
     .filter((id): id is string => !!id);
-  const hydrated = await hydrateVideos(auth, videoIds);
+  const hydrated = await hydrateVideos(auth, videoIds, region);
 
   const playlistIds = items
     .map((item) => (item.id?.kind === "youtube#playlist" ? item.id.playlistId : null))
@@ -235,6 +265,7 @@ type PlaylistItemsResponse = {
 export async function listPlaylistItems(
   auth: YtAuth,
   playlistId: string,
+  region: string | null,
   pageToken?: string,
 ): Promise<YtPage<YtVideo>> {
   const params: Record<string, string> = {
@@ -247,7 +278,7 @@ export async function listPlaylistItems(
   const ids = (data.items ?? [])
     .map((item) => item.contentDetails?.videoId)
     .filter((id): id is string => !!id);
-  const hydrated = await hydrateVideos(auth, ids);
+  const hydrated = await hydrateVideos(auth, ids, region);
   return {
     // videos privados/eliminados no vienen en videos.list → quedan fuera solos
     items: ids.map((id) => hydrated.get(id)).filter((v): v is YtVideo => !!v),
@@ -258,6 +289,7 @@ export async function listPlaylistItems(
 /** "Tus Me gusta" del usuario conectado (forma oficial: myRating=like). */
 export async function listLikedVideos(
   accessToken: string,
+  region: string | null,
   pageToken?: string,
 ): Promise<YtPage<YtVideo>> {
   const params: Record<string, string> = {
@@ -268,7 +300,7 @@ export async function listLikedVideos(
   if (pageToken) params.pageToken = pageToken;
   const data = await ytFetch<VideoListResponse>({ accessToken }, "videos", params);
   return {
-    items: (data.items ?? []).map(toYtVideo),
+    items: (data.items ?? []).map((item) => toYtVideo(item, region)),
     nextPage: data.nextPageToken ?? null,
   };
 }

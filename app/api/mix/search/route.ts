@@ -27,8 +27,15 @@ export async function GET(req: Request) {
     );
   }
 
+  // país del usuario (IP, lo pone Vercel); Chile como fallback en dev
+  const region = (req.headers.get("x-vercel-ip-country") ?? "CL").toUpperCase();
+
   try {
-    const { videos, playlists } = await searchAll({ accessToken: access.token, apiKey }, q);
+    const { videos, playlists } = await searchAll(
+      { accessToken: access.token, apiKey },
+      q,
+      region,
+    );
     const res = NextResponse.json({ items: videos, playlists });
     if (access.reseal) res.cookies.set(YT_COOKIE, access.reseal, cookieOptions(origin));
     return res;

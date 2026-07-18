@@ -28,18 +28,26 @@ export async function GET(req: Request) {
     : { token: null };
   const apiKey = process.env.YOUTUBE_API_KEY ?? null;
 
+  // país del usuario (IP, lo pone Vercel); Chile como fallback en dev
+  const region = (req.headers.get("x-vercel-ip-country") ?? "CL").toUpperCase();
+
   try {
     let result;
     if (id === LIKES_PLAYLIST_ID) {
       if (!access.token) {
         return NextResponse.json({ error: "no conectado" }, { status: 401 });
       }
-      result = await listLikedVideos(access.token, page);
+      result = await listLikedVideos(access.token, region, page);
     } else {
       if (!access.token && !apiKey) {
         return NextResponse.json({ error: "no conectado" }, { status: 401 });
       }
-      result = await listPlaylistItems({ accessToken: access.token, apiKey }, id, page);
+      result = await listPlaylistItems(
+        { accessToken: access.token, apiKey },
+        id,
+        region,
+        page,
+      );
     }
     const res = NextResponse.json(result);
     if (access.reseal) res.cookies.set(YT_COOKIE, access.reseal, cookieOptions(origin));

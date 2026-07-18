@@ -16,6 +16,8 @@ type Video = {
   duration: number;
   /** false = el dueño bloqueó la reproducción embebida (solo sirve en YouTube) */
   embeddable?: boolean;
+  /** true = no disponible en el país del usuario */
+  blockedInRegion?: boolean;
   views?: number;
   likes?: number;
 };
@@ -224,26 +226,31 @@ export default function LibraryPanel({ room, onLoad, onEnqueue }: Props) {
             🚫 Solo en YouTube — su dueño bloqueó reproducirlo fuera
           </p>
         )}
+        {video.blockedInRegion && (
+          <p className="mt-0.5 text-[10px] font-semibold text-amber-400">
+            🌍 No disponible en tu país
+          </p>
+        )}
       </div>
       {/* En celular los botones bajan a su propia fila, a lo ancho */}
       <div className="flex w-full shrink-0 gap-1 md:w-auto">
         <button
           onClick={() => onLoad("a", video.videoId, video.title)}
-          disabled={video.embeddable === false}
+          disabled={video.embeddable === false || !!video.blockedInRegion}
           className="flex-1 rounded-md bg-emerald-500/15 px-3 py-3 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/30 disabled:opacity-30 md:flex-none md:py-2"
         >
           → A
         </button>
         <button
           onClick={() => onLoad("b", video.videoId, video.title)}
-          disabled={video.embeddable === false}
+          disabled={video.embeddable === false || !!video.blockedInRegion}
           className="flex-1 rounded-md bg-fuchsia-500/15 px-3 py-3 text-xs font-bold text-fuchsia-300 transition hover:bg-fuchsia-500/30 disabled:opacity-30 md:flex-none md:py-2"
         >
           → B
         </button>
         <button
           onClick={() => onEnqueue(video.videoId, video.title)}
-          disabled={video.embeddable === false}
+          disabled={video.embeddable === false || !!video.blockedInRegion}
           className="flex-1 rounded-md bg-zinc-800 px-2 py-3 text-xs text-zinc-300 transition hover:bg-zinc-700 disabled:opacity-30 md:flex-none md:py-2"
           title="Agregar a la cola"
         >

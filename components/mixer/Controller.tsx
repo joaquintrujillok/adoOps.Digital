@@ -923,13 +923,16 @@ export default function Controller({ room }: { room: string }) {
           title: string;
           channel?: string;
           embeddable?: boolean;
+          blockedInRegion?: boolean;
           duration?: number;
           views?: number;
           likes?: number;
         }[];
       };
       const usable = (found.items ?? [])
-        .filter((v) => v.embeddable !== false && !played.has(v.videoId))
+        .filter(
+          (v) => v.embeddable !== false && !v.blockedInRegion && !played.has(v.videoId),
+        )
         .slice(0, 8);
       if (!usable.length) return null;
       const normalLength = usable.filter(
