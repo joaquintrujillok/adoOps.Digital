@@ -215,7 +215,6 @@ export default function Controller({ room }: { room: string }) {
   const suggestionsRef = useRef<Suggestion[]>([]);
   const usedKeysRef = useRef<string[]>([]);
   const resolvedAltsRef = useRef<Record<string, ResolvedAlt | null>>({});
-  const resolvingRef = useRef(false);
   /** videoId del tema activo para el que ya se pidieron alternativas. */
   const suggestForRef = useRef<string | null>(null);
   // el offset se lee al momento de cargar sin recrear loadToDeck/loadClipToDeck
@@ -960,34 +959,9 @@ export default function Controller({ room }: { room: string }) {
     [],
   );
 
-  /**
-   * Resuelve TODAS las alternativas apenas llegan (en orden, en segundo
-   * plano): la lista muestra duración/vistas/likes reales y el sucesor queda
-   * listo para cargarse de inmediato. Costo: 1 búsqueda por alternativa.
-   */
-  const resolveAllSuggestions = useCallback(
-    async (sugs: Suggestion[]) => {
-      if (resolvingRef.current) return;
-      resolvingRef.current = true;
-      try {
-        for (const s of sugs) {
-          const key = suggestionKey(s);
-          if (resolvedAltsRef.current[key] !== undefined) continue;
-          let alt: ResolvedAlt | null = null;
-          try {
-            alt = await resolveSuggestion(s);
-          } catch {
-            alt = null;
-          }
-          resolvedAltsRef.current = { ...resolvedAltsRef.current, [key]: alt };
-          setResolvedAlts(resolvedAltsRef.current);
-        }
-      } finally {
-        resolvingRef.current = false;
-      }
-    },
-    [resolveSuggestion],
-  );
+  // Modo ahorro de cuota: las alternativas NO se resuelven todas — el ciclo
+  // resuelve la primera al preparar el sucesor, y el resto solo si tocas
+  // "🔍 datos" o las cargas (videoForSuggestion cachea el resultado).
 
   /** Video de una alternativa: reutiliza lo resuelto o busca (y lo guarda). */
   const videoForSuggestion = useCallback(
@@ -1001,6 +975,22 @@ export default function Controller({ room }: { room: string }) {
       return alt;
     },
     [resolveSuggestion],
+  );
+
+  /** Resuelve una alternativa solo para VER sus datos (cuesta 1 búsqueda). */
+  const peekSuggestion = useCallback(
+    async (s: Suggestion) => {
+      if (loadingSuggestion) return;
+      setLoadingSuggestion(suggestionKey(s));
+      try {
+        await videoForSuggestion(s);
+      } catch {
+        // la fila quedará como "sin video"
+      } finally {
+        setLoadingSuggestion(null);
+      }
+    },
+    [loadingSuggestion, videoForSuggestion],
   );
 
   /** Carga manual de una alternativa al deck elegido (botones → A / → B). */
@@ -1096,8 +1086,6 @@ export default function Controller({ room }: { room: string }) {
             setUsedKeys([]);
             resolvedAltsRef.current = {};
             setResolvedAlts({});
-            // resolver todas en segundo plano: datos visibles + sucesor listo
-            void resolveAllSuggestions(result);
             setAutoDjStatus(`${result.length} alternativas — eligiendo el siguiente…`);
           }
         } finally {
@@ -1137,8 +1125,9 @@ export default function Controller({ room }: { room: string }) {
           for (const s of suggestionsRef.current) {
             const key = suggestionKey(s);
             if (usedKeysRef.current.includes(key)) continue;
-            const alt = resolvedAltsRef.current[key];
-            if (alt === undefined) return; // resolución en curso
+            // modo ahorro: resolver recién aquí, solo lo necesario
+            let alt = resolvedAltsRef.current[key];
+            if (alt === undefined) alt = await videoForSuggestion(s);
             if (!alt) continue; // sin video utilizable: probar la siguiente
             await loadToDeck(target, alt.videoId, alt.title);
             setUsedKeys((prev) => [...prev, key]);
@@ -1162,7 +1151,7 @@ export default function Controller({ room }: { room: string }) {
   }, [
     autoDj,
     fetchSuggestions,
-    resolveAllSuggestions,
+    videoForSuggestion,
     startAutoMix,
     loadToDeck,
     loadQueueItem,
@@ -1193,7 +1182,6 @@ export default function Controller({ room }: { room: string }) {
       setUsedKeys([]);
       resolvedAltsRef.current = {};
       setResolvedAlts({});
-      void resolveAllSuggestions(result);
     } catch (error) {
       setSuggestError(
         error instanceof DOMException && error.name === "AbortError"
@@ -1203,7 +1191,7 @@ export default function Controller({ room }: { room: string }) {
     } finally {
       setSuggesting(false);
     }
-  }, [vibe, suggesting, fetchSuggestions, resolveAllSuggestions]);
+  }, [vibe, suggesting, fetchSuggestions]);
 
   const renderDeck = (deck: DeckId) => {
     const meta = DECK_META[deck];
@@ -1914,7 +1902,7 @@ export default function Controller({ room }: { room: string }) {
                           ? `${alt.duration > 0 ? `${formatTime(alt.duration)} · ` : ""}${compact(alt.views)} vistas · 👍 ${compact(alt.likes)}`
                           : alt === null
                             ? "sin video reproducible en YouTube"
-                            : "buscando el video…"}
+                            : "toca 🔍 para ver duración y vistas"}
                       </p>
                       <p className="truncate text-[11px] text-zinc-600">{s.motivo}</p>
                     </div>
@@ -1923,6 +1911,16 @@ export default function Controller({ room }: { room: string }) {
                         <span className="px-2 text-xs text-zinc-400">cargando…</span>
                       ) : (
                         <>
+                          {alt === undefined && (
+                            <button
+                              onClick={() => peekSuggestion(s)}
+                              disabled={!!loadingSuggestion}
+                              className="rounded-md bg-zinc-800 px-2.5 py-2.5 text-xs text-zinc-300 transition hover:bg-zinc-700 disabled:opacity-40 md:py-1.5"
+                              title="Ver duración, vistas y likes (1 búsqueda)"
+                            >
+                              🔍
+                            </button>
+                          )}
                           <button
                             onClick={() => loadSuggestion("a", s)}
                             disabled={!!loadingSuggestion || alt === null}
