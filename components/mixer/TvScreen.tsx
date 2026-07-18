@@ -24,7 +24,7 @@ import {
 import { useHost } from "./useHost";
 import { attachLiveAudio, playFx, unlockFxAudio } from "./fx";
 import { RTC_CONFIG, waitIceComplete } from "./live";
-import { clipPlayer, loadYouTubeApi, type YTPlayer } from "./youtube";
+import { clipPlayer, loadYouTubeApi, type YTNamespace, type YTPlayer } from "./youtube";
 import "./mixer.css";
 
 const DECKS: DeckId[] = ["a", "b"];
@@ -76,6 +76,10 @@ export default function TvScreen({ room }: { room: string }) {
   const playerErrorRef = useRef<Record<DeckId, number | null>>({ a: null, b: null });
   const appliedSeekRef = useRef<Record<DeckId, number>>({ a: 0, b: 0 });
   const appliedFxRef = useRef(0);
+  // watchdog: detectar un player de YouTube atascado (orden de play, tiempo en 0)
+  const ytRef = useRef<YTNamespace | null>(null);
+  const stuckTicksRef = useRef<Record<DeckId, number>>({ a: 0, b: 0 });
+  const rebuildAtRef = useRef<Record<DeckId, number>>({ a: 0, b: 0 });
   const versionRef = useRef(0);
   const lastLocalAtRef = useRef(0);
   const bcRef = useRef<BroadcastChannel | null>(null);
@@ -294,6 +298,64 @@ export default function TvScreen({ room }: { room: string }) {
     };
   }, [room, applyState, handleRtcSignal]);
 
+  /**
+   * Construye (o RECONSTRUYE) el player de YouTube de un deck. destroy()
+   * elimina el iframe, así que se recrea el contenedor antes de instanciar.
+   * Lo usa el arranque y el watchdog anti-atasco.
+   */
+  const buildYtPlayer = useCallback(
+    (YT: YTNamespace, deck: DeckId, videoId: string | null) => {
+      readyRef.current[deck] = false;
+      try {
+        playersRef.current[deck]?.destroy();
+      } catch {
+        // el player anterior podía estar muerto
+      }
+      playersRef.current[deck] = null;
+      const wrapper = document.getElementById(`tv-player-wrap-${deck}`);
+      if (!wrapper) return;
+      wrapper.innerHTML = "";
+      const element = document.createElement("div");
+      element.id = `tv-player-${deck}`;
+      element.className = "h-full w-full";
+      wrapper.appendChild(element);
+      // La IFrame API lanza "Invalid video id" si videoId viene undefined;
+      // con el deck vacío hay que omitir la clave (embed vacío + onReady OK).
+      playersRef.current[deck] = new YT.Player(element, {
+        ...(videoId ? { videoId } : {}),
+        playerVars: {
+          autoplay: 0,
+          controls: 0,
+          disablekb: 1,
+          fs: 0,
+          iv_load_policy: 3,
+          playsinline: 1,
+          rel: 0,
+        },
+        events: {
+          onReady: () => {
+            readyRef.current[deck] = true;
+            currentVideoRef.current[deck] = videoId;
+            const latest = stateRef.current;
+            if (latest) applyState(latest);
+          },
+          onError: (event) => {
+            // La consola muestra el motivo (ej: embedding bloqueado por derechos).
+            playerErrorRef.current[deck] = event.data;
+          },
+          onStateChange: (event) => {
+            // Si llegó a reproducir, cualquier error anterior fue transitorio:
+            // sin esto el cartel "no se pudo reproducir" quedaba pegado.
+            if (event.data === YT.PlayerState.PLAYING) {
+              playerErrorRef.current[deck] = null;
+            }
+          },
+        },
+      });
+    },
+    [applyState],
+  );
+
   // Telemetría: la TV reporta tiempos para que la consola muestre el progreso.
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -320,6 +382,29 @@ export default function TvScreen({ room }: { room: string }) {
           // el player puede no estar listo aún
         }
       }
+      // Watchdog anti-atasco: un deck de YouTube con orden de play cuyo tiempo
+      // no despega de 0 en ~10s tiene el player muerto (pasa tras videos con
+      // embedding bloqueado). Se destruye y reconstruye solo.
+      for (const deck of DECKS) {
+        const d = current.decks[deck];
+        const esYtSonando = d.kind !== "clip" && !!d.videoId && d.playing;
+        const t = decks[deck]?.t ?? null;
+        if (esYtSonando && readyRef.current[deck] && t !== null && t < 0.5) {
+          stuckTicksRef.current[deck] += 1;
+        } else {
+          stuckTicksRef.current[deck] = 0;
+        }
+        if (
+          stuckTicksRef.current[deck] >= 5 &&
+          ytRef.current &&
+          Date.now() - rebuildAtRef.current[deck] > 30_000
+        ) {
+          rebuildAtRef.current[deck] = Date.now();
+          stuckTicksRef.current[deck] = 0;
+          buildYtPlayer(ytRef.current, deck, d.videoId);
+        }
+      }
+
       if (!hasAny) return;
 
       const progress: RoomProgress = { decks, at: Date.now() };
@@ -335,7 +420,7 @@ export default function TvScreen({ room }: { room: string }) {
       }
     }, 2000);
     return () => window.clearInterval(id);
-  }, [room]);
+  }, [room, buildYtPlayer]);
 
   /** El toque del usuario habilita el audio y crea los reproductores. */
   const start = useCallback(async () => {
@@ -365,45 +450,11 @@ export default function TvScreen({ room }: { room: string }) {
     }
 
     const YT = await loadYouTubeApi();
+    ytRef.current = YT;
     for (const deck of DECKS) {
-      const element = document.getElementById(`tv-player-${deck}`);
-      if (!element) continue;
-      // La IFrame API lanza "Invalid video id" si videoId viene undefined;
-      // con el deck vacío hay que omitir la clave (embed vacío + onReady OK).
-      const initialVideoId = initial?.decks[deck].videoId;
-      playersRef.current[deck] = new YT.Player(element, {
-        ...(initialVideoId ? { videoId: initialVideoId } : {}),
-        playerVars: {
-          autoplay: 0,
-          controls: 0,
-          disablekb: 1,
-          fs: 0,
-          iv_load_policy: 3,
-          playsinline: 1,
-          rel: 0,
-        },
-        events: {
-          onReady: () => {
-            readyRef.current[deck] = true;
-            currentVideoRef.current[deck] = initial?.decks[deck].videoId ?? null;
-            const latest = stateRef.current;
-            if (latest) applyState(latest);
-          },
-          onError: (event) => {
-            // La consola muestra el motivo (ej: embedding bloqueado por derechos).
-            playerErrorRef.current[deck] = event.data;
-          },
-          onStateChange: (event) => {
-            // Si llegó a reproducir, cualquier error anterior fue transitorio:
-            // sin esto el cartel "no se pudo reproducir" quedaba pegado.
-            if (event.data === YT.PlayerState.PLAYING) {
-              playerErrorRef.current[deck] = null;
-            }
-          },
-        },
-      });
+      buildYtPlayer(YT, deck, initial?.decks[deck].videoId ?? null);
     }
-  }, [applyState]);
+  }, [buildYtPlayer]);
 
   const toggleFullscreen = useCallback(() => {
     if (fullscreenActive()) exitFullscreen();
@@ -443,14 +494,14 @@ export default function TvScreen({ room }: { room: string }) {
             style={{ opacity: started ? layerOpacity(deck) : 0, zIndex: deck === "a" ? 1 : 2 }}
           >
             {/* iframe de YouTube y <video> del clip conviven; se muestra el activo.
-                El display va en este wrapper: la IFrame API reemplaza el div de
-                adentro por su <iframe> y se llevaría cualquier estilo puesto ahí. */}
+                El wrapper queda VACÍO para React: buildYtPlayer crea (y el
+                watchdog recrea) el div interior imperativamente — así destroy()
+                y las reconstrucciones no pelean con la reconciliación. */}
             <div
+              id={`tv-player-wrap-${deck}`}
               className="h-full w-full"
               style={{ display: isClip ? "none" : "block" }}
-            >
-              <div id={`tv-player-${deck}`} className="h-full w-full" />
-            </div>
+            />
             <video
               ref={(el) => {
                 clipElsRef.current[deck] = el;
