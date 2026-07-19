@@ -130,14 +130,22 @@ export default function TvScreen({ room }: { room: string }) {
       if (sourceId !== currentVideoRef.current[deck]) {
         currentVideoRef.current[deck] = sourceId;
         playerErrorRef.current[deck] = null;
+        // Si el video trae un seek pendiente (el offset de inicio), cuéalo
+        // DIRECTO en ese punto: cueVideoById + seekTo por separado pierde el
+        // seek porque el video aún no cargó y seekTo se ignora.
+        const pendingSeek = target.seekNonce !== appliedSeekRef.current[deck];
+        const startSeconds = pendingSeek ? Math.max(0, target.seekTo) : 0;
+        if (pendingSeek) appliedSeekRef.current[deck] = target.seekNonce;
         if (sourceId) {
-          if (target.playing) player.loadVideoById(sourceId);
-          else player.cueVideoById(sourceId);
+          const arg = startSeconds > 0 ? { videoId: sourceId, startSeconds } : sourceId;
+          if (target.playing) player.loadVideoById(arg);
+          else player.cueVideoById(arg);
         } else {
           player.pauseVideo();
         }
       }
 
+      // seek de un video ya cargado (arrastrar la barra en la consola)
       if (target.seekNonce !== appliedSeekRef.current[deck]) {
         appliedSeekRef.current[deck] = target.seekNonce;
         if (sourceId) player.seekTo(target.seekTo, true);
@@ -304,7 +312,7 @@ export default function TvScreen({ room }: { room: string }) {
    * Lo usa el arranque y el watchdog anti-atasco.
    */
   const buildYtPlayer = useCallback(
-    (YT: YTNamespace, deck: DeckId, videoId: string | null) => {
+    (YT: YTNamespace, deck: DeckId, videoId: string | null, startSeconds = 0) => {
       readyRef.current[deck] = false;
       try {
         playersRef.current[deck]?.destroy();
@@ -331,6 +339,8 @@ export default function TvScreen({ room }: { room: string }) {
           iv_load_policy: 3,
           playsinline: 1,
           rel: 0,
+          // punto de inicio (offset): al construir con el deck ya cueado
+          ...(startSeconds > 0 ? { start: Math.floor(startSeconds) } : {}),
         },
         events: {
           onReady: () => {
@@ -452,7 +462,9 @@ export default function TvScreen({ room }: { room: string }) {
     const YT = await loadYouTubeApi();
     ytRef.current = YT;
     for (const deck of DECKS) {
-      buildYtPlayer(YT, deck, initial?.decks[deck].videoId ?? null);
+      const d = initial?.decks[deck];
+      // arranca con el offset ya cueado (evita el cueVideoById+seekTo tardío)
+      buildYtPlayer(YT, deck, d?.videoId ?? null, d?.seekTo ?? 0);
     }
   }, [buildYtPlayer]);
 

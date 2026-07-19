@@ -3,9 +3,12 @@
  * Solo se usa en el cliente (pantalla /tv).
  */
 
+/** Acepta un id crudo o { videoId, startSeconds } para cuear en un punto. */
+export type YTLoadArg = string | { videoId: string; startSeconds?: number };
+
 export type YTPlayer = {
-  loadVideoById: (videoId: string) => void;
-  cueVideoById: (videoId: string) => void;
+  loadVideoById: (arg: YTLoadArg) => void;
+  cueVideoById: (arg: YTLoadArg) => void;
   playVideo: () => void;
   pauseVideo: () => void;
   seekTo: (seconds: number, allowSeekAhead: boolean) => void;
@@ -65,18 +68,28 @@ declare global {
  */
 export function clipPlayer(el: HTMLVideoElement): YTPlayer {
   let currentSrc = "";
-  const load = (src: string, autoplay: boolean) => {
+  const load = (arg: YTLoadArg, autoplay: boolean) => {
+    const src = typeof arg === "string" ? arg : arg.videoId;
+    const startSeconds = typeof arg === "string" ? 0 : (arg.startSeconds ?? 0);
     if (currentSrc !== src) {
       currentSrc = src;
       el.src = src;
       el.load();
     }
+    // el offset de inicio: aplícalo cuando el <video> ya sepa su duración
+    if (startSeconds > 0) {
+      const seek = () => {
+        el.currentTime = startSeconds;
+      };
+      if (el.readyState >= 1) seek();
+      else el.addEventListener("loadedmetadata", seek, { once: true });
+    }
     if (autoplay) void el.play().catch(() => {});
   };
   return {
     // el "videoId" de un clip es su URL
-    loadVideoById: (src) => load(src, true),
-    cueVideoById: (src) => load(src, false),
+    loadVideoById: (arg) => load(arg, true),
+    cueVideoById: (arg) => load(arg, false),
     playVideo: () => void el.play().catch(() => {}),
     pauseVideo: () => el.pause(),
     seekTo: (seconds) => {
