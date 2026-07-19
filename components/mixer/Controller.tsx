@@ -1587,10 +1587,48 @@ export default function Controller({ room }: { room: string }) {
             <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-500">
               ⏭ Cola{state?.queue?.length ? ` · ${state.queue.length}` : ""}
             </h2>
-            <span className="text-[10px] text-zinc-600">
-              el siguiente se carga solo al deck libre
-            </span>
+            {(() => {
+              // lista completa en orden de reproducción: lo que suena + el deck
+              // preparado + la cola. Solo YouTube (los clips no van a playlist),
+              // deduplicado, tope 50 (límite de watch_videos).
+              const active: DeckId = (state?.crossfader ?? 50) <= 50 ? "a" : "b";
+              const deckIds = ([active, active === "a" ? "b" : "a"] as DeckId[])
+                .map((d) => state?.decks[d])
+                .filter((d) => d && d.kind !== "clip" && d.videoId)
+                .map((d) => d!.videoId as string);
+              const queueIds = (state?.queue ?? [])
+                .filter((q) => q.kind !== "clip" && q.videoId)
+                .map((q) => q.videoId as string);
+              const ytIds = [...new Set([...deckIds, ...queueIds])].slice(0, 50);
+              return (
+                <a
+                  href={
+                    ytIds.length
+                      ? `https://www.youtube.com/watch_videos?video_ids=${ytIds.join(",")}`
+                      : undefined
+                  }
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-disabled={!ytIds.length}
+                  onClick={(e) => {
+                    if (!ytIds.length) e.preventDefault();
+                  }}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                    ytIds.length
+                      ? "bg-red-600 text-white hover:bg-red-500"
+                      : "pointer-events-none bg-zinc-800 text-zinc-600"
+                  }`}
+                  title="Abre la cola en YouTube; desde ahí puedes guardarla como playlist"
+                >
+                  ▶ Abrir en YouTube
+                </a>
+              );
+            })()}
           </div>
+          <p className="-mt-2 mb-2 text-[10px] text-zinc-600">
+            El siguiente se carga solo al deck libre. &quot;Abrir en YouTube&quot; lleva la
+            cola a una lista de YouTube; ahí la guardas como playlist (botón Guardar).
+          </p>
           {state?.queue?.length ? (
             <ul className="flex flex-col gap-2">
               {state.queue.map((item, i) => (
