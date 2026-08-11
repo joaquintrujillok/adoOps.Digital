@@ -90,24 +90,68 @@ export async function listarDeals(opciones?: {
   );
 }
 
+/** Cuántas actividades de cada tipo lleva la oportunidad. */
+export type ConteoActividades = Record<string, number>;
+
+export interface DealEnTablero extends DealListado {
+  actividades: ConteoActividades;
+}
+
 export interface Columna {
   etapa: string;
   nombre: string;
-  deals: DealListado[];
+  /** La de la etapa, no el promedio de las oportunidades: es la del encabezado. */
+  probabilidad: number;
+  deals: DealEnTablero[];
   total: number;
   ponderado: number;
+}
+
+/**
+ * Cuántas actividades de cada tipo tiene cada oportunidad.
+ *
+ * Una sola consulta agrupada para todo el tablero. La alternativa —una
+ * subconsulta por tipo dentro de `listarDeals`— multiplicaría por cinco el
+ * trabajo de una consulta que además usan otras cuatro pantallas que no
+ * necesitan estos conteos.
+ */
+async function actividadesPorDeal(dealIds: number[]): Promise<Map<number, ConteoActividades>> {
+  const mapa = new Map<number, ConteoActividades>();
+  if (dealIds.length === 0) return mapa;
+
+  const filas = await db
+    .select({
+      dealId: crmActivities.dealId,
+      tipo: crmActivities.tipo,
+      n: sql<number>`count(*)::int`,
+    })
+    .from(crmActivities)
+    .where(inArray(crmActivities.dealId, dealIds))
+    .groupBy(crmActivities.dealId, crmActivities.tipo);
+
+  for (const f of filas) {
+    if (f.dealId == null) continue;
+    const actual = mapa.get(f.dealId) ?? {};
+    actual[f.tipo] = f.n;
+    mapa.set(f.dealId, actual);
+  }
+  return mapa;
 }
 
 /** El tablero: una columna por etapa abierta, con su total y su ponderado. */
 export async function tablero(ownerId?: number | null): Promise<Columna[]> {
   const deals = await listarDeals({ ownerId, etapas: ETAPAS_ABIERTAS_IDS });
   const { ETAPAS_ABIERTAS } = await import("./etapas");
+  const conteos = await actividadesPorDeal(deals.map((d) => d.id));
 
   return ETAPAS_ABIERTAS.map((e) => {
-    const propios = deals.filter((d) => d.etapa === e.id);
+    const propios = deals
+      .filter((d) => d.etapa === e.id)
+      .map((d) => ({ ...d, actividades: conteos.get(d.id) ?? {} }));
     return {
       etapa: e.id,
       nombre: e.nombre,
+      probabilidad: e.probabilidad,
       deals: propios,
       total: propios.reduce((s, d) => s + d.monto, 0),
       // Ponderado por probabilidad: es la cifra honesta para proyectar. El total

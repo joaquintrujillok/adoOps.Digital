@@ -28,8 +28,15 @@ async function contadores() {
 
 export default async function CrmAppLayout({
   children,
+  modal,
 }: {
   children: React.ReactNode;
+  /**
+   * Slot paralelo de los modales. Lo llenan las rutas interceptoras de
+   * `@modal/`; en cualquier otra ruta resuelve a `@modal/default.tsx`, que no
+   * pinta nada.
+   */
+  modal: React.ReactNode;
 }) {
   const sesion = await requireSession();
   const [{ alertas, whatsapp }, empresa] = await Promise.all([
@@ -51,9 +58,7 @@ export default async function CrmAppLayout({
     {
       titulo: "Análisis",
       items: [
-        // "Pipeline y KPIs" (las 3 pestañas de la referencia) entra acá cuando
-        // esté construido; hasta entonces el menú no apunta a una ruta que no
-        // existe.
+        { href: "/crm/pipeline", etiqueta: "Pipeline y KPIs", icono: "▥" },
         { href: "/crm/reportes", etiqueta: "Reportes", icono: "▦" },
         { href: "/crm/inteligencia", etiqueta: "Alertas y acciones", icono: "◈", badge: alertas },
         { href: "/crm/segmentos", etiqueta: "Segmentos y recompra", icono: "◍" },
@@ -125,6 +130,7 @@ export default async function CrmAppLayout({
 
         <main className="mx-auto max-w-[1400px] px-5 py-7 lg:px-8">{children}</main>
       </div>
+      {modal}
     </div>
   );
 }

@@ -246,32 +246,102 @@ export function Vacio({ mensaje, sugerencia }: { mensaje: string; sugerencia?: s
 }
 
 /**
+ * Bloque plegado con un resumen de una línea y el detalle a un clic.
+ *
+ * `<details>` nativo y no un componente de cliente: plegar y desplegar es
+ * exactamente lo que el elemento hace, y resolverlo con estado de React
+ * significaría mandar JavaScript al navegador para reimplementar algo que el
+ * navegador ya trae —incluido el comportamiento de teclado y el de buscar en
+ * la página, que una versión casera casi siempre pierde.
+ */
+export function Plegable({
+  titulo,
+  resumen,
+  children,
+  abierto = false,
+  tono = "marca",
+  className = "",
+}: {
+  titulo: string;
+  /** La línea que se lee sin desplegar. Sin esto el título carga solo. */
+  resumen?: string;
+  children: ReactNode;
+  abierto?: boolean;
+  tono?: "marca" | "neutro";
+  className?: string;
+}) {
+  const marca = tono === "marca";
+  return (
+    <details
+      open={abierto}
+      // Sin `crm-no-print`: esto se imprime. En papel el resumen del `summary`
+      // es la primera frase de la lectura, que es el titular; ocultarlo dejaría
+      // el reporte impreso sin la parte que lo separa de un muro de cifras.
+      className={`group rounded-xl border px-5 py-3 ${
+        marca
+          ? "border-[var(--crm-border)] bg-[var(--crm-brand-soft)]"
+          : "border-[var(--crm-border)] bg-[var(--crm-surface)]"
+      } ${className}`}
+    >
+      <summary className="flex cursor-pointer list-none items-baseline gap-2 [&::-webkit-details-marker]:hidden">
+        <span
+          aria-hidden
+          className={`shrink-0 text-[10px] transition-transform group-open:rotate-90 ${
+            marca ? "text-[var(--crm-brand-dark)]" : "text-[var(--crm-muted)]"
+          }`}
+        >
+          ▶
+        </span>
+        <span
+          className={`shrink-0 text-[12px] font-semibold uppercase tracking-wide ${
+            marca ? "text-[var(--crm-brand-dark)]" : "text-[var(--crm-ink-2)]"
+          }`}
+        >
+          {titulo}
+        </span>
+        {resumen && (
+          <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--crm-ink-2)] group-open:hidden">
+            {resumen}
+          </span>
+        )}
+      </summary>
+      <div className="mt-2 pl-[18px]">{children}</div>
+    </details>
+  );
+}
+
+/**
  * La lectura de negocio que acompaña a cada pantalla: qué pasó, por qué y qué
  * hacer. Es lo que separa un reporte de un dashboard — y literalmente lo que
  * pide el mercado cuando dice "reportes útiles, no solo dashboards".
+ *
+ * Viene plegada. La lectura sigue siendo el diferenciador del producto, pero un
+ * párrafo de seis líneas arriba de cada pantalla empuja las cifras fuera de la
+ * vista y termina sin leerse por costumbre. Plegada con su primera frase visible
+ * ocupa una línea y no esconde nada: la primera frase ES el titular, y el resto
+ * está a un clic para quien lo quiera.
  */
 export function Lectura({
   titulo = "Qué dice esto",
   children,
   fuente,
+  resumen,
+  abierto = false,
 }: {
   titulo?: string;
   children: ReactNode;
   fuente?: string;
+  /** La frase que queda a la vista sin desplegar. */
+  resumen?: string;
+  abierto?: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-[var(--crm-border)] bg-[var(--crm-brand-soft)] px-5 py-4">
-      <div className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wide text-[var(--crm-brand-dark)]">
-        <span aria-hidden>◈</span>
-        {titulo}
-      </div>
-      <div className="mt-2 space-y-1.5 text-[14px] leading-relaxed text-[var(--crm-ink)]">
+    <Plegable titulo={titulo} resumen={resumen} abierto={abierto}>
+      <div className="space-y-1.5 text-[14px] leading-relaxed text-[var(--crm-ink)]">
         {children}
       </div>
-      {fuente && (
-        <p className="mt-3 text-[12px] text-[var(--crm-ink-2)]">{fuente}</p>
-      )}
-    </div>
+      {fuente && <p className="mt-3 text-[12px] text-[var(--crm-ink-2)]">{fuente}</p>}
+    </Plegable>
   );
 }
 

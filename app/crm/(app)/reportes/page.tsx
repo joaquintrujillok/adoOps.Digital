@@ -91,6 +91,11 @@ export default async function Reportes() {
           <LecturaNarrada
             clave="reportes"
             titulo="Lectura del trimestre"
+            // Desplegada acá y solo acá: este reporte se lleva impreso a la
+            // reunión de gerencia, y un `<details>` cerrado imprime nada más
+            // que su resumen. En el resto de las pantallas la lectura acompaña
+            // a las cifras; en esta, es el reporte.
+            abierto
             resumen={cifras}
             contexto="Informe comercial trimestral para la reunión de gerencia de una empresa chilena"
             respaldo={respaldo}

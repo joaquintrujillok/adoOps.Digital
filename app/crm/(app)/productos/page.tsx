@@ -63,7 +63,10 @@ export default async function Productos() {
 
       {riesgos.length > 0 && (
         <div className="mb-6">
-          <Lectura titulo="Estás vendiendo lo que no tienes">
+          <Lectura
+            titulo="Estás vendiendo lo que no tienes"
+            resumen={`${riesgos.length} ${riesgos.length === 1 ? "producto comprometido" : "productos comprometidos"} por sobre el stock · ${clp(enRiesgo)}`}
+          >
             <p>
               {riesgos.length === 1
                 ? "Un producto está comprometido"

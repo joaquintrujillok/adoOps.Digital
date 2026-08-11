@@ -26,7 +26,14 @@ import { requireGerencia, requireSession } from "./auth.actions";
 import { moverEtapa, registrarActividad } from "./pipeline";
 import { cambiarEstadoAlerta, recalcularAlertas, type AccionSugerida } from "./insights";
 import { despacharMensaje } from "./whatsapp-dispatch";
-import { conversacionDe, prepararParaClientes, redactar } from "./whatsapp";
+import {
+  alternarDestacada,
+  conversacionDe,
+  marcarLeida,
+  prepararParaClientes,
+  redactar,
+} from "./whatsapp";
+import { normalizarTelefono } from "./telefono";
 import { CLAVES, escribir, leer } from "./settings";
 import type { DefinicionSegmento } from "./segmentos";
 
@@ -194,6 +201,93 @@ export async function accionDescartarMensaje(formData: FormData): Promise<void> 
   revalidatePath("/crm/conversaciones");
 }
 
+/**
+ * Deja el hilo por leído. La llama la pantalla al abrir una conversación.
+ *
+ * Solo revalida si de verdad marcó algo. Abrir un hilo ya leído no cambia nada
+ * en la base, y revalidar igual haría que cada apertura vuelva a montar la
+ * bandeja entera por gusto.
+ */
+export async function accionMarcarLeida(conversationId: number): Promise<void> {
+  await requireSession();
+  if (!Number.isFinite(conversationId) || conversationId <= 0) return;
+  const cambio = await marcarLeida(conversationId);
+  if (cambio) revalidatePath("/crm/conversaciones");
+}
+
+export async function accionDestacarConversacion(formData: FormData): Promise<void> {
+  await requireSession();
+  const conversationId = Number(formData.get("conversationId"));
+  if (!Number.isFinite(conversationId) || conversationId <= 0) return;
+  await alternarDestacada(conversationId);
+  revalidatePath("/crm/conversaciones");
+}
+
+/**
+ * Corrige los datos del contacto desde la ficha del hilo, sin salir de la
+ * pantalla.
+ *
+ * El teléfono se normaliza igual que en el resto del CRM y se guarda en E.164;
+ * si lo tecleado no es un número usable se rechaza el guardado entero en vez de
+ * dejar la mitad de los cambios aplicados. Y no toca el teléfono de la
+ * conversación: el hilo está amarrado al número por el que llegaron los
+ * mensajes, y cambiarlo acá movería una conversación de WhatsApp a un número al
+ * que nadie le escribió nunca.
+ */
+export interface ResultadoContacto {
+  ok: boolean;
+  error?: string;
+  /**
+   * Lo que se tecleó, devuelto tal cual cuando el guardado se rechaza.
+   *
+   * React vacía los campos de un formulario no controlado apenas termina la
+   * acción, así que sin esto un teléfono rechazado se borra junto con el resto
+   * de lo escrito: el vendedor ve el error y ya no tiene qué corregir.
+   */
+  valores?: { nombre: string; email: string; telefono: string };
+}
+
+export async function accionGuardarContacto(
+  _estado: ResultadoContacto | null,
+  formData: FormData,
+): Promise<ResultadoContacto> {
+  await requireSession();
+  const contactId = Number(formData.get("contactId"));
+  if (!Number.isFinite(contactId) || contactId <= 0) {
+    return { ok: false, error: "Falta el contacto" };
+  }
+
+  const nombre = String(formData.get("nombre") || "").trim();
+  const emailCrudo = String(formData.get("email") || "").trim();
+  const telefonoCrudo = String(formData.get("telefono") || "").trim();
+  const tecleado = { nombre, email: emailCrudo, telefono: telefonoCrudo };
+
+  if (!nombre) {
+    return { ok: false, error: "El nombre no puede quedar vacío", valores: tecleado };
+  }
+  if (emailCrudo && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailCrudo)) {
+    return { ok: false, error: "Ese correo no tiene forma de correo", valores: tecleado };
+  }
+
+  let telefono: string | null = null;
+  if (telefonoCrudo) {
+    telefono = normalizarTelefono(telefonoCrudo);
+    if (!telefono) {
+      return { ok: false, error: "Ese teléfono no es un número válido", valores: tecleado };
+    }
+  }
+
+  await db
+    .update(crmContacts)
+    .set({ nombre, email: emailCrudo || null, telefono })
+    .where(eq(crmContacts.id, contactId));
+
+  revalidatePath("/crm/conversaciones");
+  revalidatePath(`/crm/contactos/${contactId}`);
+  revalidatePath("/crm/contactos");
+  return { ok: true };
+}
+
 export async function accionAbrirConversacion(formData: FormData): Promise<number | null> {
   await requireSession();
   const contactId = Number(formData.get("contactId"));
@@ -312,6 +406,28 @@ export async function accionAjustarStock(formData: FormData): Promise<void> {
 }
 
 // ─── Oportunidades ───────────────────────────────────────────────────────────
+
+/**
+ * Corrige la categoría de una oportunidad desde la tabla de Pipeline.
+ *
+ * Vacío devuelve la oportunidad a la categoría que sale de sus piezas: `null`
+ * significa "sin corrección", no "sin categoría". Sin ese camino de vuelta, un
+ * clic equivocado quedaría escrito para siempre.
+ */
+export async function accionCategoriaOportunidad(formData: FormData): Promise<void> {
+  await requireSession();
+  const dealId = Number(formData.get("dealId"));
+  if (!Number.isFinite(dealId) || dealId <= 0) return;
+  const categoria = String(formData.get("categoria") || "").trim();
+
+  await db
+    .update(crmDeals)
+    .set({ categoria: categoria || null })
+    .where(eq(crmDeals.id, dealId));
+
+  revalidatePath("/crm/pipeline");
+  revalidatePath("/crm/oportunidades");
+}
 
 export async function accionAsignarDueno(formData: FormData): Promise<void> {
   const sesion = await requireSession();

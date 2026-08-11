@@ -10,6 +10,49 @@ import { ownerScope, veTodo } from "@/lib/crm/session";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * La fila de actividad de la tarjeta.
+ *
+ * Los tipos son los que el CRM registra de verdad —`crm_activities.tipo`— y no
+ * los de la captura de referencia. Un ícono de "documento" que siempre marca
+ * cero porque el sistema nunca escribe ese tipo es peor que no tener el ícono:
+ * enseña a ignorar la fila entera.
+ *
+ * Solo se pintan los que tienen algo. Cinco íconos en gris con cero al lado son
+ * ruido en una tarjeta que se lee de reojo.
+ */
+const TIPOS_ACTIVIDAD = [
+  { tipo: "nota", icono: "✎", nombre: "notas" },
+  { tipo: "llamada", icono: "✆", nombre: "llamadas" },
+  { tipo: "email", icono: "✉", nombre: "correos" },
+  { tipo: "reunion", icono: "◍", nombre: "reuniones" },
+  { tipo: "tarea", icono: "☑", nombre: "tareas" },
+] as const;
+
+function IconosActividad({ conteos }: { conteos: Record<string, number> }) {
+  const conAlgo = TIPOS_ACTIVIDAD.filter((t) => (conteos[t.tipo] ?? 0) > 0);
+  if (conAlgo.length === 0) {
+    return (
+      <div className="mt-2 text-[12px] text-[var(--crm-muted)]">Sin actividad</div>
+    );
+  }
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-[var(--crm-ink-2)]">
+      {conAlgo.map((t) => (
+        <span
+          key={t.tipo}
+          className="inline-flex items-center gap-1"
+          title={`${conteos[t.tipo]} ${t.nombre}`}
+        >
+          <span aria-hidden>{t.icono}</span>
+          <span className="crm-num">{conteos[t.tipo]}</span>
+          <span className="sr-only">{t.nombre}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export default async function Oportunidades({
   searchParams,
 }: {
@@ -78,7 +121,10 @@ export default async function Oportunidades({
 
       {estancadas.length > 0 && (
         <div className="mb-6">
-          <Lectura titulo="Lo que hay que mirar">
+          <Lectura
+            titulo="Lo que hay que mirar"
+            resumen={`${estancadas.length} sin actividad hace más de dos semanas · ${clp(estancadas.reduce((s, d) => s + d.monto, 0))}`}
+          >
             <p>
               {estancadas.length} de {totalDeals} oportunidades llevan más de dos semanas
               sin una actividad registrada, y suman{" "}
@@ -93,16 +139,21 @@ export default async function Oportunidades({
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {columnas.map((col) => (
           <section key={col.etapa} className="min-w-0">
-            <div className="mb-2.5 px-1">
-              <h2 className="text-[14px] font-semibold text-[var(--crm-ink)]">
-                {col.nombre}
-                <span className="ml-2 text-[12px] font-normal text-[var(--crm-muted)]">
-                  {col.deals.length}
+            {/* El encabezado dice la etapa con su probabilidad, y debajo cuántas
+                y cuánto. Ver "Propuesta (50%)" arriba de la columna hace que el
+                ponderado deje de ser un número que aparece de la nada. */}
+            <div className="mb-2.5 rounded-lg bg-[#f0f1f3] px-3 py-2">
+              <h2 className="text-[13px] font-semibold text-[var(--crm-ink)]">
+                {col.nombre}{" "}
+                <span className="crm-num font-normal text-[var(--crm-ink-2)]">
+                  ({porcentaje(col.probabilidad)})
                 </span>
               </h2>
-              <div className="crm-num text-[12px] text-[var(--crm-ink-2)]">
+              <div className="crm-num mt-0.5 text-[12px] text-[var(--crm-ink-2)]">
+                {numero(col.deals.length)}{" "}
+                {col.deals.length === 1 ? "oportunidad" : "oportunidades"} ·{" "}
                 {clpCorto(col.total)}
-                <span className="ml-2 text-[11px] text-[var(--crm-muted)]">
+                <span className="ml-1.5 text-[11px] text-[var(--crm-muted)]">
                   pond. {clpCorto(col.ponderado)}
                 </span>
               </div>
@@ -145,6 +196,8 @@ export default async function Oportunidades({
                         {porcentaje(d.probabilidad)}
                       </span>
                     </div>
+
+                    <IconosActividad conteos={d.actividades} />
 
                     <div className="mt-2.5 flex flex-wrap items-center gap-2">
                       <MoverEtapa dealId={d.id} etapa={d.etapa} compacto />

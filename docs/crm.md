@@ -13,13 +13,14 @@ con ventas y la información tiene que servir para decidir.
 |---|---|---|
 | Visión general | `/crm` | El estado comercial con su lectura, no un muro de gráficos |
 | Oportunidades | `/crm/oportunidades` | Tablero de pipeline, ficha con productos, stock y bitácora |
+| Pipeline y KPIs | `/crm/pipeline` | La revisión: qué entró, la semana contra las ocho anteriores, y el mix |
 | Cuentas y contactos | `/crm/cuentas` | Cartera + ficha 360 (compras, oportunidades, recorrido de marketing) |
 | Productos e inventario | `/crm/productos` | Catálogo con disponibilidad real y qué negocios dependen de reponer |
 | Alertas y acciones | `/crm/inteligencia` | Lo que el sistema detecta solo, cada cosa con su acción ejecutable |
 | Segmentos y recompra | `/crm/segmentos` | Segmentos guardables, ventana de recompra por cuenta, cross-selling |
 | Marketing y origen | `/crm/marketing` | Trazabilidad campaña → oportunidad → venta, con CAC y ROI |
 | Reportes | `/crm/reportes` | Los números del trimestre con lectura de negocio, imprimibles |
-| WhatsApp | `/crm/whatsapp` | Bandeja comercial con la cadena de candados de envío |
+| Conversaciones | `/crm/conversaciones` | Bandeja de 3 columnas · respuestas rápidas con `/` · candados de envío |
 | Configuración | `/crm/configuracion` | Pesos, umbrales e interruptores editables sin tocar código |
 
 ## Arquitectura
@@ -44,10 +45,18 @@ lib/crm/
   segmentos.ts                   Segmentos, recompra, cross-selling
   reportes.ts                    Indicadores del negocio
   narrador.ts                    Redacta los resúmenes (GLM/OpenAI) con respaldo por plantilla
-  whatsapp.ts                    Bandeja, hilos, plantillas, preparación masiva
+  whatsapp.ts                    Bandeja, hilos, ficha lateral, plantillas, preparación masiva
   whatsapp-dispatch.ts           ÚNICO punto de salida · aplica los candados
-components/crm/                  ui.tsx (primitivas), charts.tsx (SVG), Nav, LoginForm, MoverEtapa
+  respuestas-rapidas.ts          Catálogo del `/` del hilo · los huecos [así] son a propósito
+  panel-pipeline.ts              Las tres vistas de /crm/pipeline (periodo, KPIs, mix)
+app/crm/(app)/@modal/            Rutas interceptoras: contacto y oportunidad en modal
+components/crm/                  ui.tsx (primitivas, incluida Plegable), charts.tsx (SVG), Nav
+                                 Modal.tsx (<dialog> nativo · cierra con router.back)
+                                 HiloConversacion.tsx y FormularioContacto.tsx (bandeja de 3 columnas)
+                                 CategoriaEnLinea.tsx (categoría editable en la tabla de pipeline)
 scripts/crm-create-tables.mjs    Crea las tablas (idempotente, solo CREATE IF NOT EXISTS)
+scripts/crm-migrar-bandeja.mjs   Agrega leido_en y destacada a crm_wa_conversations
+scripts/crm-migrar-pipeline.mjs  Agrega categoria a crm_deals
 scripts/crm-usuario.mjs          Crea o actualiza un usuario
 scripts/crm-seed.mjs             Base de demostración (determinística)
 app/api/crm/cron/alertas/        Recálculo de alertas por cron (Bearer CRON_SECRET)

@@ -11,11 +11,13 @@ import {
   crmContacts,
   crmDeals,
   crmProducts,
+  crmUsers,
   crmWaConversations,
   crmWaMessages,
   crmWaTemplates,
   type CrmWaMessage,
 } from "@/db/crm";
+import { ETAPAS_ABIERTAS_IDS } from "./etapas";
 import { normalizarTelefono } from "./telefono";
 
 // ─── Plantillas ──────────────────────────────────────────────────────────────
@@ -97,13 +99,27 @@ export interface ConversacionListada {
   nombre: string | null;
   estado: string;
   baja: boolean;
+  destacada: boolean;
   accountId: number | null;
+  contactId: number | null;
   cuenta: string | null;
+  contacto: string | null;
   ultimoMensajeEn: Date | null;
   ultimoTexto: string | null;
   ultimaDireccion: string | null;
+  /** Entrantes que llegaron después de la última vez que alguien abrió el hilo. */
   sinLeer: number;
   porRevisar: number;
+}
+
+/** Cómo se llama esta conversación en pantalla, en orden de preferencia. */
+export function tituloConversacion(c: {
+  contacto?: string | null;
+  cuenta?: string | null;
+  nombre?: string | null;
+  telefono: string;
+}): string {
+  return c.contacto ?? c.cuenta ?? c.nombre ?? c.telefono;
 }
 
 export async function bandeja(): Promise<ConversacionListada[]> {
@@ -111,6 +127,7 @@ export async function bandeja(): Promise<ConversacionListada[]> {
     .select({
       c: crmWaConversations,
       cuenta: crmAccounts.nombre,
+      contacto: crmContacts.nombre,
       ultimoTexto: sql<string | null>`(
         select m.cuerpo from crm_wa_messages m
         where m.conversation_id = crm_wa_conversations.id
@@ -121,9 +138,14 @@ export async function bandeja(): Promise<ConversacionListada[]> {
         where m.conversation_id = crm_wa_conversations.id
         order by m.created_at desc limit 1
       )`,
-      entrantes: sql<number>`(
+      // Sin leer = entrantes posteriores a `leido_en`. Con `leido_en` nulo
+      // —nadie abrió nunca el hilo— cuentan todos, que es lo correcto: una
+      // conversación que nadie miró está sin leer entera.
+      sinLeer: sql<number>`(
         select count(*) from crm_wa_messages m
-        where m.conversation_id = crm_wa_conversations.id and m.direccion = 'in'
+        where m.conversation_id = crm_wa_conversations.id
+          and m.direccion = 'in'
+          and m.created_at > coalesce(crm_wa_conversations.leido_en, to_timestamp(0))
       )::int`,
       porRevisar: sql<number>`(
         select count(*) from crm_wa_messages m
@@ -133,6 +155,7 @@ export async function bandeja(): Promise<ConversacionListada[]> {
     })
     .from(crmWaConversations)
     .leftJoin(crmAccounts, eq(crmAccounts.id, crmWaConversations.accountId))
+    .leftJoin(crmContacts, eq(crmContacts.id, crmWaConversations.contactId))
     .orderBy(desc(sql`coalesce(${crmWaConversations.ultimoMensajeEn}, ${crmWaConversations.createdAt})`))
     .limit(200);
 
@@ -142,14 +165,54 @@ export async function bandeja(): Promise<ConversacionListada[]> {
     nombre: f.c.nombre,
     estado: f.c.estado,
     baja: f.c.baja,
+    destacada: f.c.destacada,
     accountId: f.c.accountId,
+    contactId: f.c.contactId,
     cuenta: f.cuenta,
+    contacto: f.contacto,
     ultimoMensajeEn: f.c.ultimoMensajeEn,
     ultimoTexto: f.ultimoTexto,
     ultimaDireccion: f.ultimaDireccion,
-    sinLeer: f.entrantes,
+    sinLeer: f.sinLeer,
     porRevisar: f.porRevisar,
   }));
+}
+
+/**
+ * Deja el hilo por leído hasta este momento.
+ *
+ * Devuelve `false` si no había nada que marcar. Quien la llama usa ese dato
+ * para no revalidar la ruta al pedo: la pantalla marca leído al abrir el hilo,
+ * y revalidar en cada apertura ya leída volvería a montar el mismo trabajo por
+ * nada.
+ */
+export async function marcarLeida(conversationId: number): Promise<boolean> {
+  const filas = await db
+    .update(crmWaConversations)
+    .set({ leidoEn: new Date() })
+    .where(
+      and(
+        eq(crmWaConversations.id, conversationId),
+        sql`exists (
+          select 1 from crm_wa_messages m
+          where m.conversation_id = crm_wa_conversations.id
+            and m.direccion = 'in'
+            and m.created_at > coalesce(crm_wa_conversations.leido_en, to_timestamp(0))
+        )`,
+      ),
+    )
+    .returning({ id: crmWaConversations.id });
+  return filas.length > 0;
+}
+
+/** Prende o apaga el destacado. Devuelve cómo quedó. */
+export async function alternarDestacada(conversationId: number): Promise<boolean> {
+  const [fila] = await db
+    .update(crmWaConversations)
+    .set({ destacada: sql`not ${crmWaConversations.destacada}` })
+    .where(eq(crmWaConversations.id, conversationId))
+    .returning({ destacada: crmWaConversations.destacada });
+  return fila?.destacada ?? false;
 }
 
 export interface Hilo {
@@ -187,6 +250,68 @@ export async function hilo(conversationId: number): Promise<Hilo | null> {
     cuenta: fila.cuentaId ? { id: fila.cuentaId, nombre: fila.cuenta! } : null,
     contacto: fila.contactoId ? { id: fila.contactoId, nombre: fila.contacto! } : null,
     mensajes,
+  };
+}
+
+/**
+ * Lo que va en la columna de la derecha: quién es el que está del otro lado.
+ *
+ * No reusa `fichaCliente()` a propósito. Esa arma la ficha 360 completa —
+ * compras con sus piezas, actividades, recorrido de marketing, cotizaciones—
+ * con siete consultas, y acá se pinta al lado del hilo en cada apertura. El
+ * panel necesita cinco datos de identidad y tres cifras de contexto; pagar la
+ * ficha entera por eso volvería lenta la pantalla que más se usa.
+ */
+export interface FichaLateral {
+  contacto: (typeof crmContacts.$inferSelect) | null;
+  owner: string | null;
+  empresa: string | null;
+  totales: { facturado: number; compras: number; pipelineAbierto: number };
+}
+
+export async function fichaLateral(
+  contactId: number | null,
+): Promise<FichaLateral | null> {
+  if (!contactId) return null;
+
+  const abiertas = sql.raw(ETAPAS_ABIERTAS_IDS.map((e) => `'${e}'`).join(", "));
+
+  const [base] = await db
+    .select({
+      c: crmContacts,
+      owner: crmUsers.nombre,
+      empresa: crmAccounts.nombre,
+      // `::float8` en las sumas de dinero: un coleccionista con varias piezas
+      // de ocho cifras desborda el integer de Postgres y la consulta muere.
+      facturado: sql<number>`(
+        select coalesce(sum(o.total), 0)::float8 from crm_orders o
+        where o.contact_id = crm_contacts.id
+      )`,
+      compras: sql<number>`(
+        select count(*) from crm_orders o where o.contact_id = crm_contacts.id
+      )::int`,
+      pipelineAbierto: sql<number>`(
+        select coalesce(sum(d.monto), 0)::float8 from crm_deals d
+        where d.contact_id = crm_contacts.id and d.etapa in (${abiertas})
+      )`,
+    })
+    .from(crmContacts)
+    .leftJoin(crmUsers, eq(crmUsers.id, crmContacts.ownerId))
+    .leftJoin(crmAccounts, eq(crmAccounts.id, crmContacts.accountId))
+    .where(eq(crmContacts.id, contactId))
+    .limit(1);
+
+  if (!base) return null;
+
+  return {
+    contacto: base.c,
+    owner: base.owner,
+    empresa: base.empresa,
+    totales: {
+      facturado: Number(base.facturado ?? 0),
+      compras: Number(base.compras ?? 0),
+      pipelineAbierto: Number(base.pipelineAbierto ?? 0),
+    },
   };
 }
 

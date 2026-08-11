@@ -83,7 +83,10 @@ export default async function Cotizaciones({
 
       {olvidadas.length > 0 && (
         <div className="mb-6">
-          <Lectura titulo="Cotizaciones que se están enfriando">
+          <Lectura
+            titulo="Cotizaciones que se están enfriando"
+            resumen={`${olvidadas.length} enviadas hace más de una semana sin respuesta · ${clp(olvidadas.reduce((s, c) => s + c.total, 0))}`}
+          >
             <p>
               {olvidadas.length} cotizaciones llevan más de una semana enviadas sin
               respuesta ni cierre, y suman{" "}

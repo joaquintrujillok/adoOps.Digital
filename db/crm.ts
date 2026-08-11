@@ -251,6 +251,14 @@ export const crmDeals = pgTable(
     probabilidad: integer("probabilidad").notNull().default(10),
     ownerId: integer("owner_id"),
     fuente: varchar("fuente", { length: 60 }),
+    /**
+     * Categoría corregida a mano. NULL = usa la de la pieza más cara.
+     *
+     * Existe porque la derivación falla justo donde importa: un cronómetro
+     * cotizado como regalo corporativo pesa en "Alta relojería" cuando el
+     * negocio es de empresa, y eso lo sabe quien vende, no el catálogo.
+     */
+    categoria: varchar("categoria", { length: 80 }),
     /** Atribución: primera y última campaña que tocó a la cuenta antes del cierre. */
     campaignFirstId: integer("campaign_first_id"),
     campaignLastId: integer("campaign_last_id"),
@@ -478,11 +486,21 @@ export const crmWaConversations = pgTable(
     /** La palabra BAJA cierra la puerta. El despacho la respeta, no la UI. */
     baja: boolean("baja").notNull().default(false),
     ultimoMensajeEn: timestamp("ultimo_mensaje_en"),
+    /**
+     * Cuándo alguien abrió el hilo por última vez. Nulo = nunca se leyó.
+     * "No leído" es una marca de la persona que atiende, no un cálculo sobre la
+     * dirección del último mensaje: una conversación leída y dejada para
+     * mañana no puede volver a aparecer como pendiente en cada recarga.
+     */
+    leidoEn: timestamp("leido_en"),
+    /** Marcada a mano para no perderla de vista. Nada la enciende solo. */
+    destacada: boolean("destacada").notNull().default(false),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
     uniqueIndex("crm_wa_conv_telefono_idx").on(t.telefono),
     index("crm_wa_conv_estado_idx").on(t.estado),
+    index("crm_wa_conv_destacada_idx").on(t.destacada),
   ],
 );
 

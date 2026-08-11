@@ -118,7 +118,10 @@ export default async function FichaContacto({
 
       {atrasado && (
         <div className="mb-6">
-          <Lectura titulo="Ventana de recompra vencida">
+          <Lectura
+            titulo="Ventana de recompra vencida"
+            resumen={`Compra cada ${totales.cicloRecompraDias} días y lleva ${totales.diasSinComprar}`}
+          >
             <p>
               Compra cada <strong>{totales.cicloRecompraDias} días</strong> en promedio y
               lleva <strong>{totales.diasSinComprar}</strong>. Su ticket promedio es de{" "}

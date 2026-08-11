@@ -68,7 +68,10 @@ export default async function Segmentos() {
 
       {recompras.length > 0 && (
         <div className="mb-6">
-          <Lectura titulo="Quiénes deberían haber vuelto y no volvieron">
+          <Lectura
+            titulo="Quiénes deberían haber vuelto y no volvieron"
+            resumen={`${recompras.length} clientes pasados de su ventana · ${clp(potencialRecompra)}`}
+          >
             <p>
               {recompras.length} clientes pasaron su propia ventana de recompra. El ciclo
               se calcula cuenta por cuenta, no con un promedio general: un cliente que

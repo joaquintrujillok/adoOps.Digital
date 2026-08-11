@@ -32,7 +32,10 @@ export default async function Configuracion() {
       />
 
       <div className="mb-6">
-        <Lectura titulo="Por qué esto está acá">
+        <Lectura
+          titulo="Por qué esto está acá"
+          resumen="Pesos, umbrales e interruptores viven en la base, no en el código"
+        >
           <p>
             Un CRM que necesita un consultor para cambiar un umbral no es tuyo. Los pesos
             del puntaje, los umbrales de las alertas y los interruptores de WhatsApp viven

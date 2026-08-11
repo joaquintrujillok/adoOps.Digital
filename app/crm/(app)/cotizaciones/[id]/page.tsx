@@ -256,7 +256,10 @@ export default async function FichaCotizacion({
             </Card>
           )}
 
-          <Lectura titulo="Por qué esta pantalla existe">
+          <Lectura
+            titulo="Por qué esta pantalla existe"
+            resumen="El dato se captura antes de que exista una ficha"
+          >
             <p>
               En el mostrador se cotiza de memoria y el teléfono se pierde. Acá el dato
               se captura antes de que exista una ficha, y la cotización queda vinculada
