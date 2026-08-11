@@ -12,7 +12,11 @@
 // Si no hay API key, si el modelo demora o si falla, cae a un texto armado con
 // plantillas sobre los mismos datos. La pantalla nunca queda esperando ni vacía.
 
+import { createHash } from "crypto";
+import { eq } from "drizzle-orm";
 import OpenAI from "openai";
+import { db } from "@/db";
+import { crmNarraciones } from "@/db/crm";
 import { CLAVES, leerBooleano } from "./settings";
 
 const ZAI_BASE_URL =
@@ -63,7 +67,33 @@ Reglas estrictas:
 - Nada de listas ni viñetas: un solo párrafo corrido.`;
 
 /**
+ * Huella de las cifras que produjeron un texto.
+ *
+ * Las claves se ordenan antes de serializar: el mismo resumen tiene que dar la
+ * misma huella aunque el objeto se arme en otro orden, o el caché no acertaría
+ * nunca.
+ */
+function huellaDe(resumen: Record<string, unknown>): string {
+  const ordenado = Object.keys(resumen)
+    .sort()
+    .map((k) => [k, resumen[k]]);
+  return createHash("sha256").update(JSON.stringify(ordenado)).digest("hex");
+}
+
+/** Cuánto vale un texto guardado aunque las cifras no hayan cambiado. */
+const VIGENCIA_MS = 24 * 60 * 60 * 1000;
+
+/**
  * Redacta un párrafo a partir de un resumen ya calculado.
+ *
+ * **Primero busca en el caché.** Medido en producción: la llamada al modelo
+ * tarda entre 6 y 14 segundos y es el 95% del tiempo de carga de la pantalla,
+ * mientras que todas las consultas a la base juntas tardan 430 ms. Sin caché,
+ * cada visita paga esa espera —y consume un prompt del plan— para volver a
+ * escribir el mismo párrafo sobre las mismas cifras.
+ *
+ * El texto se reusa mientras la huella de las cifras coincida y no hayan pasado
+ * 24 horas. Cambia un número, cambia la huella, se vuelve a redactar.
  *
  * `respaldo` es lo que se muestra si el modelo no está disponible: se pasa
  * siempre, no es opcional, para que ninguna pantalla pueda quedar sin texto por
@@ -73,9 +103,18 @@ export async function narrar(
   resumen: Record<string, unknown>,
   contexto: string,
   respaldo: string,
+  /** Identifica la pantalla en el caché. Sin esto no se guarda nada. */
+  clave?: string,
 ): Promise<Narracion> {
   if (!(await leerBooleano(CLAVES.narradorIa))) {
     return { texto: respaldo, origen: "plantilla" };
+  }
+
+  const huella = huellaDe(resumen);
+
+  if (clave) {
+    const guardada = await leerCache(clave, huella);
+    if (guardada) return guardada;
   }
 
   const c = cliente();
@@ -100,11 +139,49 @@ export async function narrar(
       .choices?.[0]?.message?.content?.trim();
 
     if (!texto) return { texto: respaldo, origen: "plantilla" };
+
+    if (clave) await guardarCache(clave, huella, texto);
     return { texto, origen: "ia" };
   } catch (error) {
     // Un modelo caído no puede tumbar un reporte. Se registra y se sigue.
     console.error("[crm/narrador]", error);
     return { texto: respaldo, origen: "plantilla" };
+  }
+}
+
+// ─── Caché ───────────────────────────────────────────────────────────────────
+
+async function leerCache(clave: string, huella: string): Promise<Narracion | null> {
+  try {
+    const [fila] = await db
+      .select()
+      .from(crmNarraciones)
+      .where(eq(crmNarraciones.clave, clave))
+      .limit(1);
+
+    if (!fila || fila.huella !== huella) return null;
+    if (Date.now() - new Date(fila.generadaEn).getTime() > VIGENCIA_MS) return null;
+
+    return { texto: fila.texto, origen: "ia" };
+  } catch (error) {
+    // Un caché que falla no puede romper la pantalla: se sigue de largo y, como
+    // mucho, se paga la llamada al modelo.
+    console.error("[crm/narrador] cache", error);
+    return null;
+  }
+}
+
+async function guardarCache(clave: string, huella: string, texto: string): Promise<void> {
+  try {
+    await db
+      .insert(crmNarraciones)
+      .values({ clave, huella, texto, origen: "ia" })
+      .onConflictDoUpdate({
+        target: crmNarraciones.clave,
+        set: { huella, texto, origen: "ia", generadaEn: new Date() },
+      });
+  } catch (error) {
+    console.error("[crm/narrador] cache", error);
   }
 }
 

@@ -253,6 +253,14 @@ const SENTENCIAS = [
     valor TEXT NOT NULL,
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
   )`,
+
+  `CREATE TABLE IF NOT EXISTS crm_narraciones (
+    clave VARCHAR(40) PRIMARY KEY,
+    huella VARCHAR(64) NOT NULL,
+    texto TEXT NOT NULL,
+    origen VARCHAR(12) NOT NULL,
+    generada_en TIMESTAMP NOT NULL DEFAULT NOW()
+  )`,
 ];
 
 for (const sentencia of SENTENCIAS) {

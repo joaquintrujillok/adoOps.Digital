@@ -1,9 +1,10 @@
-import { Badge, Card, Lectura, PageHeader, StatTile, Tabla, Vacio } from "@/components/crm/ui";
+import { Suspense } from "react";
+import { Badge, Card, PageHeader, StatTile, Tabla, Vacio } from "@/components/crm/ui";
+import { LecturaEsqueleto, LecturaNarrada } from "@/components/crm/LecturaNarrada";
 import { BarrasH, Embudo, Figura } from "@/components/crm/charts";
 import { requireSession } from "@/lib/crm/auth.actions";
 import { clp, clpCorto, fecha, numero, porcentaje } from "@/lib/crm/formato";
 import { embudoMarketing, origenDeNegocios, rendimientoCampanas } from "@/lib/crm/marketing";
-import { narrar } from "@/lib/crm/narrador";
 import { nombreCanal } from "@/lib/crm/etapas";
 
 export const dynamic = "force-dynamic";
@@ -27,8 +28,7 @@ export default async function Marketing() {
     mejor ? ` La de mejor retorno es ${mejor.campana.nombre}.` : ""
   }${peor && (peor.roi ?? 0) < 0 ? ` La que va perdiendo plata es ${peor.campana.nombre}.` : ""}`;
 
-  const narracion = await narrar(
-    {
+  const cifras = {
       inversionTotal,
       ingresosAtribuidosPrimerToque: ingresosAtribuidos,
       campanas: campanas.length,
@@ -39,10 +39,7 @@ export default async function Marketing() {
       oportunidadesGeneradas: embudo.oportunidades,
       ventasCerradas: embudo.ganadas,
       montoGanado: embudo.montoGanado,
-    },
-    "Análisis de retorno de marketing para el gerente comercial de una empresa chilena",
-    respaldo,
-  );
+  };
 
   return (
     <>
@@ -75,15 +72,14 @@ export default async function Marketing() {
       </div>
 
       <div className="mb-6">
-        <Lectura
-          fuente={
-            narracion.origen === "ia"
-              ? "Redactado por el asistente sobre cifras calculadas por el CRM."
-              : "Redactado con plantilla sobre cifras calculadas por el CRM."
-          }
-        >
-          <p>{narracion.texto}</p>
-        </Lectura>
+        <Suspense fallback={<LecturaEsqueleto />}>
+          <LecturaNarrada
+            clave="marketing"
+            resumen={cifras}
+            contexto="Análisis de retorno de marketing para el gerente comercial de una empresa chilena"
+            respaldo={respaldo}
+          />
+        </Suspense>
       </div>
 
       <div className="mb-6 grid gap-5 lg:grid-cols-2">

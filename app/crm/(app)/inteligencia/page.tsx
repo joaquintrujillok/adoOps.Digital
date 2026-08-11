@@ -1,8 +1,8 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import {
   Badge,
   Card,
-  Lectura,
   PageHeader,
   Severidad,
   StatTile,
@@ -13,6 +13,7 @@ import {
 } from "@/components/crm/ui";
 import { Medidor } from "@/components/crm/charts";
 import BotonEnvio from "@/components/crm/BotonEnvio";
+import { LecturaEsqueleto, LecturaNarrada } from "@/components/crm/LecturaNarrada";
 import {
   accionPrepararWhatsapp,
   accionRecalcularAlertas,
@@ -21,7 +22,6 @@ import {
 import { requireSession } from "@/lib/crm/auth.actions";
 import { clp, numero, relativo } from "@/lib/crm/formato";
 import { listarAlertas, type AccionSugerida } from "@/lib/crm/insights";
-import { narrar } from "@/lib/crm/narrador";
 import { scoresDeCuentas } from "@/lib/crm/scoring";
 
 export const dynamic = "force-dynamic";
@@ -75,8 +75,7 @@ export default async function Inteligencia() {
     ? `Hay ${alertas.length} alertas abiertas: ${porSeveridad.alta.length} altas, ${porSeveridad.media.length} medias y ${porSeveridad.baja.length} bajas. ${conAccion} traen una acción concreta asociada. Conviene partir por las de severidad alta, que son las que tienen plata o plazo comprometido.`
     : "No hay alertas abiertas. El motor revisa oportunidades estancadas, cierres vencidos, caídas de facturación, ventanas de recompra, stock comprometido, cuentas de alto potencial desatendidas, cross-selling y campañas sin retorno.";
 
-  const narracion = await narrar(
-    {
+  const cifras = {
       alertasAbiertas: alertas.length,
       altas: porSeveridad.alta.length,
       medias: porSeveridad.media.length,
@@ -84,10 +83,7 @@ export default async function Inteligencia() {
       conAccionSugerida: conAccion,
       tiposPresentes: [...new Set(alertas.map((a) => a.tipo))],
       titulares: alertas.slice(0, 5).map((a) => a.titulo),
-    },
-    "Bandeja de alertas comerciales: por dónde debería partir el equipo hoy",
-    respaldo,
-  );
+  };
 
   return (
     <>
@@ -115,16 +111,15 @@ export default async function Inteligencia() {
       </div>
 
       <div className="mb-6">
-        <Lectura
-          titulo="Por dónde partir"
-          fuente={
-            narracion.origen === "ia"
-              ? "Redactado por el asistente sobre alertas calculadas por reglas."
-              : "Redactado con plantilla sobre alertas calculadas por reglas."
-          }
-        >
-          <p>{narracion.texto}</p>
-        </Lectura>
+        <Suspense fallback={<LecturaEsqueleto titulo="Por dónde partir" />}>
+          <LecturaNarrada
+            clave="alertas"
+            titulo="Por dónde partir"
+            resumen={cifras}
+            contexto="Bandeja de alertas comerciales: por dónde debería partir el equipo hoy"
+            respaldo={respaldo}
+          />
+        </Suspense>
       </div>
 
       <div className="grid gap-5 lg:grid-cols-3">

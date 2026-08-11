@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { Badge, Card, Lectura, PageHeader, StatTile, Tabla, Vacio, btnSecundario } from "@/components/crm/ui";
+import { Suspense } from "react";
+import { Badge, Card, PageHeader, StatTile, Tabla, Vacio, btnSecundario } from "@/components/crm/ui";
 import { Embudo, Figura, Lineas } from "@/components/crm/charts";
+import { LecturaEsqueleto, LecturaNarrada } from "@/components/crm/LecturaNarrada";
 import { requireSession } from "@/lib/crm/auth.actions";
 import { clp, clpCorto, fecha, numero, porcentaje } from "@/lib/crm/formato";
 import { listarAlertas } from "@/lib/crm/insights";
 import { ingresosPorMes } from "@/lib/crm/marketing";
-import { narrar } from "@/lib/crm/narrador";
 import { tareasPendientes } from "@/lib/crm/pipeline";
 import { concentracion, embudoConversion, resumenComercial, topCuentas } from "@/lib/crm/reportes";
 import { ownerScope } from "@/lib/crm/session";
@@ -42,26 +43,22 @@ export default async function VisionGeneral() {
       : " No hay alertas abiertas.",
   ].join("");
 
-  const narracion = await narrar(
-    {
-      ingresos30d: resumen.ingresos.valor,
-      ingresosPeriodoAnterior: resumen.ingresos.anterior,
-      variacionIngresos: resumen.ingresos.variacion,
-      ordenes30d: resumen.ordenes.valor,
-      ticketPromedio: resumen.ticketPromedio.valor,
-      pipelineAbierto: resumen.pipelineAbierto,
-      pipelinePonderado: resumen.pipelinePonderado,
-      oportunidadesAbiertas: resumen.oportunidadesAbiertas,
-      tasaCierre: resumen.tasaCierre,
-      cicloVentaDias: resumen.cicloVentaDias,
-      alertasAbiertas: alertas.length,
-      alertasAltas: altas.length,
-      tituloAlertaMasGrave: altas[0]?.titulo ?? null,
-      concentracionTop3: conc.top3,
-    },
-    "Resumen ejecutivo de la portada de un CRM comercial, para el gerente comercial",
-    respaldo,
-  );
+  const cifras = {
+    ingresos30d: resumen.ingresos.valor,
+    ingresosPeriodoAnterior: resumen.ingresos.anterior,
+    variacionIngresos: resumen.ingresos.variacion,
+    ordenes30d: resumen.ordenes.valor,
+    ticketPromedio: resumen.ticketPromedio.valor,
+    pipelineAbierto: resumen.pipelineAbierto,
+    pipelinePonderado: resumen.pipelinePonderado,
+    oportunidadesAbiertas: resumen.oportunidadesAbiertas,
+    tasaCierre: resumen.tasaCierre,
+    cicloVentaDias: resumen.cicloVentaDias,
+    alertasAbiertas: alertas.length,
+    alertasAltas: altas.length,
+    tituloAlertaMasGrave: altas[0]?.titulo ?? null,
+    concentracionTop3: conc.top3,
+  };
 
   return (
     <>
@@ -106,15 +103,14 @@ export default async function VisionGeneral() {
       </div>
 
       <div className="mb-6">
-        <Lectura
-          fuente={
-            narracion.origen === "ia"
-              ? "Redactado por el asistente sobre cifras calculadas por el CRM."
-              : "Redactado con plantilla sobre cifras calculadas por el CRM."
-          }
-        >
-          <p>{narracion.texto}</p>
-        </Lectura>
+        <Suspense fallback={<LecturaEsqueleto />}>
+          <LecturaNarrada
+            clave="portada"
+            resumen={cifras}
+            contexto="Resumen ejecutivo de la portada de un CRM comercial, para el gerente comercial"
+            respaldo={respaldo}
+          />
+        </Suspense>
       </div>
 
       <div className="mb-6 grid gap-5 lg:grid-cols-3">

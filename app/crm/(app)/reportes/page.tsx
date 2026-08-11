@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { Card, Lectura, PageHeader, StatTile, Tabla, Vacio } from "@/components/crm/ui";
+import { Suspense } from "react";
+import { Card, PageHeader, StatTile, Tabla, Vacio } from "@/components/crm/ui";
+import { LecturaEsqueleto, LecturaNarrada } from "@/components/crm/LecturaNarrada";
 import { BarrasH, Embudo, Figura, Lineas } from "@/components/crm/charts";
 import { requireSession } from "@/lib/crm/auth.actions";
 import { clp, clpCorto, numero, porcentaje } from "@/lib/crm/formato";
 import { ingresosPorMes } from "@/lib/crm/marketing";
-import { narrar } from "@/lib/crm/narrador";
 import {
   concentracion,
   embudoConversion,
@@ -38,8 +39,7 @@ export default async function Reportes() {
     principal ? `, y el principal motivo de pérdida es "${principal.motivo}"` : ""
   }.`;
 
-  const narracion = await narrar(
-    {
+  const cifras = {
       ingresos90d: resumen.ingresos.valor,
       variacion: resumen.ingresos.variacion,
       tasaCierre: resumen.tasaCierre,
@@ -51,10 +51,7 @@ export default async function Reportes() {
       principalMotivoPerdida: principal?.motivo ?? null,
       perdidasTotales,
       mejorVendedor: equipo[0]?.nombre ?? null,
-    },
-    "Informe comercial trimestral para la reunión de gerencia de una empresa chilena",
-    respaldo,
-  );
+  };
 
   return (
     <>
@@ -90,23 +87,24 @@ export default async function Reportes() {
       </div>
 
       <div className="mb-6">
-        <Lectura
-          titulo="Lectura del trimestre"
-          fuente={
-            narracion.origen === "ia"
-              ? "Redactado por el asistente sobre cifras calculadas por el CRM."
-              : "Redactado con plantilla sobre cifras calculadas por el CRM."
-          }
-        >
-          <p>{narracion.texto}</p>
-          {conc.top3 > 50 && (
-            <p>
-              <strong>Riesgo de concentración:</strong> perder una de las tres cuentas
-              principales cambiaría el año. Vale la pena mirar el pipeline de cuentas
-              medianas antes de que eso pase.
-            </p>
-          )}
-        </Lectura>
+        <Suspense fallback={<LecturaEsqueleto titulo="Lectura del trimestre" />}>
+          <LecturaNarrada
+            clave="reportes"
+            titulo="Lectura del trimestre"
+            resumen={cifras}
+            contexto="Informe comercial trimestral para la reunión de gerencia de una empresa chilena"
+            respaldo={respaldo}
+            extra={
+              conc.top3 > 50 ? (
+                <p>
+                  <strong>Riesgo de concentración:</strong> perder una de las tres
+                  cuentas principales cambiaría el año. Vale la pena mirar el pipeline
+                  de cuentas medianas antes de que eso pase.
+                </p>
+              ) : null
+            }
+          />
+        </Suspense>
       </div>
 
       <div className="mb-6 grid gap-5 lg:grid-cols-3">

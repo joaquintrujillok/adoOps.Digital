@@ -421,6 +421,23 @@ export const crmAlerts = pgTable(
   ],
 );
 
+/**
+ * Resúmenes ya redactados, guardados para no volver a pedirlos.
+ *
+ * `huella` es un hash de las cifras que produjeron el texto: mientras los
+ * números no cambien, el párrafo sigue siendo válido y no hay razón para pagar
+ * otra llamada al modelo —ni para hacer esperar a nadie seis segundos por una
+ * frase idéntica a la anterior—.
+ */
+export const crmNarraciones = pgTable("crm_narraciones", {
+  /** Qué pantalla lo pidió: 'portada', 'alertas', 'marketing', 'reportes'. */
+  clave: varchar("clave", { length: 40 }).primaryKey(),
+  huella: varchar("huella", { length: 64 }).notNull(),
+  texto: text("texto").notNull(),
+  origen: varchar("origen", { length: 12 }).notNull(),
+  generadaEn: timestamp("generada_en").defaultNow().notNull(),
+});
+
 /** Configuración operativa editable desde la UI. Clave-valor, sin migraciones. */
 export const crmSettings = pgTable("crm_settings", {
   clave: varchar("clave", { length: 80 }).primaryKey(),
@@ -447,3 +464,4 @@ export type CrmWaMessage = typeof crmWaMessages.$inferSelect;
 export type CrmWaTemplate = typeof crmWaTemplates.$inferSelect;
 export type CrmSegment = typeof crmSegments.$inferSelect;
 export type CrmAlert = typeof crmAlerts.$inferSelect;
+export type CrmNarracion = typeof crmNarraciones.$inferSelect;
