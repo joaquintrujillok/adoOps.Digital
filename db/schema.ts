@@ -322,3 +322,10 @@ export const mixRooms = pgTable("mix_rooms", {
 
 export type MixRoom = typeof mixRooms.$inferSelect;
 export type NewMixRoom = typeof mixRooms.$inferInsert;
+
+// =============================================================================
+// CRM adoOps (/crm) — las tablas viven en db/crm.ts y se reexportan acá para que
+// drizzle-kit las vea desde el único `schema` que declara drizzle.config.ts.
+// =============================================================================
+
+export * from "./crm";

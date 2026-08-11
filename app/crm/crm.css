@@ -1,0 +1,152 @@
+/* =============================================================================
+   CRM adoOps — tokens de color y tipografía
+   =============================================================================
+
+   El CRM es una aplicación de escritorio interna y se fija en modo claro
+   (`color-scheme: light`): no sigue el tema del sistema. Es deliberado — la
+   web corporativa que lo rodea también es clara, y media docena de pantallas
+   densas en modo oscuro es superficie que nadie pidió mantener.
+
+   Los colores de serie salen de una paleta categórica validada para daltonismo
+   (ΔE CVD ≥ 8 entre pares adyacentes sobre superficie clara). El verde de marca
+   de adoOps se usa para la interfaz —botones, acentos, navegación— y NUNCA como
+   color de serie: si la marca pintara datos, cambiar la marca cambiaría lo que
+   significa una barra.
+   ============================================================================= */
+
+.crm-root {
+  color-scheme: light;
+
+  /* Superficies e ink */
+  --crm-plane: #f9f9f7;
+  --crm-surface: #fcfcfb;
+  --crm-ink: #0b0b0b;
+  --crm-ink-2: #52514e;
+  --crm-muted: #898781;
+  --crm-grid: #e1e0d9;
+  --crm-axis: #c3c2b7;
+  --crm-border: rgba(11, 11, 11, 0.1);
+
+  /* Marca adoOps — interfaz, no datos */
+  --crm-brand: #20a64c;
+  --crm-brand-dark: #16713a;
+  --crm-brand-soft: #eaf7ef;
+  --crm-sidebar: #0e1116;
+
+  /* Series categóricas (orden fijo, nunca cíclico) */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #008300;
+  --series-7: #4a3aa7;
+  --series-8: #e34948;
+
+  /* Rampa ordinal azul (embudo, escalones). No más clara que el paso 250. */
+  --ramp-1: #86b6ef;
+  --ramp-2: #5598e7;
+  --ramp-3: #3987e5;
+  --ramp-4: #2a78d6;
+  --ramp-5: #256abf;
+  --ramp-6: #184f95;
+
+  /* Estado — reservados, jamás como serie. Siempre con ícono + etiqueta. */
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-serious: #ec835a;
+  --status-critical: #d03b3b;
+  --status-good-text: #006300;
+
+  background: var(--crm-plane);
+  color: var(--crm-ink);
+  min-height: 100vh;
+  font-family: var(--font-inter), system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.crm-root h1,
+.crm-root h2,
+.crm-root h3 {
+  font-family: var(--font-sora), var(--font-inter), system-ui, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+/* Columnas de cifras alineadas: tabulares. El resto, proporcionales. */
+.crm-num {
+  font-variant-numeric: tabular-nums;
+}
+
+.crm-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.crm-scroll::-webkit-scrollbar-thumb {
+  background: #d8d8d2;
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+/* Barra lateral */
+.crm-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  color: #9aa3ad;
+  font-size: 14px;
+  line-height: 1.2;
+  transition: background 0.15s, color 0.15s;
+}
+.crm-nav-link:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #e8ecf1;
+}
+.crm-nav-link[data-activo="true"] {
+  background: rgba(43, 220, 110, 0.12);
+  color: #7ff0a8;
+  font-weight: 600;
+}
+
+/* Tablas densas */
+.crm-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 14px;
+}
+.crm-table th {
+  text-align: left;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--crm-muted);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--crm-grid);
+  white-space: nowrap;
+}
+.crm-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--crm-grid);
+  color: var(--crm-ink);
+  vertical-align: middle;
+}
+.crm-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.crm-table tbody tr:hover td {
+  background: #f4f6f8;
+}
+
+/* Impresión: los reportes se llevan a una reunión en papel más seguido de lo
+   que uno cree. */
+@media print {
+  .crm-no-print {
+    display: none !important;
+  }
+  .crm-root {
+    background: #fff;
+  }
+}

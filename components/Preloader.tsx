@@ -5,8 +5,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import styles from "./Preloader.module.css";
 
-// Superficies donde el preloader estorba (consola y pantalla de TV Mix).
-const SKIP_PREFIXES = ["/mix", "/tv"];
+// Superficies donde el preloader estorba (consola y pantalla de TV Mix, CRM).
+const SKIP_PREFIXES = ["/mix", "/tv", "/crm"];
 
 const TRACE_PATH =
   "M 845 160 C 792 56 636 56 636 160 C 636 264 792 264 845 160 C 898 56 1058 56 1058 160 C 1058 264 898 264 845 160 Z";
