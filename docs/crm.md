@@ -93,6 +93,31 @@ ya cerrado y solo lo redacta; tiene prohibido agregar números. Si el modelo no
 está disponible, el texto sale de una plantilla sobre los mismos datos y la
 pantalla dice cuál de las dos cosas ocurrió.
 
+**La narración nunca bloquea la pantalla.** Medido en producción antes del
+arreglo: la portada tardaba 7.157 / 14.413 / 6.398 ms en tres cargas seguidas,
+mientras que las siete consultas a la base juntas tardaban 430 ms. El 95% del
+tiempo era la llamada a GLM, además errática — y cada visita consumía un prompt
+del plan para reescribir el mismo párrafo sobre las mismas cifras.
+
+Dos defensas, y conviene no sacar ninguna:
+
+1. **Caché por huella** (`crm_narraciones`): el texto se reusa mientras el hash
+   de las cifras coincida y no pasen 24 h. Cambia un número, se vuelve a
+   redactar. Un fallo del caché no rompe nada: como mucho se paga la llamada.
+2. **`<Suspense>`**: la narración vive en `components/crm/LecturaNarrada.tsx`,
+   fuera del cuerpo de la página, así el resto se pinta de inmediato.
+
+Resultado en producción:
+
+| | Página visible | Párrafo listo |
+|---|---|---|
+| Caché caliente | ~350 ms | ~400 ms |
+| Caché frío (cifras nuevas) | 348 ms | 5.280 ms |
+
+Si agregas una pantalla con narración, pásale una `clave` distinta a `narrar()`
+y envuélvela en `<Suspense>`. Sin `clave` no se cachea y la pantalla vuelve a
+pagar seis segundos por visita.
+
 **Nada de WhatsApp sale sin cruzar cuatro candados**, y el orden importa:
 aprobación humana → conversación sin BAJA → interruptor general → lista blanca.
 El modo simulado corta antes de la red. `lib/crm/whatsapp-dispatch.ts` es el
