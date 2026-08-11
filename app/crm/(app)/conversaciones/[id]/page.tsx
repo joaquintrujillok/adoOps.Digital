@@ -40,7 +40,7 @@ export default async function HiloWhatsapp({
                 Ver la cuenta
               </Link>
             )}
-            <Link href="/crm/whatsapp" className={btnSecundario}>
+            <Link href="/crm/conversaciones" className={btnSecundario}>
               ← Bandeja
             </Link>
           </>

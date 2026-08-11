@@ -39,27 +39,31 @@ export default async function CrmAppLayout({
 
   const grupos: GrupoNav[] = [
     {
-      titulo: "Comercial",
+      titulo: "Día a día",
       items: [
         { href: "/crm", etiqueta: "Visión general", icono: "◉" },
+        { href: "/crm/contactos", etiqueta: "Contactos", icono: "▣" },
+        { href: "/crm/conversaciones", etiqueta: "Conversaciones", icono: "✆", badge: whatsapp },
+        { href: "/crm/cotizaciones", etiqueta: "Cotizaciones", icono: "▤" },
         { href: "/crm/oportunidades", etiqueta: "Oportunidades", icono: "◆" },
-        { href: "/crm/cuentas", etiqueta: "Cuentas y contactos", icono: "▣" },
-        { href: "/crm/productos", etiqueta: "Productos e inventario", icono: "▤" },
       ],
     },
     {
-      titulo: "Inteligencia",
+      titulo: "Análisis",
       items: [
+        // "Pipeline y KPIs" (las 3 pestañas de la referencia) entra acá cuando
+        // esté construido; hasta entonces el menú no apunta a una ruta que no
+        // existe.
+        { href: "/crm/reportes", etiqueta: "Reportes", icono: "▦" },
         { href: "/crm/inteligencia", etiqueta: "Alertas y acciones", icono: "◈", badge: alertas },
         { href: "/crm/segmentos", etiqueta: "Segmentos y recompra", icono: "◍" },
         { href: "/crm/marketing", etiqueta: "Marketing y origen", icono: "◎" },
-        { href: "/crm/reportes", etiqueta: "Reportes", icono: "▦" },
       ],
     },
     {
-      titulo: "Operación",
+      titulo: "Catálogo y ajustes",
       items: [
-        { href: "/crm/whatsapp", etiqueta: "WhatsApp", icono: "✆", badge: whatsapp },
+        { href: "/crm/productos", etiqueta: "Catálogo e inventario", icono: "◇" },
         { href: "/crm/configuracion", etiqueta: "Configuración", icono: "⚙" },
       ],
     },

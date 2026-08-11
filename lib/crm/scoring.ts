@@ -1,18 +1,23 @@
-// Puntaje de potencial — explicable, determinístico y con pesos editables.
+// Puntaje de potencial del cliente — explicable, determinístico y con pesos
+// editables.
 //
-// La pregunta que responde es "¿a quién le dedico las próximas dos horas?".
-// Para que la respuesta sirva, tiene que poder discutirse: cada puntaje viene
-// con el desglose de sus factores y una frase que dice por qué. Un número que
-// sale de una caja negra no cambia el comportamiento de un vendedor, porque no
-// le da nada que contarle a su jefe.
+// La pregunta que responde es "¿a quién llamo primero esta semana?". Para que
+// la respuesta sirva tiene que poder discutirse: cada puntaje viene con el
+// desglose de sus factores y una frase que dice por qué. Un número que sale de
+// una caja negra no cambia el comportamiento de un vendedor, porque no le da
+// nada que contarle a su jefe.
 //
-// Los pesos viven en BD (lib/crm/settings.ts, clave `scoring.pesos`) y se
-// editan desde /crm/configuracion. Ajustar el modelo no requiere un deploy.
+// **La ventana es de 24 meses, no de 12.** En alta gama el ciclo de recompra se
+// mide en años: con una ventana de 12 meses, un coleccionista que compró hace
+// catorce meses puntúa igual que alguien que nunca compró, y es exactamente el
+// cliente al que hay que llamar.
+//
+// Los pesos viven en BD (clave `scoring.pesos`) y se editan desde
+// /crm/configuracion. Ajustar el modelo no requiere un deploy.
 
-import { desc, eq, gte, sql } from "drizzle-orm";
+import { gte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  crmAccounts,
   crmActivities,
   crmContacts,
   crmDeals,
@@ -31,18 +36,18 @@ export interface PesosScoring {
 
 export const PESOS_POR_DEFECTO: PesosScoring = {
   recencia: 25,
-  frecuencia: 20,
-  monto: 25,
+  frecuencia: 15,
+  monto: 30,
   engagement: 15,
   potencial: 15,
 };
 
 export const DESCRIPCION_FACTORES: Record<keyof PesosScoring, string> = {
   recencia: "Qué tan reciente es la última compra o interacción",
-  frecuencia: "Cuántas veces compró en los últimos 12 meses",
-  monto: "Cuánto facturó en los últimos 12 meses, comparado con el resto",
-  engagement: "Cuánto interactúa con marketing (aperturas, clics, formularios)",
-  potencial: "Tamaño de la empresa y oportunidades abiertas hoy",
+  frecuencia: "Cuántas veces compró en los últimos 24 meses",
+  monto: "Cuánto compró en 24 meses, comparado con el resto de la cartera",
+  engagement: "Cuánto interactúa con las campañas (aperturas, clics, visitas)",
+  potencial: "Su pieza más cara comprada y lo que tiene abierto hoy",
 };
 
 export interface Factor {
@@ -55,40 +60,40 @@ export interface Factor {
   evidencia: string;
 }
 
-export interface ScoreCuenta {
-  accountId: number;
+export interface ScoreCliente {
+  contactId: number;
   nombre: string;
   score: number;
   factores: Factor[];
-  /** Lectura de una línea del puntaje. */
   resumen: string;
-  facturado12m: number;
-  compras12m: number;
+  facturado24m: number;
+  compras24m: number;
   diasSinComprar: number | null;
   montoAbierto: number;
+  piezaMasCara: number;
 }
 
 // ─── Curvas ──────────────────────────────────────────────────────────────────
 
-/** Recencia: 100 el mismo día, cae a 0 a los 365 días. */
+/** Recencia: 100 hasta los 60 días, cae a 0 a los dos años. */
 function puntosRecencia(dias: number | null): number {
   if (dias === null) return 0;
-  if (dias <= 30) return 100;
-  if (dias >= 365) return 0;
-  return Math.round(100 * (1 - (dias - 30) / 335));
+  if (dias <= 60) return 100;
+  if (dias >= 730) return 0;
+  return Math.round(100 * (1 - (dias - 60) / 670));
 }
 
-/** Frecuencia: 6 compras al año o más ya es el techo. */
+/** Frecuencia: 4 compras en dos años ya es el techo en este rubro. */
 function puntosFrecuencia(compras: number): number {
-  return Math.min(100, Math.round((compras / 6) * 100));
+  return Math.min(100, Math.round((compras / 4) * 100));
 }
 
 /**
  * Monto: percentil dentro de la cartera, no valor absoluto.
  *
- * Comparar contra el máximo haría que una sola cuenta enorme aplaste a todas
- * las demás a puntajes de un dígito, y el ranking dejaría de discriminar justo
- * donde importa: entre las del medio.
+ * Comparar contra el máximo haría que un solo coleccionista de noventa millones
+ * aplaste a todos los demás a puntajes de un dígito, y el ranking dejaría de
+ * discriminar justo donde importa: entre los del medio.
  */
 function puntosMonto(monto: number, ordenados: number[]): number {
   if (monto <= 0 || ordenados.length === 0) return 0;
@@ -96,22 +101,22 @@ function puntosMonto(monto: number, ordenados: number[]): number {
   return Math.round((menores / ordenados.length) * 100);
 }
 
-/** Engagement: 12 interacciones en 90 días es el techo. */
+/** Engagement: 10 interacciones en 90 días es el techo. */
 function puntosEngagement(touch90d: number): number {
-  return Math.min(100, Math.round((touch90d / 12) * 100));
+  return Math.min(100, Math.round((touch90d / 10) * 100));
 }
 
-/** Potencial: tamaño de la empresa + lo que hay abierto hoy. */
-function puntosPotencial(tamano: string | null, montoAbierto: number): number {
-  const porTamano: Record<string, number> = {
-    grande: 50,
-    mediana: 38,
-    pyme: 25,
-    micro: 12,
-  };
-  const base = porTamano[tamano ?? ""] ?? 20;
-  const porAbierto = montoAbierto > 0 ? Math.min(50, Math.round(montoAbierto / 400_000)) : 0;
-  return Math.min(100, base + porAbierto);
+/**
+ * Potencial: hasta dónde llega su bolsillo.
+ *
+ * La pieza más cara que ya compró es el mejor predictor disponible de lo que
+ * puede volver a gastar — mucho mejor que el total acumulado, que confunde a
+ * quien compró diez accesorios con quien compró un reloj.
+ */
+function puntosPotencial(piezaMasCara: number, montoAbierto: number, coleccionista: boolean): number {
+  const porPieza = Math.min(60, Math.round(piezaMasCara / 500_000));
+  const porAbierto = montoAbierto > 0 ? Math.min(25, Math.round(montoAbierto / 1_000_000)) : 0;
+  return Math.min(100, porPieza + porAbierto + (coleccionista ? 15 : 0));
 }
 
 // ─── Cálculo ─────────────────────────────────────────────────────────────────
@@ -122,90 +127,91 @@ export async function pesosActuales(): Promise<PesosScoring> {
 }
 
 /**
- * Puntúa todas las cuentas de una vez.
+ * Puntúa a todos los clientes de una vez.
  *
- * Es una sola pasada a propósito: el factor de monto es relativo a la cartera,
- * así que puntuar una cuenta aislada exigiría igual traer el resto.
+ * Agregados con GROUP BY y cruce en memoria, nunca subconsultas correlacionadas
+ * dentro del select: sin joins, Drizzle escribe la columna externa sin calificar
+ * la tabla y adentro de la subconsulta se resuelve contra la tabla equivocada.
+ * La consulta corre sin error y devuelve cifras falsas.
  */
-export async function scoresDeCuentas(): Promise<ScoreCuenta[]> {
+export async function scoresDeClientes(): Promise<ScoreCliente[]> {
   const pesos = await pesosActuales();
-  const hace12m = new Date(Date.now() - 365 * 86_400_000);
+  const hace24m = new Date(Date.now() - 730 * 86_400_000);
   const hace90d = new Date(Date.now() - 90 * 86_400_000);
 
-  // Cuatro agregados con GROUP BY y un cruce en memoria, en vez de subconsultas
-  // correlacionadas dentro del select.
-  //
-  // No es preferencia de estilo: cuando la consulta no tiene joins, Drizzle
-  // escribe la columna externa SIN calificar la tabla ("id" en vez de
-  // "crm_accounts"."id"), y adentro de la subconsulta ese "id" se resuelve
-  // contra la tabla de la subconsulta. La consulta corre sin error y devuelve
-  // cifras equivocadas — el peor tipo de bug. Con agregados no hay correlación
-  // que romper.
-  const [cuentas, ventas, actividades, toques, abiertos] = await Promise.all([
+  const [contactos, ventas, actividades, toques, abiertos, piezas] = await Promise.all([
     db
       .select({
-        id: crmAccounts.id,
-        nombre: crmAccounts.nombre,
-        tamano: crmAccounts.tamano,
-        estado: crmAccounts.estado,
+        id: crmContacts.id,
+        nombre: crmContacts.nombre,
+        estado: crmContacts.estado,
+        etiquetas: crmContacts.etiquetas,
       })
-      .from(crmAccounts),
+      .from(crmContacts),
     db
       .select({
-        accountId: crmOrders.accountId,
-        facturado12m: sql<number>`coalesce(sum(${crmOrders.total}) filter (where ${crmOrders.fecha} >= ${hace12m}),0)::int`,
-        compras12m: sql<number>`count(*) filter (where ${crmOrders.fecha} >= ${hace12m})::int`,
+        contactId: crmOrders.contactId,
+        facturado24m: sql<number>`coalesce(sum(${crmOrders.total}) filter (where ${crmOrders.fecha} >= ${hace24m}),0)::float8`,
+        compras24m: sql<number>`count(*) filter (where ${crmOrders.fecha} >= ${hace24m})::int`,
         ultimaCompra: sql<string | null>`max(${crmOrders.fecha})`,
+        ordenMasCara: sql<number>`coalesce(max(${crmOrders.total}),0)::float8`,
       })
       .from(crmOrders)
-      .groupBy(crmOrders.accountId),
+      .groupBy(crmOrders.contactId),
     db
       .select({
-        accountId: crmActivities.accountId,
+        contactId: crmActivities.contactId,
         ultima: sql<string | null>`max(${crmActivities.ocurridoEn})`,
       })
       .from(crmActivities)
-      .groupBy(crmActivities.accountId),
+      .groupBy(crmActivities.contactId),
     db
-      .select({
-        accountId: crmTouchpoints.accountId,
-        n: sql<number>`count(*)::int`,
-      })
+      .select({ contactId: crmTouchpoints.contactId, n: sql<number>`count(*)::int` })
       .from(crmTouchpoints)
       .where(gte(crmTouchpoints.ocurridoEn, hace90d))
-      .groupBy(crmTouchpoints.accountId),
+      .groupBy(crmTouchpoints.contactId),
     db
       .select({
-        accountId: crmDeals.accountId,
-        monto: sql<number>`coalesce(sum(${crmDeals.monto}),0)::int`,
+        contactId: crmDeals.contactId,
+        monto: sql<number>`coalesce(sum(${crmDeals.monto}),0)::float8`,
       })
       .from(crmDeals)
       .where(sql`${crmDeals.etapa} not in ('ganado','perdido')`)
-      .groupBy(crmDeals.accountId),
+      .groupBy(crmDeals.contactId),
+    db
+      .select({
+        contactId: crmOrders.contactId,
+        masCara: sql<number>`coalesce(max(oi.precio_unitario), 0)::float8`,
+      })
+      .from(crmOrders)
+      .innerJoin(sql`crm_order_items oi`, sql`oi.order_id = ${crmOrders.id}`)
+      .groupBy(crmOrders.contactId),
   ]);
 
-  const porVentas = new Map(ventas.map((v) => [v.accountId, v]));
-  const porActividad = new Map(actividades.map((a) => [a.accountId, a.ultima]));
-  const porToques = new Map(toques.map((t) => [t.accountId, t.n]));
-  const porAbiertos = new Map(abiertos.map((a) => [a.accountId, a.monto]));
+  const porVentas = new Map(ventas.map((v) => [v.contactId, v]));
+  const porActividad = new Map(actividades.map((a) => [a.contactId, a.ultima]));
+  const porToques = new Map(toques.map((t) => [t.contactId, t.n]));
+  const porAbiertos = new Map(abiertos.map((a) => [a.contactId, a.monto]));
+  const porPieza = new Map(piezas.map((p) => [p.contactId, p.masCara]));
 
-  const filas = cuentas.map((c) => ({
+  const filas = contactos.map((c) => ({
     id: c.id,
     nombre: c.nombre,
-    tamano: c.tamano,
-    estado: c.estado,
-    facturado12m: porVentas.get(c.id)?.facturado12m ?? 0,
-    compras12m: porVentas.get(c.id)?.compras12m ?? 0,
+    coleccionista: (c.etiquetas ?? []).includes("coleccionista"),
+    facturado24m: porVentas.get(c.id)?.facturado24m ?? 0,
+    compras24m: porVentas.get(c.id)?.compras24m ?? 0,
     ultimaCompra: porVentas.get(c.id)?.ultimaCompra ?? null,
     ultimaInteraccion: porActividad.get(c.id) ?? null,
     touch90d: porToques.get(c.id) ?? 0,
     montoAbierto: porAbiertos.get(c.id) ?? 0,
+    piezaMasCara: porPieza.get(c.id) ?? 0,
   }));
 
-  const montosOrdenados = filas.map((f) => f.facturado12m).sort((a, b) => a - b);
+  const montosOrdenados = filas.map((f) => f.facturado24m).sort((a, b) => a - b);
   const totalPeso =
-    pesos.recencia + pesos.frecuencia + pesos.monto + pesos.engagement + pesos.potencial ||
-    1;
+    pesos.recencia + pesos.frecuencia + pesos.monto + pesos.engagement + pesos.potencial || 1;
+
+  const clp = (n: number) => `$${n.toLocaleString("es-CL")}`;
 
   return filas
     .map((f) => {
@@ -234,33 +240,35 @@ export async function scoresDeCuentas(): Promise<ScoreCuenta[]> {
         {
           clave: "frecuencia",
           etiqueta: "Frecuencia",
-          puntos: puntosFrecuencia(f.compras12m),
+          puntos: puntosFrecuencia(f.compras24m),
           peso: pesos.frecuencia,
-          evidencia: `${f.compras12m} compra${f.compras12m === 1 ? "" : "s"} en 12 meses`,
+          evidencia: `${f.compras24m} compra${f.compras24m === 1 ? "" : "s"} en 24 meses`,
         },
         {
           clave: "monto",
           etiqueta: "Monto",
-          puntos: puntosMonto(f.facturado12m, montosOrdenados),
+          puntos: puntosMonto(f.facturado24m, montosOrdenados),
           peso: pesos.monto,
-          evidencia: `$${f.facturado12m.toLocaleString("es-CL")} facturados en 12 meses`,
+          evidencia: `${clp(f.facturado24m)} en 24 meses`,
         },
         {
           clave: "engagement",
           etiqueta: "Engagement",
           puntos: puntosEngagement(f.touch90d),
           peso: pesos.engagement,
-          evidencia: `${f.touch90d} interacciones de marketing en 90 días`,
+          evidencia: `${f.touch90d} interacciones con campañas en 90 días`,
         },
         {
           clave: "potencial",
           etiqueta: "Potencial",
-          puntos: puntosPotencial(f.tamano, f.montoAbierto),
+          puntos: puntosPotencial(f.piezaMasCara, f.montoAbierto, f.coleccionista),
           peso: pesos.potencial,
           evidencia:
-            f.montoAbierto > 0
-              ? `Empresa ${f.tamano ?? "sin clasificar"} · $${f.montoAbierto.toLocaleString("es-CL")} abiertos`
-              : `Empresa ${f.tamano ?? "sin clasificar"} · sin oportunidades abiertas`,
+            f.piezaMasCara > 0
+              ? `Su pieza más cara: ${clp(f.piezaMasCara)}${f.montoAbierto > 0 ? ` · ${clp(f.montoAbierto)} abiertos` : ""}`
+              : f.montoAbierto > 0
+                ? `${clp(f.montoAbierto)} abiertos, sin compras aún`
+                : "Sin compras ni oportunidades abiertas",
         },
       ];
 
@@ -269,36 +277,35 @@ export async function scoresDeCuentas(): Promise<ScoreCuenta[]> {
       );
 
       return {
-        accountId: f.id,
+        contactId: f.id,
         nombre: f.nombre,
         score,
         factores,
         resumen: resumirScore(score, factores),
-        facturado12m: f.facturado12m,
-        compras12m: f.compras12m,
+        facturado24m: f.facturado24m,
+        compras24m: f.compras24m,
         diasSinComprar,
         montoAbierto: f.montoAbierto,
+        piezaMasCara: f.piezaMasCara,
       };
     })
     .sort((a, b) => b.score - a.score);
 }
 
 function resumirScore(score: number, factores: Factor[]): string {
-  const ordenados = [...factores].sort(
-    (a, b) => b.puntos * b.peso - a.puntos * a.peso,
-  );
+  const ordenados = [...factores].sort((a, b) => b.puntos * b.peso - a.puntos * a.peso);
   const fuerte = ordenados[0];
   const debil = ordenados[ordenados.length - 1];
   const nivel = score >= 70 ? "alto" : score >= 40 ? "medio" : "bajo";
   return `Potencial ${nivel}. Lo sostiene ${fuerte.etiqueta.toLowerCase()} (${fuerte.evidencia.toLowerCase()}); lo frena ${debil.etiqueta.toLowerCase()} (${debil.evidencia.toLowerCase()}).`;
 }
 
-export async function scoreDeCuenta(accountId: number): Promise<ScoreCuenta | null> {
-  const todos = await scoresDeCuentas();
-  return todos.find((s) => s.accountId === accountId) ?? null;
+export async function scoreDeCliente(contactId: number): Promise<ScoreCliente | null> {
+  const todos = await scoresDeClientes();
+  return todos.find((s) => s.contactId === contactId) ?? null;
 }
 
-// ─── Puntaje de oportunidad ──────────────────────────────────────────────────
+// ─── Salud de la oportunidad ─────────────────────────────────────────────────
 
 export interface ScoreDeal {
   dealId: number;
@@ -308,79 +315,49 @@ export interface ScoreDeal {
 }
 
 /**
- * Salud de una oportunidad abierta. No es la probabilidad de la etapa —esa la
- * pone el vendedor— sino qué tan bien se está tratando el negocio.
+ * Qué tan bien se está tratando un negocio abierto. No es la probabilidad de la
+ * etapa —esa la pone quien vende— sino la calidad del seguimiento.
  */
 export async function scoresDeDeals(): Promise<Map<number, ScoreDeal>> {
-  const [deals, scoresCuenta] = await Promise.all([
+  const [deals, scoresCliente] = await Promise.all([
     db
       .select({
         id: crmDeals.id,
-        accountId: crmDeals.accountId,
+        contactId: crmDeals.contactId,
         etapa: crmDeals.etapa,
         monto: crmDeals.monto,
         abiertoEn: crmDeals.abiertoEn,
         ultimaActividadEn: crmDeals.ultimaActividadEn,
-        contactId: crmDeals.contactId,
-        cierreEstimado: crmDeals.cierreEstimado,
       })
       .from(crmDeals)
       .where(sql`${crmDeals.etapa} not in ('ganado','perdido')`),
-    scoresDeCuentas(),
+    scoresDeClientes(),
   ]);
 
-  const porCuenta = new Map(scoresCuenta.map((s) => [s.accountId, s]));
-  const decisores = await db
-    .select({ id: crmContacts.id, esDecisor: crmContacts.esDecisor })
-    .from(crmContacts);
-  const esDecisor = new Map(decisores.map((d) => [d.id, d.esDecisor]));
-
+  const porCliente = new Map(scoresCliente.map((s) => [s.contactId, s]));
   const resultado = new Map<number, ScoreDeal>();
 
   for (const d of deals) {
-    const cuenta = porCuenta.get(d.accountId);
+    const cliente = d.contactId ? porCliente.get(d.contactId) : undefined;
     const dias = Math.floor(
       (Date.now() - new Date(d.ultimaActividadEn ?? d.abiertoEn).getTime()) / 86_400_000,
     );
 
-    // Estancamiento: sin actividad en 30 días el negocio ya está enfriándose.
+    // Sin actividad en 30 días el negocio ya se enfrió.
     const puntosActividad = dias <= 3 ? 100 : dias >= 30 ? 0 : Math.round(100 * (1 - (dias - 3) / 27));
     const puntosEtapa =
       { nuevo: 20, calificado: 45, propuesta: 70, negociacion: 90 }[d.etapa] ?? 20;
-    const puntosCuenta = cuenta?.score ?? 40;
-    const puntosDecisor = d.contactId && esDecisor.get(d.contactId) ? 100 : 35;
+    const puntosCliente = cliente?.score ?? 40;
 
     const factores = [
-      {
-        etiqueta: "Seguimiento",
-        puntos: puntosActividad,
-        evidencia: `${dias} días desde la última actividad`,
-      },
-      {
-        etiqueta: "Avance",
-        puntos: puntosEtapa,
-        evidencia: `Etapa ${d.etapa}`,
-      },
-      {
-        etiqueta: "Cuenta",
-        puntos: puntosCuenta,
-        evidencia: `Potencial de la cuenta: ${puntosCuenta}/100`,
-      },
-      {
-        etiqueta: "Interlocutor",
-        puntos: puntosDecisor,
-        evidencia:
-          d.contactId && esDecisor.get(d.contactId)
-            ? "Hablando con quien decide"
-            : "Sin decisor identificado",
-      },
+      { etiqueta: "Seguimiento", puntos: puntosActividad, evidencia: `${dias} días desde la última actividad` },
+      { etiqueta: "Avance", puntos: puntosEtapa, evidencia: `Etapa ${d.etapa}` },
+      { etiqueta: "Cliente", puntos: puntosCliente, evidencia: `Potencial del cliente: ${puntosCliente}/100` },
     ];
 
-    const score = Math.round(
-      (puntosActividad * 0.3 + puntosEtapa * 0.25 + puntosCuenta * 0.25 + puntosDecisor * 0.2),
-    );
-
+    const score = Math.round(puntosActividad * 0.4 + puntosEtapa * 0.3 + puntosCliente * 0.3);
     const peor = [...factores].sort((a, b) => a.puntos - b.puntos)[0];
+
     resultado.set(d.id, {
       dealId: d.id,
       score,

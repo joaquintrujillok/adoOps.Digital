@@ -195,7 +195,7 @@ export default async function Whatsapp() {
             {conversaciones.map((c) => (
               <li key={c.id}>
                 <Link
-                  href={`/crm/whatsapp/${c.id}`}
+                  href={`/crm/conversaciones/${c.id}`}
                   className="flex items-center gap-4 px-5 py-3.5 hover:bg-[#f4f6f8]"
                 >
                   <div className="min-w-0 flex-1">

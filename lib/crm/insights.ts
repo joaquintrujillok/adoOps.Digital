@@ -21,10 +21,10 @@
 import { and, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  crmAccounts,
   crmActivities,
   crmAlerts,
   crmCampaigns,
+  crmContacts,
   crmDeals,
   crmOrders,
 } from "@/db/crm";
@@ -32,7 +32,7 @@ import { CLAVES, leerJson } from "./settings";
 import { listarProductos, riesgosDeStock } from "./productos";
 import { rendimientoCampanas } from "./marketing";
 import { paresCrossSell, ventanaRecompra } from "./segmentos";
-import { scoresDeCuentas } from "./scoring";
+import { scoresDeClientes } from "./scoring";
 
 export interface Umbrales {
   /** Días sin actividad para considerar estancada una oportunidad. */
@@ -72,13 +72,13 @@ export async function umbralesActuales(): Promise<Umbrales> {
 
 export type AccionSugerida =
   | { accion: "abrir_deal"; etiqueta: string; dealId: number }
-  | { accion: "abrir_cuenta"; etiqueta: string; accountId: number }
+  | { accion: "abrir_cliente"; etiqueta: string; contactId: number }
   | { accion: "abrir_producto"; etiqueta: string; productId: number }
   | { accion: "abrir_campana"; etiqueta: string; campaignId: number }
   | {
       accion: "whatsapp";
       etiqueta: string;
-      accountIds: number[];
+      contactIds: number[];
       plantilla: string;
     };
 
@@ -106,11 +106,11 @@ async function reglaOportunidadesEstancadas(u: Umbrales): Promise<AlertaCalculad
       titulo: crmDeals.titulo,
       monto: crmDeals.monto,
       etapa: crmDeals.etapa,
-      cuenta: crmAccounts.nombre,
+      cliente: crmContacts.nombre,
       referencia: sql<string>`coalesce(${crmDeals.ultimaActividadEn}, ${crmDeals.abiertoEn})`,
     })
     .from(crmDeals)
-    .innerJoin(crmAccounts, eq(crmAccounts.id, crmDeals.accountId))
+    .leftJoin(crmContacts, eq(crmContacts.id, crmDeals.contactId))
     .where(
       and(
         inArray(crmDeals.etapa, ["nuevo", "calificado", "propuesta", "negociacion"]),
@@ -129,7 +129,7 @@ async function reglaOportunidadesEstancadas(u: Umbrales): Promise<AlertaCalculad
       clave: `estancado:${f.id}:${Math.floor(dias / 7)}`,
       tipo: "deal_estancado",
       severidad: (f.monto >= u.montoAlto ? "alta" : "media") as "alta" | "media",
-      titulo: `${f.cuenta}: "${f.titulo}" lleva ${dias} días sin movimiento`,
+      titulo: `${f.cliente}: "${f.titulo}" lleva ${dias} días sin movimiento`,
       detalle: `${clp(f.monto)} en etapa ${f.etapa}. Sin actividad registrada desde hace ${dias} días.`,
       entidadTipo: "deal",
       entidadId: f.id,
@@ -149,10 +149,10 @@ async function reglaCierresVencidos(): Promise<AlertaCalculada[]> {
       titulo: crmDeals.titulo,
       monto: crmDeals.monto,
       cierreEstimado: crmDeals.cierreEstimado,
-      cuenta: crmAccounts.nombre,
+      cliente: crmContacts.nombre,
     })
     .from(crmDeals)
-    .innerJoin(crmAccounts, eq(crmAccounts.id, crmDeals.accountId))
+    .leftJoin(crmContacts, eq(crmContacts.id, crmDeals.contactId))
     .where(
       and(
         inArray(crmDeals.etapa, ["nuevo", "calificado", "propuesta", "negociacion"]),
@@ -168,7 +168,7 @@ async function reglaCierresVencidos(): Promise<AlertaCalculada[]> {
       clave: `cierre_vencido:${f.id}:${Math.floor(dias / 7)}`,
       tipo: "cierre_vencido",
       severidad: "media" as const,
-      titulo: `${f.cuenta}: la fecha de cierre se pasó hace ${dias} días`,
+      titulo: `${f.cliente}: la fecha de cierre se pasó hace ${dias} días`,
       detalle: `"${f.titulo}" por ${clp(f.monto)} sigue abierta. O se recalendariza, o se cierra.`,
       entidadTipo: "deal",
       entidadId: f.id,
@@ -187,32 +187,32 @@ async function reglaCaidaDeCuenta(u: Umbrales): Promise<AlertaCalculada[]> {
 
   const filas = await db
     .select({
-      accountId: crmOrders.accountId,
-      cuenta: crmAccounts.nombre,
-      reciente: sql<number>`coalesce(sum(${crmOrders.total}) filter (where ${crmOrders.fecha} >= ${hace90}),0)::int`,
-      previo: sql<number>`coalesce(sum(${crmOrders.total}) filter (where ${crmOrders.fecha} >= ${hace180} and ${crmOrders.fecha} < ${hace90}),0)::int`,
+      contactId: crmOrders.contactId,
+      cliente: crmContacts.nombre,
+      reciente: sql<number>`coalesce(sum(${crmOrders.total}) filter (where ${crmOrders.fecha} >= ${hace90}),0)::float8`,
+      previo: sql<number>`coalesce(sum(${crmOrders.total}) filter (where ${crmOrders.fecha} >= ${hace180} and ${crmOrders.fecha} < ${hace90}),0)::float8`,
     })
     .from(crmOrders)
-    .innerJoin(crmAccounts, eq(crmAccounts.id, crmOrders.accountId))
+    .innerJoin(crmContacts, eq(crmContacts.id, crmOrders.contactId))
     .where(gte(crmOrders.fecha, hace180))
-    .groupBy(crmOrders.accountId, crmAccounts.nombre);
+    .groupBy(crmOrders.contactId, crmContacts.nombre);
 
   return filas
     .filter((f) => f.previo > 0 && f.reciente < f.previo * (1 - u.caidaPorcentaje / 100))
     .map((f) => {
       const caida = ((f.previo - f.reciente) / f.previo) * 100;
       return {
-        clave: `caida:${f.accountId}:${new Date().toISOString().slice(0, 7)}`,
+        clave: `caida:${f.contactId}:${new Date().toISOString().slice(0, 7)}`,
         tipo: "cuenta_en_caida",
         severidad: (caida >= 70 ? "alta" : "media") as "alta" | "media",
-        titulo: `${f.cuenta} compró ${caida.toFixed(0)}% menos este trimestre`,
+        titulo: `${f.cliente} compró ${caida.toFixed(0)}% menos este trimestre`,
         detalle: `Pasó de ${clp(f.previo)} a ${clp(f.reciente)} entre los dos últimos trimestres.`,
-        entidadTipo: "cuenta",
-        entidadId: f.accountId,
+        entidadTipo: "cliente",
+        entidadId: f.contactId,
         accionSugerida: {
-          accion: "abrir_cuenta",
-          etiqueta: "Revisar la cuenta",
-          accountId: f.accountId,
+          accion: "abrir_cliente",
+          etiqueta: "Revisar el cliente",
+          contactId: f.contactId!,
         },
       };
     });
@@ -224,7 +224,7 @@ async function reglaRecompra(): Promise<AlertaCalculada[]> {
 
   // Una sola alerta con el grupo entero, no una por cuenta: 40 notificaciones
   // idénticas no se leen, y lo accionable acá es la campaña, no cada caso.
-  const contactables = atrasadas.filter((r) => r.cuenta.contactoWhatsapp);
+  const contactables = atrasadas.filter((r) => r.cliente.telefonoWhatsapp);
   const potencial = atrasadas.reduce((s, r) => s + r.ticketPromedio, 0);
 
   const alertas: AlertaCalculada[] = [
@@ -232,15 +232,15 @@ async function reglaRecompra(): Promise<AlertaCalculada[]> {
       clave: `recompra:${new Date().toISOString().slice(0, 10)}`,
       tipo: "recompra",
       severidad: "media",
-      titulo: `${atrasadas.length} cuentas pasaron su ventana de recompra`,
+      titulo: `${atrasadas.length} clientes pasaron su ventana de recompra`,
       detalle: `Suman ${clp(potencial)} en tickets promedio. ${contactables.length} tienen WhatsApp autorizado.`,
       entidadTipo: null,
       entidadId: null,
       accionSugerida: contactables.length
         ? {
             accion: "whatsapp",
-            etiqueta: `Preparar mensaje para ${contactables.length} cuentas`,
-            accountIds: contactables.map((r) => r.cuenta.accountId),
+            etiqueta: `Preparar mensaje para ${contactables.length} clientes`,
+            contactIds: contactables.map((r) => r.cliente.contactId),
             plantilla: "recompra",
           }
         : null,
@@ -251,17 +251,17 @@ async function reglaRecompra(): Promise<AlertaCalculada[]> {
   // no mensaje masivo.
   for (const r of atrasadas.slice(0, 3)) {
     alertas.push({
-      clave: `recompra_top:${r.cuenta.accountId}:${Math.floor(r.atraso / 15)}`,
+      clave: `recompra_top:${r.cliente.contactId}:${Math.floor(r.atraso / 15)}`,
       tipo: "recompra",
       severidad: "alta",
-      titulo: `${r.cuenta.nombre} lleva ${r.atraso} días de atraso en su recompra`,
-      detalle: `Compra cada ${r.cuenta.cicloRecompraDias} días en promedio, ticket de ${clp(r.ticketPromedio)}${r.productoHabitual ? `, habitualmente ${r.productoHabitual}` : ""}.`,
-      entidadTipo: "cuenta",
-      entidadId: r.cuenta.accountId,
+      titulo: `${r.cliente.nombre} lleva ${r.atraso} días de atraso en su recompra`,
+      detalle: `Compra cada ${r.cliente.cicloRecompraDias} días en promedio, ticket de ${clp(r.ticketPromedio)}${r.productoHabitual ? `, habitualmente ${r.productoHabitual}` : ""}.`,
+      entidadTipo: "cliente",
+      entidadId: r.cliente.contactId,
       accionSugerida: {
-        accion: "abrir_cuenta",
-        etiqueta: "Ver la cuenta",
-        accountId: r.cuenta.accountId,
+        accion: "abrir_cliente",
+        etiqueta: "Ver el cliente",
+        contactId: r.cliente.contactId,
       },
     });
   }
@@ -316,22 +316,22 @@ async function reglaInventario(): Promise<AlertaCalculada[]> {
 }
 
 async function reglaCuentasDesatendidas(u: Umbrales): Promise<AlertaCalculada[]> {
-  const scores = await scoresDeCuentas();
+  const scores = await scoresDeClientes();
   return scores
     .filter((s) => s.score >= u.scoreDesatendido && s.montoAbierto === 0)
     .slice(0, 8)
     .map((s) => ({
-      clave: `desatendida:${s.accountId}:${new Date().toISOString().slice(0, 7)}`,
+      clave: `desatendida:${s.contactId}:${new Date().toISOString().slice(0, 7)}`,
       tipo: "cuenta_desatendida",
       severidad: "media" as const,
       titulo: `${s.nombre} puntúa ${s.score}/100 y no tiene ninguna oportunidad abierta`,
       detalle: s.resumen,
-      entidadTipo: "cuenta",
-      entidadId: s.accountId,
+      entidadTipo: "cliente",
+      entidadId: s.contactId,
       accionSugerida: {
-        accion: "abrir_cuenta",
+        accion: "abrir_cliente",
         etiqueta: "Abrir oportunidad",
-        accountId: s.accountId,
+        contactId: s.contactId,
       },
     }));
 }
@@ -352,7 +352,7 @@ async function reglaCrossSell(u: Umbrales): Promise<AlertaCalculada[]> {
       accionSugerida: {
         accion: "whatsapp",
         etiqueta: `Ofrecer a ${p.oportunidades.length} clientes`,
-        accountIds: p.oportunidades.map((o) => o.accountId),
+        contactIds: p.oportunidades.map((o) => o.contactId),
         plantilla: "cross_sell",
       },
     }));
@@ -391,11 +391,11 @@ async function reglaTareasVencidas(): Promise<AlertaCalculada[]> {
       id: crmActivities.id,
       titulo: crmActivities.titulo,
       venceEn: crmActivities.venceEn,
-      accountId: crmActivities.accountId,
-      cuenta: crmAccounts.nombre,
+      contactId: crmActivities.contactId,
+      cliente: crmContacts.nombre,
     })
     .from(crmActivities)
-    .innerJoin(crmAccounts, eq(crmAccounts.id, crmActivities.accountId))
+    .leftJoin(crmContacts, eq(crmContacts.id, crmActivities.contactId))
     .where(
       and(
         eq(crmActivities.tipo, "tarea"),
@@ -409,14 +409,14 @@ async function reglaTareasVencidas(): Promise<AlertaCalculada[]> {
     clave: `tarea_vencida:${f.id}`,
     tipo: "tarea_vencida",
     severidad: "baja" as const,
-    titulo: `Tarea vencida en ${f.cuenta}: ${f.titulo}`,
+    titulo: `Tarea vencida · ${f.cliente}: ${f.titulo}`,
     detalle: `Vencía el ${new Date(f.venceEn!).toLocaleDateString("es-CL")}.`,
-    entidadTipo: "cuenta",
-    entidadId: f.accountId,
+    entidadTipo: "cliente",
+    entidadId: f.contactId,
     accionSugerida: {
-      accion: "abrir_cuenta",
-      etiqueta: "Ver la cuenta",
-      accountId: f.accountId,
+      accion: "abrir_cliente",
+      etiqueta: "Ver el cliente",
+      contactId: f.contactId!,
     },
   }));
 }

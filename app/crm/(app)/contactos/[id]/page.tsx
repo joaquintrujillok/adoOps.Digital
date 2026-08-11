@@ -10,34 +10,42 @@ import {
   Tabla,
   Vacio,
   btnPrimario,
+  btnSecundario,
 } from "@/components/crm/ui";
 import { Medidor } from "@/components/crm/charts";
 import { accionRegistrarActividad } from "@/lib/crm/acciones";
 import { requireSession } from "@/lib/crm/auth.actions";
-import { ficha360 } from "@/lib/crm/cuentas";
+import { fichaCliente } from "@/lib/crm/contactos";
 import { clp, fecha, fechaHora, numero, relativo } from "@/lib/crm/formato";
-import { scoreDeCuenta } from "@/lib/crm/scoring";
+import { scoreDeCliente } from "@/lib/crm/scoring";
 import { formatearTelefono } from "@/lib/crm/telefono";
 
 export const dynamic = "force-dynamic";
 
-export default async function FichaCuenta({
+const ESTADO_COTIZACION = {
+  abierta: { tono: "neutro" as const, texto: "Abierta" },
+  enviada: { tono: "alerta" as const, texto: "Enviada" },
+  convertida: { tono: "bueno" as const, texto: "Convertida" },
+  descartada: { tono: "critico" as const, texto: "Descartada" },
+};
+
+export default async function FichaContacto({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   await requireSession();
   const { id } = await params;
-  const accountId = Number(id);
+  const contactId = Number(id);
 
   const [ficha, score] = await Promise.all([
-    ficha360(accountId),
-    scoreDeCuenta(accountId),
+    fichaCliente(contactId),
+    scoreDeCliente(contactId),
   ]);
   if (!ficha) notFound();
 
-  const { cuenta, totales } = ficha;
-  const atrasada =
+  const { contacto, totales } = ficha;
+  const atrasado =
     totales.cicloRecompraDias &&
     totales.diasSinComprar &&
     totales.diasSinComprar > totales.cicloRecompraDias * 1.2;
@@ -45,15 +53,56 @@ export default async function FichaCuenta({
   return (
     <>
       <PageHeader
-        titulo={cuenta.nombre}
-        bajada={[cuenta.industria, cuenta.ciudad, cuenta.tamano]
+        titulo={contacto.nombre}
+        bajada={[
+          formatearTelefono(contacto.telefono),
+          contacto.ciudad,
+          contacto.email,
+          ficha.empresa,
+        ]
           .filter(Boolean)
           .join(" · ")}
-        acciones={<Estado estado={cuenta.estado} />}
+        acciones={
+          <>
+            {ficha.conversationId && (
+              <Link
+                href={`/crm/conversaciones?hilo=${ficha.conversationId}`}
+                className={btnSecundario}
+              >
+                ✆ Conversación
+              </Link>
+            )}
+            <Link
+              href={`/crm/cotizaciones?nueva=1&contacto=${contacto.id}`}
+              className={btnPrimario}
+            >
+              + Cotizar
+            </Link>
+          </>
+        }
       />
 
+      <div className="mb-5 flex flex-wrap items-center gap-2">
+        <Estado estado={contacto.estado} />
+        {(contacto.etiquetas ?? []).map((e) => (
+          <Badge key={e} tono="marca">
+            {e}
+          </Badge>
+        ))}
+        {contacto.optInWhatsapp ? (
+          <Badge tono="bueno" icono="✆">
+            Autoriza WhatsApp
+          </Badge>
+        ) : (
+          <Badge tono="alerta" icono="⛔">
+            Sin autorización de WhatsApp
+          </Badge>
+        )}
+        {contacto.fuente && <Badge tono="info">Llegó por {contacto.fuente}</Badge>}
+      </div>
+
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile etiqueta="Facturado histórico" valor={clp(totales.facturado)} contexto={`${numero(totales.compras)} compras`} />
+        <StatTile etiqueta="Comprado histórico" valor={clp(totales.facturado)} contexto={`${numero(totales.compras)} compras`} />
         <StatTile etiqueta="Ticket promedio" valor={clp(totales.ticketPromedio)} />
         <StatTile etiqueta="Pipeline abierto" valor={clp(totales.montoAbierto)} />
         <StatTile
@@ -67,14 +116,15 @@ export default async function FichaCuenta({
         />
       </div>
 
-      {atrasada && (
+      {atrasado && (
         <div className="mb-6">
           <Lectura titulo="Ventana de recompra vencida">
             <p>
-              Esta cuenta compra cada <strong>{totales.cicloRecompraDias} días</strong> en
-              promedio y lleva <strong>{totales.diasSinComprar}</strong>. Su ticket
-              promedio es de {clp(totales.ticketPromedio)}: es la conversación que
-              conviene tener esta semana.
+              Compra cada <strong>{totales.cicloRecompraDias} días</strong> en promedio y
+              lleva <strong>{totales.diasSinComprar}</strong>. Su ticket promedio es de{" "}
+              {clp(totales.ticketPromedio)}
+              {totales.marcaHabitual ? `, y suele elegir ${totales.marcaHabitual}` : ""}: es
+              la conversación que conviene tener esta semana.
             </p>
           </Lectura>
         </div>
@@ -82,6 +132,91 @@ export default async function FichaCuenta({
 
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">
+          {contacto.preferencias && (
+            <Card titulo="Lo que hay que saber antes de llamarlo">
+              <p className="text-[14px] leading-relaxed text-[var(--crm-ink)]">
+                {contacto.preferencias}
+              </p>
+            </Card>
+          )}
+
+          <Card titulo="Historial de compras" padding={false}>
+            {ficha.compras.length === 0 ? (
+              <div className="p-5">
+                <Vacio mensaje="Todavía no ha comprado" />
+              </div>
+            ) : (
+              <ul className="divide-y divide-[var(--crm-grid)]">
+                {ficha.compras.map((c) => (
+                  <li key={c.orderId} className="px-5 py-3.5">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="text-[14px] font-medium text-[var(--crm-ink)]">
+                        {fecha(c.fecha)}
+                        {c.canal && (
+                          <span className="ml-2 text-[12px] font-normal text-[var(--crm-muted)]">
+                            {c.canal}
+                          </span>
+                        )}
+                      </span>
+                      <span className="crm-num text-[14px] font-semibold">{clp(c.total)}</span>
+                    </div>
+                    <div className="mt-1 space-y-0.5">
+                      {c.piezas.map((p, i) => (
+                        <div key={i} className="text-[13px] text-[var(--crm-ink-2)]">
+                          {p.cantidad > 1 ? `${p.cantidad}× ` : ""}
+                          {p.marca ? <strong>{p.marca}</strong> : null} {p.nombre}
+                          <span className="crm-num ml-2 text-[var(--crm-muted)]">
+                            {clp(p.subtotal)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+
+          <Card titulo="Cotizaciones" padding={false}>
+            {ficha.cotizaciones.length === 0 ? (
+              <div className="p-5">
+                <Vacio mensaje="Sin cotizaciones" />
+              </div>
+            ) : (
+              <Tabla
+                columnas={[
+                  "N.º",
+                  "Estado",
+                  { titulo: "Piezas", alinear: "der" },
+                  { titulo: "Total", alinear: "der" },
+                  "Fecha",
+                ]}
+              >
+                {ficha.cotizaciones.map((c) => {
+                  const e = ESTADO_COTIZACION[c.estado as keyof typeof ESTADO_COTIZACION];
+                  return (
+                    <tr key={c.id}>
+                      <td>
+                        <Link
+                          href={`/crm/cotizaciones/${c.id}`}
+                          className="font-medium hover:text-[var(--crm-brand-dark)]"
+                        >
+                          #{c.id}
+                        </Link>
+                      </td>
+                      <td>
+                        <Badge tono={e?.tono ?? "neutro"}>{e?.texto ?? c.estado}</Badge>
+                      </td>
+                      <td className="crm-num text-right">{numero(c.piezas)}</td>
+                      <td className="crm-num text-right font-medium">{clp(c.total)}</td>
+                      <td>{fecha(c.createdAt)}</td>
+                    </tr>
+                  );
+                })}
+              </Tabla>
+            )}
+          </Card>
+
           <Card titulo="Oportunidades" padding={false}>
             {ficha.deals.length === 0 ? (
               <div className="p-5">
@@ -89,13 +224,7 @@ export default async function FichaCuenta({
               </div>
             ) : (
               <Tabla
-                columnas={[
-                  "Oportunidad",
-                  "Etapa",
-                  { titulo: "Monto", alinear: "der" },
-                  "Abierta",
-                  "Cierre",
-                ]}
+                columnas={["Oportunidad", "Etapa", { titulo: "Monto", alinear: "der" }, "Abierta"]}
               >
                 {ficha.deals.map((d) => (
                   <tr key={d.id}>
@@ -112,59 +241,23 @@ export default async function FichaCuenta({
                     </td>
                     <td className="crm-num text-right font-medium">{clp(d.monto)}</td>
                     <td>{fecha(d.abiertoEn)}</td>
-                    <td>{fecha(d.cerradoEn ?? d.cierreEstimado)}</td>
                   </tr>
                 ))}
               </Tabla>
             )}
           </Card>
 
-          <Card titulo="Historial de compras" padding={false}>
-            {ficha.compras.length === 0 ? (
-              <div className="p-5">
-                <Vacio mensaje="Sin compras registradas" />
-              </div>
-            ) : (
-              <ul className="divide-y divide-[var(--crm-grid)]">
-                {ficha.compras.map((c) => (
-                  <li key={c.orderId} className="px-5 py-3.5">
-                    <div className="flex items-baseline justify-between gap-3">
-                      <span className="text-[14px] font-medium text-[var(--crm-ink)]">
-                        {fecha(c.fecha)}
-                        {c.canal && (
-                          <span className="ml-2 text-[12px] font-normal text-[var(--crm-muted)]">
-                            {c.canal}
-                          </span>
-                        )}
-                      </span>
-                      <span className="crm-num text-[14px] font-semibold">
-                        {clp(c.total)}
-                      </span>
-                    </div>
-                    <div className="mt-1 flex flex-wrap gap-1.5">
-                      {c.productos.map((p, i) => (
-                        <Badge key={i} tono="neutro">
-                          {p.cantidad}× {p.nombre}
-                        </Badge>
-                      ))}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
-
           <Card titulo="Bitácora" padding={false}>
             <div className="border-b border-[var(--crm-grid)] p-5">
               <form action={accionRegistrarActividad} className="flex flex-wrap gap-2">
-                <input type="hidden" name="accountId" value={accountId} />
+                <input type="hidden" name="contactId" value={contactId} />
                 <select
                   name="tipo"
                   defaultValue="llamada"
                   className="rounded-lg border border-[var(--crm-border)] bg-white px-3 py-2 text-[13px]"
                 >
                   <option value="llamada">Llamada</option>
-                  <option value="reunion">Reunión</option>
+                  <option value="reunion">Visita al showroom</option>
                   <option value="email">Email</option>
                   <option value="nota">Nota</option>
                   <option value="tarea">Tarea pendiente</option>
@@ -202,9 +295,7 @@ export default async function FichaCuenta({
                       </span>
                     </div>
                     {a.detalle && (
-                      <p className="mt-0.5 text-[13px] text-[var(--crm-ink-2)]">
-                        {a.detalle}
-                      </p>
+                      <p className="mt-0.5 text-[13px] text-[var(--crm-ink-2)]">{a.detalle}</p>
                     )}
                     <div className="mt-1 text-[12px] text-[var(--crm-muted)]">
                       {a.tipo}
@@ -219,7 +310,7 @@ export default async function FichaCuenta({
 
         <div className="space-y-5">
           {score && (
-            <Card titulo="Potencial de la cuenta" descripcion="Cómo se compone el puntaje">
+            <Card titulo="Potencial del cliente" descripcion="Cómo se compone el puntaje">
               <div className="mb-3 flex items-center gap-3">
                 <Medidor score={score.score} tamano={60} />
                 <p className="text-[13px] text-[var(--crm-ink-2)]">{score.resumen}</p>
@@ -251,54 +342,34 @@ export default async function FichaCuenta({
             </Card>
           )}
 
-          <Card titulo="Contactos" padding={false}>
-            {ficha.contactos.length === 0 ? (
-              <div className="p-5">
-                <Vacio mensaje="Sin contactos" />
+          <Card titulo="Preferencias detectadas">
+            <dl className="space-y-2.5 text-[14px]">
+              <div className="flex items-center justify-between">
+                <dt className="text-[var(--crm-ink-2)]">Marca habitual</dt>
+                <dd className="font-medium">{ficha.totales.marcaHabitual ?? "—"}</dd>
               </div>
-            ) : (
-              <ul className="divide-y divide-[var(--crm-grid)]">
-                {ficha.contactos.map((c) => (
-                  <li key={c.id} className="px-5 py-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[14px] font-medium">{c.nombre}</span>
-                      {c.esDecisor && (
-                        <Badge tono="marca" icono="★">
-                          Decide
-                        </Badge>
-                      )}
-                      {c.optInWhatsapp && (
-                        <Badge tono="bueno" icono="✆">
-                          WhatsApp
-                        </Badge>
-                      )}
-                    </div>
-                    {c.cargo && (
-                      <div className="text-[13px] text-[var(--crm-ink-2)]">{c.cargo}</div>
-                    )}
-                    <div className="crm-num mt-0.5 text-[12px] text-[var(--crm-muted)]">
-                      {c.email ?? "—"}
-                      {c.telefono ? ` · ${formatearTelefono(c.telefono)}` : ""}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
+              <div className="flex items-center justify-between">
+                <dt className="text-[var(--crm-ink-2)]">Categoría habitual</dt>
+                <dd className="font-medium">{ficha.totales.categoriaHabitual ?? "—"}</dd>
+              </div>
+              <div className="flex items-center justify-between">
+                <dt className="text-[var(--crm-ink-2)]">Ejecutivo</dt>
+                <dd>{ficha.owner ?? "sin asignar"}</dd>
+              </div>
+            </dl>
           </Card>
 
-          <Card titulo="Recorrido de marketing" descripcion="Cómo llegó y qué la mantiene cerca">
+          <Card titulo="Recorrido de marketing" descripcion="Cómo llegó y qué lo mantiene cerca">
             {ficha.recorrido.length === 0 ? (
               <p className="text-[13px] text-[var(--crm-ink-2)]">
-                Sin interacciones de marketing registradas.
+                Sin interacciones registradas.
               </p>
             ) : (
               <ol className="space-y-2 border-l border-[var(--crm-grid)] pl-4">
                 {ficha.recorrido.slice(0, 10).map((r, i) => (
                   <li key={i} className="relative text-[13px]">
                     <span className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full bg-[var(--ramp-3)]" />
-                    <div className="text-[var(--crm-ink)]">
-                      {r.campana ?? "Interacción directa"}
-                    </div>
+                    <div className="text-[var(--crm-ink)]">{r.campana ?? "Contacto directo"}</div>
                     <div className="text-[12px] text-[var(--crm-muted)]">
                       {r.tipo} · {relativo(r.fecha)}
                     </div>
@@ -308,10 +379,10 @@ export default async function FichaCuenta({
             )}
           </Card>
 
-          {cuenta.notas && (
+          {contacto.notas && (
             <Card titulo="Notas">
               <p className="whitespace-pre-line text-[13px] text-[var(--crm-ink-2)]">
-                {cuenta.notas}
+                {contacto.notas}
               </p>
             </Card>
           )}

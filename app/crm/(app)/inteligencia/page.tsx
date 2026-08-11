@@ -22,7 +22,7 @@ import {
 import { requireSession } from "@/lib/crm/auth.actions";
 import { clp, numero, relativo } from "@/lib/crm/formato";
 import { listarAlertas, type AccionSugerida } from "@/lib/crm/insights";
-import { scoresDeCuentas } from "@/lib/crm/scoring";
+import { scoresDeClientes } from "@/lib/crm/scoring";
 
 export const dynamic = "force-dynamic";
 
@@ -42,8 +42,8 @@ function Accion({ alertaId, accion }: { alertaId: number; accion: AccionSugerida
   const destino =
     accion.accion === "abrir_deal"
       ? `/crm/oportunidades/${accion.dealId}`
-      : accion.accion === "abrir_cuenta"
-        ? `/crm/cuentas/${accion.accountId}`
+      : accion.accion === "abrir_cliente"
+        ? `/crm/contactos/${accion.contactId}`
         : accion.accion === "abrir_producto"
           ? "/crm/productos"
           : "/crm/marketing";
@@ -60,7 +60,7 @@ export default async function Inteligencia() {
 
   const [alertas, scores] = await Promise.all([
     listarAlertas("abierta"),
-    scoresDeCuentas(),
+    scoresDeClientes(),
   ]);
 
   const porSeveridad = {
@@ -69,7 +69,7 @@ export default async function Inteligencia() {
     baja: alertas.filter((a) => a.severidad === "baja"),
   };
   const conAccion = alertas.filter((a) => a.accionSugerida).length;
-  const topCuentas = scores.slice(0, 6);
+  const topClientes = scores.slice(0, 6);
 
   const respaldo = alertas.length
     ? `Hay ${alertas.length} alertas abiertas: ${porSeveridad.alta.length} altas, ${porSeveridad.media.length} medias y ${porSeveridad.baja.length} bajas. ${conAccion} traen una acción concreta asociada. Conviene partir por las de severidad alta, que son las que tienen plata o plazo comprometido.`
@@ -104,7 +104,7 @@ export default async function Inteligencia() {
         <StatTile etiqueta="Severidad alta" valor={numero(porSeveridad.alta.length)} deltaBueno="abajo" />
         <StatTile etiqueta="Con acción lista" valor={numero(conAccion)} contexto="ejecutables desde acá" />
         <StatTile
-          etiqueta="Cuentas de alto potencial"
+          etiqueta="Clientes de alto potencial"
           valor={numero(scores.filter((s) => s.score >= 70).length)}
           contexto="puntaje 70 o más"
         />
@@ -186,23 +186,23 @@ export default async function Inteligencia() {
         </div>
 
         <Card
-          titulo="Cuentas con más potencial"
+          titulo="Clientes con más potencial"
           descripcion="Puntaje explicable, no una caja negra"
           padding={false}
         >
-          {topCuentas.length === 0 ? (
+          {topClientes.length === 0 ? (
             <div className="p-5">
-              <Vacio mensaje="Sin cuentas para puntuar" />
+              <Vacio mensaje="Sin clientes para puntuar" />
             </div>
           ) : (
             <ul className="divide-y divide-[var(--crm-grid)]">
-              {topCuentas.map((s) => (
-                <li key={s.accountId} className="px-5 py-3.5">
+              {topClientes.map((s) => (
+                <li key={s.contactId} className="px-5 py-3.5">
                   <div className="flex items-start gap-3">
                     <Medidor score={s.score} tamano={42} />
                     <div className="min-w-0 flex-1">
                       <Link
-                        href={`/crm/cuentas/${s.accountId}`}
+                        href={`/crm/contactos/${s.contactId}`}
                         className="text-[14px] font-medium hover:text-[var(--crm-brand-dark)]"
                       >
                         {s.nombre}
@@ -211,7 +211,7 @@ export default async function Inteligencia() {
                         {s.resumen}
                       </p>
                       <div className="crm-num mt-1 text-[12px] text-[var(--crm-muted)]">
-                        {clp(s.facturado12m)} en 12 meses ·{" "}
+                        {clp(s.facturado24m)} en 24 meses ·{" "}
                         {s.montoAbierto > 0 ? `${clp(s.montoAbierto)} abiertos` : "sin pipeline"}
                       </div>
                     </div>

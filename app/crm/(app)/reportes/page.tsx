@@ -12,7 +12,7 @@ import {
   motivosDePerdida,
   rendimientoEquipo,
   resumenComercial,
-  topCuentas,
+  topClientes,
 } from "@/lib/crm/reportes";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +26,7 @@ export default async function Reportes() {
     embudoConversion(),
     rendimientoEquipo(),
     motivosDePerdida(),
-    topCuentas(365, 10),
+    topClientes(365, 10),
     concentracion(365),
   ]);
 
@@ -191,7 +191,7 @@ export default async function Reportes() {
       </div>
 
       <Card
-        titulo="Cuentas que más facturaron"
+        titulo="Clientes que más compraron"
         descripcion="Últimos 12 meses"
         padding={false}
       >
@@ -202,17 +202,17 @@ export default async function Reportes() {
         ) : (
           <Tabla
             columnas={[
-              "Cuenta",
+              "Cliente",
               { titulo: "Órdenes", alinear: "der" },
               { titulo: "Facturado", alinear: "der" },
               { titulo: "% del total", alinear: "der" },
             ]}
           >
             {top.map((t) => (
-              <tr key={t.accountId}>
+              <tr key={t.contactId}>
                 <td>
                   <Link
-                    href={`/crm/cuentas/${t.accountId}`}
+                    href={`/crm/contactos/${t.contactId}`}
                     className="font-medium hover:text-[var(--crm-brand-dark)]"
                   >
                     {t.nombre}

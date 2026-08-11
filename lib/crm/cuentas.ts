@@ -66,8 +66,8 @@ export async function listarCuentas(opciones?: {
       owner: crmUsers.nombre,
       contactos: sql<number>`(select count(*) from crm_contacts c where c.account_id = crm_accounts.id)::int`,
       dealsAbiertos: sql<number>`(select count(*) from crm_deals d where d.account_id = crm_accounts.id and d.etapa not in ('ganado','perdido'))::int`,
-      montoAbierto: sql<number>`coalesce((select sum(d.monto) from crm_deals d where d.account_id = crm_accounts.id and d.etapa not in ('ganado','perdido')),0)::int`,
-      facturado: sql<number>`coalesce((select sum(o.total) from crm_orders o where o.account_id = crm_accounts.id),0)::int`,
+      montoAbierto: sql<number>`coalesce((select sum(d.monto) from crm_deals d where d.account_id = crm_accounts.id and d.etapa not in ('ganado','perdido')),0)::float8`,
+      facturado: sql<number>`coalesce((select sum(o.total) from crm_orders o where o.account_id = crm_accounts.id),0)::float8`,
       ultimaCompra: sql<Date | null>`(select max(o.fecha) from crm_orders o where o.account_id = crm_accounts.id)`,
       ultimaActividad: sql<Date | null>`(select max(a.ocurrido_en) from crm_activities a where a.account_id = crm_accounts.id)`,
     })

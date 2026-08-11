@@ -84,7 +84,7 @@ export default async function Oportunidades({
               sin una actividad registrada, y suman{" "}
               <strong>{clp(estancadas.reduce((s, d) => s + d.monto, 0))}</strong>. La más
               grande es &ldquo;{estancadas.sort((a, b) => b.monto - a.monto)[0].titulo}
-              &rdquo; de {estancadas[0].cuenta}.
+              &rdquo; de {estancadas[0].cliente}.
             </p>
           </Lectura>
         </div>
@@ -133,10 +133,10 @@ export default async function Oportunidades({
                     </div>
 
                     <Link
-                      href={`/crm/cuentas/${d.accountId}`}
+                      href={`/crm/contactos/${d.contactId}`}
                       className="mt-1 block text-[13px] text-[var(--crm-ink-2)] hover:underline"
                     >
-                      {d.cuenta}
+                      {d.cliente}
                     </Link>
 
                     <div className="crm-num mt-2 text-[15px] font-semibold text-[var(--crm-ink)]">

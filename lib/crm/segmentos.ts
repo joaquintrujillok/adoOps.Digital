@@ -9,22 +9,21 @@
 import { desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  crmAccounts,
   crmContacts,
   crmOrderItems,
   crmOrders,
   crmProducts,
   crmSegments,
 } from "@/db/crm";
-import { cicloRecompra } from "./cuentas";
-import { scoresDeCuentas, type ScoreCuenta } from "./scoring";
+import { cicloRecompra } from "./contactos";
+import { scoresDeClientes } from "./scoring";
 
 // ─── Definición declarativa ──────────────────────────────────────────────────
 
 export interface DefinicionSegmento {
   estado?: string[];
-  industria?: string[];
-  tamano?: string[];
+  ciudad?: string[];
+  etiquetas?: string[];
   scoreMin?: number;
   scoreMax?: number;
   facturadoMin?: number;
@@ -40,19 +39,19 @@ export interface DefinicionSegmento {
   conWhatsapp?: boolean;
 }
 
-export interface CuentaSegmentada {
-  accountId: number;
+export interface ClienteSegmentado {
+  contactId: number;
   nombre: string;
   estado: string;
-  industria: string | null;
-  tamano: string | null;
+  ciudad: string | null;
+  etiquetas: string[];
   score: number;
   facturado: number;
   compras: number;
   diasSinComprar: number | null;
   cicloRecompraDias: number | null;
   productos: number[];
-  contactoWhatsapp: { id: number; nombre: string; telefono: string } | null;
+  telefonoWhatsapp: string | null;
 }
 
 /**
@@ -63,89 +62,73 @@ export interface CuentaSegmentada {
  * (cientos a pocos miles), una consulta y un filtro en JavaScript es más simple
  * de leer y de auditar que un armador dinámico de WHERE.
  */
-export async function universo(): Promise<CuentaSegmentada[]> {
-  const [cuentas, scores, compras, items, contactos] = await Promise.all([
-    db.select().from(crmAccounts),
-    scoresDeCuentas(),
+export async function universo(): Promise<ClienteSegmentado[]> {
+  const [contactos, scores, compras, items] = await Promise.all([
+    db.select().from(crmContacts),
+    scoresDeClientes(),
     db
       .select({
-        accountId: crmOrders.accountId,
+        contactId: crmOrders.contactId,
         fecha: crmOrders.fecha,
         total: crmOrders.total,
       })
       .from(crmOrders),
     db
       .select({
-        accountId: crmOrders.accountId,
+        contactId: crmOrders.contactId,
         productId: crmOrderItems.productId,
       })
       .from(crmOrderItems)
       .innerJoin(crmOrders, eq(crmOrders.id, crmOrderItems.orderId)),
-    db
-      .select({
-        id: crmContacts.id,
-        accountId: crmContacts.accountId,
-        nombre: crmContacts.nombre,
-        telefono: crmContacts.telefono,
-        optIn: crmContacts.optInWhatsapp,
-      })
-      .from(crmContacts),
   ]);
 
-  const porCuenta = new Map(scores.map((s) => [s.accountId, s]));
+  const porCliente = new Map(scores.map((s) => [s.contactId, s]));
 
-  return cuentas.map((c) => {
-    const suyas = compras.filter((o) => o.accountId === c.id);
+  return contactos.map((c) => {
+    const suyas = compras.filter((o) => o.contactId === c.id);
     const fechas = suyas.map((o) => o.fecha);
     const ultima = fechas.length
       ? Math.max(...fechas.map((f) => new Date(f).getTime()))
       : null;
-    const wa = contactos.find(
-      (k) => k.accountId === c.id && k.optIn && k.telefono,
-    );
 
     return {
-      accountId: c.id,
+      contactId: c.id,
       nombre: c.nombre,
       estado: c.estado,
-      industria: c.industria,
-      tamano: c.tamano,
-      score: porCuenta.get(c.id)?.score ?? 0,
+      ciudad: c.ciudad,
+      etiquetas: c.etiquetas ?? [],
+      score: porCliente.get(c.id)?.score ?? 0,
       facturado: suyas.reduce((s, o) => s + o.total, 0),
       compras: suyas.length,
-      diasSinComprar: ultima
-        ? Math.floor((Date.now() - ultima) / 86_400_000)
-        : null,
+      diasSinComprar: ultima ? Math.floor((Date.now() - ultima) / 86_400_000) : null,
       cicloRecompraDias: cicloRecompra(fechas),
       productos: [
-        ...new Set(items.filter((i) => i.accountId === c.id).map((i) => i.productId)),
+        ...new Set(items.filter((i) => i.contactId === c.id).map((i) => i.productId)),
       ],
-      contactoWhatsapp: wa
-        ? { id: wa.id, nombre: wa.nombre, telefono: wa.telefono! }
-        : null,
+      telefonoWhatsapp: c.optInWhatsapp ? c.telefono : null,
     };
   });
 }
 
 export function aplicar(
-  cuentas: CuentaSegmentada[],
+  clientes: ClienteSegmentado[],
   def: DefinicionSegmento,
-): CuentaSegmentada[] {
-  return cuentas.filter((c) => {
+): ClienteSegmentado[] {
+  return clientes.filter((c) => {
     if (def.estado?.length && !def.estado.includes(c.estado)) return false;
-    if (def.industria?.length && !def.industria.includes(c.industria ?? "")) return false;
-    if (def.tamano?.length && !def.tamano.includes(c.tamano ?? "")) return false;
+    if (def.ciudad?.length && !def.ciudad.includes(c.ciudad ?? "")) return false;
+    if (def.etiquetas?.length && !def.etiquetas.some((e) => c.etiquetas.includes(e))) return false;
     if (def.scoreMin != null && c.score < def.scoreMin) return false;
     if (def.scoreMax != null && c.score > def.scoreMax) return false;
     if (def.facturadoMin != null && c.facturado < def.facturadoMin) return false;
     if (def.comprasMin != null && c.compras < def.comprasMin) return false;
-    // Una cuenta que nunca compró no entra en un filtro de "días sin comprar":
-    // no es que lleve mucho tiempo sin comprar, es que nunca estuvo adentro.
+    // Quien nunca compró no entra en un filtro de "días sin comprar": no es que
+    // lleve mucho tiempo sin comprar, es que nunca estuvo adentro.
     if (def.sinComprarMin != null && (c.diasSinComprar ?? -1) < def.sinComprarMin) return false;
     if (def.sinComprarMax != null && (c.diasSinComprar ?? Infinity) > def.sinComprarMax) return false;
     if (def.compro?.length && !def.compro.some((p) => c.productos.includes(p))) return false;
     if (def.noCompro?.length && def.noCompro.some((p) => c.productos.includes(p))) return false;
-    if (def.conWhatsapp && !c.contactoWhatsapp) return false;
+    if (def.conWhatsapp && !c.telefonoWhatsapp) return false;
     return true;
   });
 }
@@ -171,7 +154,7 @@ export async function evaluarSegmento(segmentId: number) {
 // ─── Ventana de recompra ─────────────────────────────────────────────────────
 
 export interface Recompra {
-  cuenta: CuentaSegmentada;
+  cliente: ClienteSegmentado;
   /** Días que lleva de atraso respecto de su propio ciclo. */
   atraso: number;
   /** Cuánto vale, en promedio, una compra suya. */
@@ -190,14 +173,14 @@ export interface Recompra {
  * `tolerancia` 1.2 = se considera atrasada cuando pasó un 20% más que su ciclo.
  */
 export async function ventanaRecompra(tolerancia = 1.2): Promise<Recompra[]> {
-  const [cuentas, ordenes, items] = await Promise.all([
+  const [clientes, ordenes, items] = await Promise.all([
     universo(),
     db
-      .select({ accountId: crmOrders.accountId, total: crmOrders.total })
+      .select({ contactId: crmOrders.contactId, total: crmOrders.total })
       .from(crmOrders),
     db
       .select({
-        accountId: crmOrders.accountId,
+        contactId: crmOrders.contactId,
         nombre: crmProducts.nombre,
         cantidad: crmOrderItems.cantidad,
       })
@@ -208,13 +191,13 @@ export async function ventanaRecompra(tolerancia = 1.2): Promise<Recompra[]> {
 
   const resultado: Recompra[] = [];
 
-  for (const c of cuentas) {
+  for (const c of clientes) {
     if (!c.cicloRecompraDias || c.diasSinComprar === null) continue;
     const limite = c.cicloRecompraDias * tolerancia;
     if (c.diasSinComprar <= limite) continue;
 
-    const suyas = ordenes.filter((o) => o.accountId === c.accountId);
-    const productos = items.filter((i) => i.accountId === c.accountId);
+    const suyas = ordenes.filter((o) => o.contactId === c.contactId);
+    const productos = items.filter((i) => i.contactId === c.contactId);
     const conteo = new Map<string, number>();
     for (const p of productos) {
       conteo.set(p.nombre, (conteo.get(p.nombre) ?? 0) + p.cantidad);
@@ -222,7 +205,7 @@ export async function ventanaRecompra(tolerancia = 1.2): Promise<Recompra[]> {
     const habitual = [...conteo.entries()].sort((a, b) => b[1] - a[1])[0];
 
     resultado.push({
-      cuenta: c,
+      cliente: c,
       atraso: Math.round(c.diasSinComprar - c.cicloRecompraDias),
       ticketPromedio: suyas.length
         ? Math.round(suyas.reduce((s, o) => s + o.total, 0) / suyas.length)
@@ -241,12 +224,12 @@ export interface ParProductos {
   productoB: { id: number; nombre: string };
   /** Cuentas que compraron ambos. */
   juntas: number;
-  /** Cuentas que compraron A. */
+  /** Clientes que compraron A. */
   conA: number;
   /** De quienes compraron A, qué porcentaje compró también B. */
   confianza: number;
   /** Cuentas que compraron A y todavía no B: la lista accionable. */
-  oportunidades: { accountId: number; nombre: string; score: number }[];
+  oportunidades: { contactId: number; nombre: string; score: number }[];
 }
 
 /**
@@ -264,14 +247,14 @@ export async function paresCrossSell(
   minimoJuntas = 3,
   limite = 12,
 ): Promise<ParProductos[]> {
-  const [cuentas, productos] = await Promise.all([
+  const [clientes, productos] = await Promise.all([
     universo(),
     db.select({ id: crmProducts.id, nombre: crmProducts.nombre }).from(crmProducts),
   ]);
 
   const nombre = new Map(productos.map((p) => [p.id, p.nombre]));
-  const compradores = new Map<number, CuentaSegmentada[]>();
-  for (const c of cuentas) {
+  const compradores = new Map<number, ClienteSegmentado[]>();
+  for (const c of clientes) {
     for (const p of c.productos) {
       compradores.set(p, [...(compradores.get(p) ?? []), c]);
     }
@@ -279,15 +262,15 @@ export async function paresCrossSell(
 
   const pares: ParProductos[] = [];
 
-  for (const [a, cuentasA] of compradores) {
-    for (const [b, cuentasB] of compradores) {
+  for (const [a, clientesA] of compradores) {
+    for (const [b, clientesB] of compradores) {
       if (a === b) continue;
-      const idsB = new Set(cuentasB.map((c) => c.accountId));
-      const juntas = cuentasA.filter((c) => idsB.has(c.accountId)).length;
+      const idsB = new Set(clientesB.map((c) => c.contactId));
+      const juntas = clientesA.filter((c) => idsB.has(c.contactId)).length;
       if (juntas < minimoJuntas) continue;
 
-      const faltantes = cuentasA
-        .filter((c) => !idsB.has(c.accountId))
+      const faltantes = clientesA
+        .filter((c) => !idsB.has(c.contactId))
         .sort((x, y) => y.score - x.score);
       if (faltantes.length === 0) continue;
 
@@ -295,10 +278,10 @@ export async function paresCrossSell(
         productoA: { id: a, nombre: nombre.get(a) ?? `#${a}` },
         productoB: { id: b, nombre: nombre.get(b) ?? `#${b}` },
         juntas,
-        conA: cuentasA.length,
-        confianza: (juntas / cuentasA.length) * 100,
+        conA: clientesA.length,
+        confianza: (juntas / clientesA.length) * 100,
         oportunidades: faltantes.map((c) => ({
-          accountId: c.accountId,
+          contactId: c.contactId,
           nombre: c.nombre,
           score: c.score,
         })),

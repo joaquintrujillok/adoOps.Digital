@@ -198,7 +198,7 @@ export async function hilo(conversationId: number): Promise<Hilo | null> {
  */
 export async function conversacionDe(
   telefono: string,
-  datos?: { accountId?: number | null; contactId?: number | null; nombre?: string | null },
+  datos?: { contactId?: number | null; nombre?: string | null },
 ): Promise<number> {
   const normalizado = normalizarTelefono(telefono);
   if (!normalizado) throw new Error(`Teléfono inválido: ${telefono}`);
@@ -215,7 +215,6 @@ export async function conversacionDe(
     .insert(crmWaConversations)
     .values({
       telefono: normalizado,
-      accountId: datos?.accountId ?? null,
       contactId: datos?.contactId ?? null,
       nombre: datos?.nombre ?? null,
     })
@@ -276,8 +275,7 @@ export async function registrarEntrante(
 // ─── Preparación masiva desde una alerta ─────────────────────────────────────
 
 export interface Preparado {
-  accountId: number;
-  cuenta: string;
+  contactId: number;
   contacto: string;
   telefono: string;
   mensaje: string;
@@ -292,14 +290,14 @@ export interface Preparado {
  * "preparar mensajes". Un clic en una alerta no puede equivaler a autorizar 40
  * envíos; alguien tiene que leerlos y apretar enviar.
  */
-export async function prepararParaCuentas(
-  accountIds: number[],
+export async function prepararParaClientes(
+  contactIds: number[],
   plantillaProposito: string,
   autorId: number,
   empresa: string,
   vendedor: string,
 ): Promise<Preparado[]> {
-  if (accountIds.length === 0) return [];
+  if (contactIds.length === 0) return [];
 
   const plantillas = await listarPlantillas();
   const plantilla =
@@ -308,45 +306,33 @@ export async function prepararParaCuentas(
 
   const contactos = await db
     .select({
-      accountId: crmContacts.accountId,
-      cuenta: crmAccounts.nombre,
       contactId: crmContacts.id,
       contacto: crmContacts.nombre,
       telefono: crmContacts.telefono,
     })
     .from(crmContacts)
-    .innerJoin(crmAccounts, eq(crmAccounts.id, crmContacts.accountId))
     .where(
       and(
-        inArray(crmContacts.accountId, accountIds),
+        inArray(crmContacts.id, contactIds),
         eq(crmContacts.optInWhatsapp, true),
         sql`${crmContacts.telefono} is not null`,
       ),
     );
 
-  // Un mensaje por cuenta, al primer contacto autorizado: escribirle a tres
-  // personas de la misma empresa por la misma razón es exactamente lo que hace
-  // que una marca se sienta invasiva.
-  const porCuenta = new Map<number, (typeof contactos)[number]>();
-  for (const c of contactos) {
-    if (!porCuenta.has(c.accountId)) porCuenta.set(c.accountId, c);
-  }
-
   const resultado: Preparado[] = [];
 
-  for (const c of porCuenta.values()) {
-    const producto = await productoHabitual(c.accountId);
+  for (const c of contactos) {
+    const producto = await productoHabitual(c.contactId);
     const mensaje = renderPlantilla(plantilla.cuerpo, {
       contacto: c.contacto.split(" ")[0],
-      cuenta: c.cuenta,
-      producto: producto ?? "lo que trabajan con nosotros",
+      cuenta: c.contacto,
+      producto: producto ?? "lo que conversamos",
       empresa,
       vendedor,
-      dias: await diasSinContacto(c.accountId),
+      dias: await diasSinContacto(c.contactId),
     });
 
     const conversationId = await conversacionDe(c.telefono!, {
-      accountId: c.accountId,
       contactId: c.contactId,
       nombre: c.contacto,
     });
@@ -359,8 +345,7 @@ export async function prepararParaCuentas(
     });
 
     resultado.push({
-      accountId: c.accountId,
-      cuenta: c.cuenta,
+      contactId: c.contactId,
       contacto: c.contacto,
       telefono: c.telefono!,
       mensaje,
@@ -372,7 +357,7 @@ export async function prepararParaCuentas(
   return resultado;
 }
 
-async function productoHabitual(accountId: number): Promise<string | null> {
+async function productoHabitual(contactId: number): Promise<string | null> {
   const [fila] = await db
     .select({
       nombre: crmProducts.nombre,
@@ -381,20 +366,20 @@ async function productoHabitual(accountId: number): Promise<string | null> {
     .from(sql`crm_order_items oi`)
     .innerJoin(sql`crm_orders o`, sql`o.id = oi.order_id`)
     .innerJoin(crmProducts, sql`${crmProducts.id} = oi.product_id`)
-    .where(sql`o.account_id = ${accountId}`)
+    .where(sql`o.contact_id = ${contactId}`)
     .groupBy(crmProducts.nombre)
     .orderBy(sql`sum(oi.cantidad) desc`)
     .limit(1);
   return fila?.nombre ?? null;
 }
 
-async function diasSinContacto(accountId: number): Promise<number> {
+async function diasSinContacto(contactId: number): Promise<number> {
   const [fila] = await db
     .select({
       ultima: sql<string | null>`max(a.ocurrido_en)`,
     })
     .from(sql`crm_activities a`)
-    .where(sql`a.account_id = ${accountId}`);
+    .where(sql`a.contact_id = ${contactId}`);
   if (!fila?.ultima) return 0;
   return Math.floor((Date.now() - new Date(fila.ultima).getTime()) / 86_400_000);
 }

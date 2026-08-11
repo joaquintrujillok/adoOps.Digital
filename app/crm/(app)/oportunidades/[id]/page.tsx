@@ -57,11 +57,11 @@ export default async function FichaOportunidad({
     <>
       <PageHeader
         titulo={ficha.deal.titulo}
-        bajada={`${ficha.cuenta.nombre}${ficha.owner ? ` · ${ficha.owner}` : " · sin dueño asignado"}`}
+        bajada={`${ficha.cliente?.nombre ?? "Sin cliente"}${ficha.owner ? ` · ${ficha.owner}` : " · sin dueño asignado"}`}
         acciones={
           <>
-            <Link href={`/crm/cuentas/${ficha.cuenta.id}`} className={btnSecundario}>
-              Ver la cuenta
+            <Link href={`/crm/contactos/${ficha.cliente?.id ?? 0}`} className={btnSecundario}>
+              Ver el cliente
             </Link>
             <MoverEtapa dealId={dealId} etapa={ficha.deal.etapa} />
           </>
@@ -175,7 +175,7 @@ export default async function FichaOportunidad({
           <Card titulo="Bitácora" descripcion="Todo lo que se hizo con esta oportunidad" padding={false}>
             <div className="border-b border-[var(--crm-grid)] p-5">
               <form action={accionRegistrarActividad} className="space-y-2.5">
-                <input type="hidden" name="accountId" value={ficha.cuenta.id} />
+                <input type="hidden" name="contactId" value={ficha.cliente?.id ?? 0} />
                 <input type="hidden" name="dealId" value={dealId} />
                 <div className="flex flex-wrap gap-2">
                   <select
@@ -298,17 +298,17 @@ export default async function FichaOportunidad({
             </Card>
           )}
 
-          {ficha.contacto && (
-            <Card titulo="Contacto">
-              <div className="text-[14px] font-medium">{ficha.contacto.nombre}</div>
-              {ficha.contacto.email && (
+          {ficha.cliente && (
+            <Card titulo="Cliente">
+              <div className="text-[14px] font-medium">{ficha.cliente.nombre}</div>
+              {ficha.cliente.email && (
                 <div className="mt-1 text-[13px] text-[var(--crm-ink-2)]">
-                  {ficha.contacto.email}
+                  {ficha.cliente.email}
                 </div>
               )}
-              {ficha.contacto.telefono && (
+              {ficha.cliente.telefono && (
                 <div className="crm-num mt-0.5 text-[13px] text-[var(--crm-ink-2)]">
-                  {formatearTelefono(ficha.contacto.telefono)}
+                  {formatearTelefono(ficha.cliente.telefono)}
                 </div>
               )}
             </Card>

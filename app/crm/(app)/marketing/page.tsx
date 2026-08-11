@@ -93,7 +93,7 @@ export default async function Marketing() {
               pasos={[
                 { etiqueta: "Interacciones de marketing", valor: embudo.toques },
                 { etiqueta: "Contactos alcanzados", valor: embudo.contactosTocados },
-                { etiqueta: "Cuentas alcanzadas", valor: embudo.cuentasTocadas },
+                { etiqueta: "Clientes alcanzados", valor: embudo.clientesTocados },
                 {
                   etiqueta: "Oportunidades",
                   valor: embudo.oportunidades,

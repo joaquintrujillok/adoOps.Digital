@@ -6,7 +6,7 @@
 
 import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { crmAccounts, crmDeals, crmOrders, crmUsers } from "@/db/crm";
+import { crmContacts, crmDeals, crmOrders, crmUsers } from "@/db/crm";
 import { ETAPAS, ETAPAS_ABIERTAS_IDS } from "./etapas";
 
 export interface Indicador {
@@ -35,7 +35,7 @@ export interface ResumenComercial {
   oportunidadesAbiertas: number;
   tasaCierre: number;
   cicloVentaDias: number | null;
-  cuentasActivas: number;
+  clientesActivos: number;
   periodo: { desde: Date; hasta: Date; etiqueta: string };
 }
 
@@ -54,17 +54,17 @@ export async function resumenComercial(dias = 30): Promise<ResumenComercial> {
   const [ventas, abiertas, cerradas, cuentas] = await Promise.all([
     db
       .select({
-        ingresos: sql<number>`coalesce(sum(${crmOrders.total}) filter (where ${crmOrders.fecha} >= ${desde}),0)::int`,
+        ingresos: sql<number>`coalesce(sum(${crmOrders.total}) filter (where ${crmOrders.fecha} >= ${desde}),0)::float8`,
         ordenes: sql<number>`count(*) filter (where ${crmOrders.fecha} >= ${desde})::int`,
-        ingresosPrevios: sql<number>`coalesce(sum(${crmOrders.total}) filter (where ${crmOrders.fecha} >= ${desdeAnterior} and ${crmOrders.fecha} < ${desde}),0)::int`,
+        ingresosPrevios: sql<number>`coalesce(sum(${crmOrders.total}) filter (where ${crmOrders.fecha} >= ${desdeAnterior} and ${crmOrders.fecha} < ${desde}),0)::float8`,
         ordenesPrevias: sql<number>`count(*) filter (where ${crmOrders.fecha} >= ${desdeAnterior} and ${crmOrders.fecha} < ${desde})::int`,
       })
       .from(crmOrders)
       .where(gte(crmOrders.fecha, desdeAnterior)),
     db
       .select({
-        total: sql<number>`coalesce(sum(${crmDeals.monto}),0)::int`,
-        ponderado: sql<number>`coalesce(sum(${crmDeals.monto} * ${crmDeals.probabilidad} / 100.0),0)::int`,
+        total: sql<number>`coalesce(sum(${crmDeals.monto}),0)::float8`,
+        ponderado: sql<number>`coalesce(sum(${crmDeals.monto}::float8 * ${crmDeals.probabilidad} / 100),0)::float8`,
         n: sql<number>`count(*)::int`,
       })
       .from(crmDeals)
@@ -79,8 +79,8 @@ export async function resumenComercial(dias = 30): Promise<ResumenComercial> {
       .where(sql`${crmDeals.cerradoEn} is not null`),
     db
       .select({ n: sql<number>`count(*)::int` })
-      .from(crmAccounts)
-      .where(eq(crmAccounts.estado, "cliente")),
+      .from(crmContacts)
+      .where(eq(crmContacts.estado, "cliente")),
   ]);
 
   const v = ventas[0];
@@ -100,7 +100,7 @@ export async function resumenComercial(dias = 30): Promise<ResumenComercial> {
     oportunidadesAbiertas: a?.n ?? 0,
     tasaCierre: cerradasTotal > 0 ? ((c?.ganadas ?? 0) / cerradasTotal) * 100 : 0,
     cicloVentaDias: c?.cicloDias != null ? Math.round(Number(c.cicloDias)) : null,
-    cuentasActivas: cuentas[0]?.n ?? 0,
+    clientesActivos: cuentas[0]?.n ?? 0,
     periodo: { desde, hasta, etiqueta: `últimos ${dias} días` },
   };
 }
@@ -126,7 +126,7 @@ export async function embudoConversion(): Promise<PasoConversion[]> {
     .select({
       etapa: crmDeals.etapa,
       n: sql<number>`count(*)::int`,
-      monto: sql<number>`coalesce(sum(${crmDeals.monto}),0)::int`,
+      monto: sql<number>`coalesce(sum(${crmDeals.monto}),0)::float8`,
     })
     .from(crmDeals)
     .groupBy(crmDeals.etapa);
@@ -175,9 +175,9 @@ export async function rendimientoEquipo(): Promise<RendimientoVendedor[]> {
       userId: crmUsers.id,
       nombre: crmUsers.nombre,
       abiertas: sql<number>`count(${crmDeals.id}) filter (where ${crmDeals.etapa} not in ('ganado','perdido'))::int`,
-      montoAbierto: sql<number>`coalesce(sum(${crmDeals.monto}) filter (where ${crmDeals.etapa} not in ('ganado','perdido')),0)::int`,
+      montoAbierto: sql<number>`coalesce(sum(${crmDeals.monto}) filter (where ${crmDeals.etapa} not in ('ganado','perdido')),0)::float8`,
       ganadas: sql<number>`count(${crmDeals.id}) filter (where ${crmDeals.etapa} = 'ganado')::int`,
-      montoGanado: sql<number>`coalesce(sum(${crmDeals.monto}) filter (where ${crmDeals.etapa} = 'ganado'),0)::int`,
+      montoGanado: sql<number>`coalesce(sum(${crmDeals.monto}) filter (where ${crmDeals.etapa} = 'ganado'),0)::float8`,
       perdidas: sql<number>`count(${crmDeals.id}) filter (where ${crmDeals.etapa} = 'perdido')::int`,
     })
     .from(crmUsers)
@@ -200,7 +200,7 @@ export async function motivosDePerdida() {
     .select({
       motivo: sql<string>`coalesce(${crmDeals.motivoPerdida}, 'Sin registrar')`,
       n: sql<number>`count(*)::int`,
-      monto: sql<number>`coalesce(sum(${crmDeals.monto}),0)::int`,
+      monto: sql<number>`coalesce(sum(${crmDeals.monto}),0)::float8`,
     })
     .from(crmDeals)
     .where(eq(crmDeals.etapa, "perdido"))
@@ -208,20 +208,20 @@ export async function motivosDePerdida() {
     .orderBy(desc(sql`count(*)`));
 }
 
-/** Las cuentas que más facturaron en la ventana pedida. */
-export async function topCuentas(dias = 365, limite = 10) {
+/** Los clientes que más compraron en la ventana pedida. */
+export async function topClientes(dias = 365, limite = 10) {
   const desde = new Date(Date.now() - dias * 86_400_000);
   return db
     .select({
-      accountId: crmAccounts.id,
-      nombre: crmAccounts.nombre,
-      total: sql<number>`coalesce(sum(${crmOrders.total}),0)::int`,
+      contactId: crmContacts.id,
+      nombre: crmContacts.nombre,
+      total: sql<number>`coalesce(sum(${crmOrders.total}),0)::float8`,
       ordenes: sql<number>`count(${crmOrders.id})::int`,
     })
-    .from(crmAccounts)
-    .innerJoin(crmOrders, eq(crmOrders.accountId, crmAccounts.id))
+    .from(crmContacts)
+    .innerJoin(crmOrders, eq(crmOrders.contactId, crmContacts.id))
     .where(gte(crmOrders.fecha, desde))
-    .groupBy(crmAccounts.id, crmAccounts.nombre)
+    .groupBy(crmContacts.id, crmContacts.nombre)
     .orderBy(desc(sql`coalesce(sum(${crmOrders.total}),0)`))
     .limit(limite);
 }
@@ -234,14 +234,14 @@ export async function topCuentas(dias = 365, limite = 10) {
  * perder uno cambia el año.
  */
 export async function concentracion(dias = 365) {
-  const top = await topCuentas(dias, 1000);
+  const top = await topClientes(dias, 1000);
   const total = top.reduce((s, t) => s + t.total, 0);
-  if (total === 0) return { top3: 0, top10: 0, total: 0, cuentas: 0 };
+  if (total === 0) return { top3: 0, top10: 0, total: 0, clientes: 0 };
   const suma = (n: number) => top.slice(0, n).reduce((s, t) => s + t.total, 0);
   return {
     top3: (suma(3) / total) * 100,
     top10: (suma(10) / total) * 100,
     total,
-    cuentas: top.length,
+    clientes: top.length,
   };
 }

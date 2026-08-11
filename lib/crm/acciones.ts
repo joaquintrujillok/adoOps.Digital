@@ -21,7 +21,7 @@ import { requireGerencia, requireSession } from "./auth.actions";
 import { moverEtapa, registrarActividad } from "./pipeline";
 import { cambiarEstadoAlerta, recalcularAlertas, type AccionSugerida } from "./insights";
 import { despacharMensaje } from "./whatsapp-dispatch";
-import { conversacionDe, prepararParaCuentas, redactar } from "./whatsapp";
+import { conversacionDe, prepararParaClientes, redactar } from "./whatsapp";
 import { CLAVES, escribir, leer } from "./settings";
 import type { DefinicionSegmento } from "./segmentos";
 
@@ -41,7 +41,7 @@ export async function accionMoverEtapa(formData: FormData): Promise<void> {
 
 export async function accionRegistrarActividad(formData: FormData): Promise<void> {
   const sesion = await requireSession();
-  const accountId = Number(formData.get("accountId"));
+  const contactId = Number(formData.get("contactId"));
   const dealId = formData.get("dealId") ? Number(formData.get("dealId")) : null;
   const tipo = String(formData.get("tipo") || "nota");
   const titulo = String(formData.get("titulo") || "").trim();
@@ -51,7 +51,7 @@ export async function accionRegistrarActividad(formData: FormData): Promise<void
   if (!titulo) return;
 
   await registrarActividad({
-    accountId,
+    contactId,
     dealId,
     tipo,
     titulo,
@@ -62,7 +62,7 @@ export async function accionRegistrarActividad(formData: FormData): Promise<void
     completada: tipo !== "tarea",
   });
 
-  revalidatePath(`/crm/cuentas/${accountId}`);
+  revalidatePath(`/crm/contactos/${contactId}`);
   if (dealId) revalidatePath(`/crm/oportunidades/${dealId}`);
 }
 
@@ -114,8 +114,8 @@ export async function accionPrepararWhatsapp(formData: FormData): Promise<void> 
   if (!accion || accion.accion !== "whatsapp") return;
 
   const empresa = (await leer(CLAVES.empresa)) ?? "adoOps";
-  await prepararParaCuentas(
-    accion.accountIds,
+  await prepararParaClientes(
+    accion.contactIds,
     accion.plantilla,
     sesion.userId,
     empresa,
@@ -123,7 +123,7 @@ export async function accionPrepararWhatsapp(formData: FormData): Promise<void> 
   );
 
   await cambiarEstadoAlerta(alertaId, "atendida");
-  revalidatePath("/crm/whatsapp");
+  revalidatePath("/crm/conversaciones");
   revalidatePath("/crm/inteligencia");
 }
 
@@ -143,8 +143,8 @@ export async function accionRedactarMensaje(formData: FormData): Promise<void> {
   });
   await despacharMensaje(id);
 
-  revalidatePath(`/crm/whatsapp/${conversationId}`);
-  revalidatePath("/crm/whatsapp");
+  revalidatePath(`/crm/conversaciones`);
+  revalidatePath("/crm/conversaciones");
 }
 
 export async function accionAprobarMensaje(formData: FormData): Promise<void> {
@@ -157,7 +157,7 @@ export async function accionAprobarMensaje(formData: FormData): Promise<void> {
     .where(eq(crmWaMessages.id, messageId));
   await despacharMensaje(messageId);
 
-  revalidatePath("/crm/whatsapp");
+  revalidatePath("/crm/conversaciones");
 }
 
 export async function accionAprobarTodos(formData: FormData): Promise<void> {
@@ -179,14 +179,14 @@ export async function accionAprobarTodos(formData: FormData): Promise<void> {
     await despacharMensaje(id);
   }
 
-  revalidatePath("/crm/whatsapp");
+  revalidatePath("/crm/conversaciones");
 }
 
 export async function accionDescartarMensaje(formData: FormData): Promise<void> {
   await requireSession();
   const messageId = Number(formData.get("messageId"));
   await db.delete(crmWaMessages).where(eq(crmWaMessages.id, messageId));
-  revalidatePath("/crm/whatsapp");
+  revalidatePath("/crm/conversaciones");
 }
 
 export async function accionAbrirConversacion(formData: FormData): Promise<number | null> {
@@ -200,11 +200,10 @@ export async function accionAbrirConversacion(formData: FormData): Promise<numbe
   if (!c?.telefono) return null;
 
   const id = await conversacionDe(c.telefono, {
-    accountId: c.accountId,
     contactId: c.id,
     nombre: c.nombre,
   });
-  revalidatePath("/crm/whatsapp");
+  revalidatePath("/crm/conversaciones");
   return id;
 }
 
@@ -226,7 +225,8 @@ export async function accionGuardarSegmento(formData: FormData): Promise<void> {
   };
 
   definicion.estado = lista("estado");
-  definicion.tamano = lista("tamano");
+  definicion.ciudad = lista("ciudad");
+  definicion.etiquetas = lista("etiquetas");
   definicion.scoreMin = num("scoreMin");
   definicion.facturadoMin = num("facturadoMin");
   definicion.sinComprarMin = num("sinComprarMin");

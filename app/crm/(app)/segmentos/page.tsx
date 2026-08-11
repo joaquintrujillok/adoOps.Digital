@@ -29,7 +29,7 @@ export const dynamic = "force-dynamic";
 export default async function Segmentos() {
   const sesion = await requireSession();
 
-  const [cuentas, guardados, recompras, cross] = await Promise.all([
+  const [clientes, guardados, recompras, cross] = await Promise.all([
     universo(),
     listarSegmentos(),
     ventanaRecompra(),
@@ -37,7 +37,7 @@ export default async function Segmentos() {
   ]);
 
   const potencialRecompra = recompras.reduce((s, r) => s + r.ticketPromedio, 0);
-  const contactables = recompras.filter((r) => r.cuenta.contactoWhatsapp).length;
+  const contactables = recompras.filter((r) => r.cliente.telefonoWhatsapp).length;
 
   return (
     <>
@@ -47,7 +47,7 @@ export default async function Segmentos() {
       />
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile etiqueta="Cuentas en cartera" valor={numero(cuentas.length)} />
+        <StatTile etiqueta="Clientes en cartera" valor={numero(clientes.length)} />
         <StatTile
           etiqueta="Pasadas de recompra"
           valor={numero(recompras.length)}
@@ -70,7 +70,7 @@ export default async function Segmentos() {
         <div className="mb-6">
           <Lectura titulo="Quiénes deberían haber vuelto y no volvieron">
             <p>
-              {recompras.length} cuentas pasaron su propia ventana de recompra. El ciclo
+              {recompras.length} clientes pasaron su propia ventana de recompra. El ciclo
               se calcula cuenta por cuenta, no con un promedio general: un cliente que
               compra cada 30 días y otro que compra cada 180 no se atrasan el mismo día.
               Sumados, sus tickets promedio valen <strong>{clp(potencialRecompra)}</strong>.
@@ -95,7 +95,7 @@ export default async function Segmentos() {
           ) : (
             <Tabla
               columnas={[
-                "Cuenta",
+                "Cliente",
                 { titulo: "Ciclo", alinear: "der" },
                 { titulo: "Atraso", alinear: "der" },
                 { titulo: "Ticket", alinear: "der" },
@@ -103,21 +103,21 @@ export default async function Segmentos() {
               ]}
             >
               {recompras.slice(0, 12).map((r) => (
-                <tr key={r.cuenta.accountId}>
+                <tr key={r.cliente.contactId}>
                   <td>
                     <Link
-                      href={`/crm/cuentas/${r.cuenta.accountId}`}
+                      href={`/crm/cuentas/${r.cliente.contactId}`}
                       className="font-medium hover:text-[var(--crm-brand-dark)]"
                     >
-                      {r.cuenta.nombre}
+                      {r.cliente.nombre}
                     </Link>
-                    {r.cuenta.contactoWhatsapp && (
+                    {r.cliente.telefonoWhatsapp && (
                       <Badge tono="bueno" icono="✆">
                         WhatsApp
                       </Badge>
                     )}
                   </td>
-                  <td className="crm-num text-right">{r.cuenta.cicloRecompraDias} d</td>
+                  <td className="crm-num text-right">{r.cliente.cicloRecompraDias} d</td>
                   <td className="crm-num text-right font-medium text-[#96201f]">
                     +{r.atraso} d
                   </td>
@@ -158,7 +158,7 @@ export default async function Segmentos() {
                   </div>
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
                     {p.oportunidades.slice(0, 5).map((o) => (
-                      <Link key={o.accountId} href={`/crm/cuentas/${o.accountId}`}>
+                      <Link key={o.contactId} href={`/crm/contactos/${o.contactId}`}>
                         <Badge tono="info">{o.nombre}</Badge>
                       </Link>
                     ))}
@@ -183,7 +183,7 @@ export default async function Segmentos() {
             ) : (
               <ul className="divide-y divide-[var(--crm-grid)]">
                 {guardados.map((s) => {
-                  const miembros = aplicar(cuentas, s.definicion as DefinicionSegmento);
+                  const miembros = aplicar(clientes, s.definicion as DefinicionSegmento);
                   const valor = miembros.reduce((t, m) => t + m.facturado, 0);
                   return (
                     <li key={s.id} className="px-5 py-3.5">
@@ -200,7 +200,7 @@ export default async function Segmentos() {
                           </div>
                           <div className="mt-1.5 flex flex-wrap gap-1.5">
                             {miembros.slice(0, 6).map((m) => (
-                              <Link key={m.accountId} href={`/crm/cuentas/${m.accountId}`}>
+                              <Link key={m.contactId} href={`/crm/contactos/${m.contactId}`}>
                                 <Badge tono="neutro">{m.nombre}</Badge>
                               </Link>
                             ))}
@@ -234,7 +234,7 @@ export default async function Segmentos() {
               columnas={["Segmento", { titulo: "Cuentas", alinear: "der" }, { titulo: "Facturado", alinear: "der" }]}
             >
               {SEGMENTOS_SUGERIDOS.map((s) => {
-                const miembros = aplicar(cuentas, s.definicion);
+                const miembros = aplicar(clientes, s.definicion);
                 return (
                   <tr key={s.nombre}>
                     <td>

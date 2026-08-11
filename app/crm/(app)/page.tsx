@@ -8,7 +8,7 @@ import { clp, clpCorto, fecha, numero, porcentaje } from "@/lib/crm/formato";
 import { listarAlertas } from "@/lib/crm/insights";
 import { ingresosPorMes } from "@/lib/crm/marketing";
 import { tareasPendientes } from "@/lib/crm/pipeline";
-import { concentracion, embudoConversion, resumenComercial, topCuentas } from "@/lib/crm/reportes";
+import { concentracion, embudoConversion, resumenComercial, topClientes } from "@/lib/crm/reportes";
 import { ownerScope } from "@/lib/crm/session";
 import { accionCompletarTarea } from "@/lib/crm/acciones";
 
@@ -24,7 +24,7 @@ export default async function VisionGeneral() {
     ingresosPorMes(12),
     embudoConversion(),
     tareasPendientes(alcance),
-    topCuentas(365, 5),
+    topClientes(365, 5),
     concentracion(365),
   ]);
 
@@ -212,8 +212,8 @@ export default async function VisionGeneral() {
                   <div className="min-w-0 flex-1">
                     <div className="text-[13px] text-[var(--crm-ink)]">{t.titulo}</div>
                     <div className="text-[12px] text-[var(--crm-muted)]">
-                      <Link href={`/crm/cuentas/${t.accountId}`} className="hover:underline">
-                        {t.cuenta}
+                      <Link href={`/crm/contactos/${t.contactId}`} className="hover:underline">
+                        {t.cliente}
                       </Link>
                       {t.venceEn && (
                         <span className={t.vencida ? "ml-2 text-[#96201f]" : "ml-2"}>
@@ -231,22 +231,22 @@ export default async function VisionGeneral() {
 
       <div className="mt-6">
         <Card
-          titulo="Cuentas que más facturaron"
-          descripcion={`Últimos 12 meses · las 3 más grandes concentran el ${porcentaje(conc.top3, 1)} de la facturación`}
+          titulo="Clientes que más compraron"
+          descripcion={`Últimos 12 meses · los 3 más grandes concentran el ${porcentaje(conc.top3, 1)} de la facturación`}
           padding={false}
         >
           <Tabla
             columnas={[
-              "Cuenta",
+              "Cliente",
               { titulo: "Órdenes", alinear: "der" },
               { titulo: "Facturado", alinear: "der" },
             ]}
           >
             {top.map((t) => (
-              <tr key={t.accountId}>
+              <tr key={t.contactId}>
                 <td>
                   <Link
-                    href={`/crm/cuentas/${t.accountId}`}
+                    href={`/crm/contactos/${t.contactId}`}
                     className="font-medium hover:text-[var(--crm-brand-dark)]"
                   >
                     {t.nombre}

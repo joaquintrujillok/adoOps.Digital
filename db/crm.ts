@@ -77,11 +77,24 @@ export const crmAccounts = pgTable(
   ],
 );
 
+/**
+ * La persona. **Es el eje del CRM**, no la empresa.
+ *
+ * En una boutique de alta gama el cliente es alguien con nombre y teléfono, no
+ * una razón social: quien compra un reloj de doce millones lo hace a título
+ * personal y vuelve tres años después por otro. `accountId` existe para el caso
+ * minoritario —una empresa que compra un regalo corporativo— y por eso es
+ * opcional.
+ *
+ * Los campos de gestión comercial (estado, fuente, dueño) viven acá y no en la
+ * cuenta: si colgaran de la empresa, el 90% de la cartera los tendría vacíos.
+ */
 export const crmContacts = pgTable(
   "crm_contacts",
   {
     id: serial("id").primaryKey(),
-    accountId: integer("account_id").notNull(),
+    /** Opcional: solo cuando compra a nombre de una empresa. */
+    accountId: integer("account_id"),
     nombre: varchar("nombre", { length: 120 }).notNull(),
     cargo: varchar("cargo", { length: 120 }),
     email: varchar("email", { length: 254 }),
@@ -90,11 +103,26 @@ export const crmContacts = pgTable(
     esDecisor: boolean("es_decisor").notNull().default(false),
     /** Sin esto no sale un WhatsApp. Lo revisa el despacho, no la UI. */
     optInWhatsapp: boolean("opt_in_whatsapp").notNull().default(false),
+
+    // ── Gestión comercial (antes vivían en la cuenta) ──
+    estado: varchar("estado", { length: 20 }).notNull().default("prospecto"),
+    /** Cómo llegó: showroom, referido, Instagram, evento… */
+    fuente: varchar("fuente", { length: 60 }),
+    ownerId: integer("owner_id"),
+    ciudad: varchar("ciudad", { length: 80 }),
+    /** Etiquetas libres: "coleccionista", "VIP", "espera lista Nautilus". */
+    etiquetas: jsonb("etiquetas").$type<string[]>(),
+    /** Lo que hay que saber antes de llamarlo. */
+    notas: text("notas"),
+    /** Preferencias declaradas: marcas, estilo, tallas. Alimenta el cross-sell. */
+    preferencias: text("preferencias"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
     index("crm_contacts_account_idx").on(t.accountId),
     index("crm_contacts_telefono_idx").on(t.telefono),
+    index("crm_contacts_estado_idx").on(t.estado),
+    index("crm_contacts_owner_idx").on(t.ownerId),
   ],
 );
 
@@ -107,11 +135,21 @@ export const crmProducts = pgTable(
     sku: varchar("sku", { length: 40 }).notNull(),
     nombre: varchar("nombre", { length: 160 }).notNull(),
     categoria: varchar("categoria", { length: 80 }),
+    /** La marca importa tanto como la categoría en alta gama. */
+    marca: varchar("marca", { length: 80 }),
     /** CLP, entero. */
     precio: integer("precio").notNull().default(0),
     costo: integer("costo").notNull().default(0),
     activo: boolean("activo").notNull().default(true),
     descripcion: text("descripcion"),
+    /**
+     * Si la pieza admite descuento. Hay marcas que lo prohíben por contrato de
+     * distribución, y ese "no" tiene que vivir en el catálogo y no en la cabeza
+     * de quien vende.
+     */
+    permiteDescuento: boolean("permite_descuento").notNull().default(true),
+    /** Tope como fracción: 0.10 = 10%. Null = admite, sin tope definido. */
+    topeDescuento: integer("tope_descuento_bp"),
   },
   (t) => [uniqueIndex("crm_products_sku_idx").on(t.sku)],
 );
@@ -174,7 +212,8 @@ export const crmTouchpoints = pgTable(
   {
     id: serial("id").primaryKey(),
     contactId: integer("contact_id").notNull(),
-    accountId: integer("account_id").notNull(),
+    /** Opcional: se conserva por si el toque fue a una empresa. */
+    accountId: integer("account_id"),
     campaignId: integer("campaign_id"),
     tipo: varchar("tipo", { length: 20 }).notNull(),
     detalle: text("detalle"),
@@ -201,7 +240,9 @@ export const crmDeals = pgTable(
   "crm_deals",
   {
     id: serial("id").primaryKey(),
-    accountId: integer("account_id").notNull(),
+    /** Opcional: solo si el negocio va a nombre de una empresa. */
+    accountId: integer("account_id"),
+    /** Quién compra. Es el vínculo que de verdad se usa. */
     contactId: integer("contact_id"),
     titulo: varchar("titulo", { length: 200 }).notNull(),
     etapa: varchar("etapa", { length: 20 }).notNull().default("nuevo"),
@@ -254,7 +295,8 @@ export const crmActivities = pgTable(
   "crm_activities",
   {
     id: serial("id").primaryKey(),
-    accountId: integer("account_id").notNull(),
+    /** Opcional: la actividad cuelga del contacto, no de la empresa. */
+    accountId: integer("account_id"),
     dealId: integer("deal_id"),
     contactId: integer("contact_id"),
     tipo: varchar("tipo", { length: 20 }).notNull(),
@@ -284,14 +326,20 @@ export const crmOrders = pgTable(
   "crm_orders",
   {
     id: serial("id").primaryKey(),
-    accountId: integer("account_id").notNull(),
+    /** Quién compró. El eje. */
+    contactId: integer("contact_id"),
+    /** Solo si la compra fue a nombre de una empresa. */
+    accountId: integer("account_id"),
     dealId: integer("deal_id"),
+    /** Si nació de una cotización de mostrador. */
+    quoteId: integer("quote_id"),
     fecha: timestamp("fecha").defaultNow().notNull(),
     /** CLP. Suma de los items. */
     total: integer("total").notNull().default(0),
     canal: varchar("canal", { length: 40 }),
   },
   (t) => [
+    index("crm_orders_contact_idx").on(t.contactId),
     index("crm_orders_account_idx").on(t.accountId),
     index("crm_orders_fecha_idx").on(t.fecha),
   ],
@@ -310,6 +358,109 @@ export const crmOrderItems = pgTable(
     index("crm_order_items_order_idx").on(t.orderId),
     index("crm_order_items_product_idx").on(t.productId),
   ],
+);
+
+// ─── Cotizaciones de mostrador ───────────────────────────────────────────────
+
+/**
+ * La cotización que se arma con el cliente delante —o por WhatsApp— antes de
+ * que exista una oportunidad formal.
+ *
+ * Portada del CRM de CDC, donde resolvió un problema medido: el mostrador
+ * cotizaba sin capturar el teléfono, y el 59% del volumen quedaba sin forma de
+ * hacerle seguimiento. Acá la lógica es la misma —tres datos, catálogo real,
+ * documento por WhatsApp— y la ficha completa del cliente se llena recién
+ * cuando hay interés.
+ *
+ * `paraSiMismo` traduce directo al rubro: en joyería la mitad de las consultas
+ * son un regalo, y a quien se le escribe no es quien va a usar la pieza.
+ *
+ * Estados:
+ *   abierta    se está armando
+ *   enviada    el documento salió por WhatsApp
+ *   convertida se transformó en venta
+ *   descartada se cerró sin seguimiento
+ */
+export const crmQuotes = pgTable(
+  "crm_quotes",
+  {
+    id: serial("id").primaryKey(),
+    /** Se vincula al contacto si ya existía; si no, la cotización lo crea. */
+    contactId: integer("contact_id"),
+    /** Quién pregunta y a qué número se le escribe. */
+    cotizanteNombre: varchar("cotizante_nombre", { length: 120 }).notNull(),
+    cotizanteTelefono: varchar("cotizante_telefono", { length: 20 }).notNull(),
+    /** Falso cuando la pieza es para otra persona: cambia a quién se saluda. */
+    paraSiMismo: boolean("para_si_mismo").notNull().default(true),
+    destinatarioNombre: varchar("destinatario_nombre", { length: 120 }),
+    /** Dónde se atendió. */
+    boutique: varchar("boutique", { length: 80 }),
+    createdById: integer("created_by_id"),
+
+    /**
+     * Subtotal antes de descuentos, descuento global y total.
+     *
+     * Se guarda desglosado —y no solo el total— para poder explicar después
+     * dónde se fue el margen: cuánto salió de los descuentos por pieza y
+     * cuánto de la rebaja global que se negoció al cierre.
+     */
+    subtotal: integer("subtotal").notNull().default(0),
+    descuentoGlobal: integer("descuento_global").notNull().default(0),
+    total: integer("total").notNull().default(0),
+
+    estado: varchar("estado", { length: 20 }).notNull().default("abierta"),
+    /** Hilo por el que se envió y por el que responde el cliente. */
+    conversationId: integer("conversation_id"),
+    /** La venta que salió de acá, si se concretó. */
+    orderId: integer("order_id"),
+    dealId: integer("deal_id"),
+
+    enviadaEn: timestamp("enviada_en"),
+    convertidaEn: timestamp("convertida_en"),
+    /**
+     * Marca que el cliente tiene en la mano un documento que ya no dice lo
+     * mismo. Es la única forma de que alguien se entere de esa diferencia
+     * antes de que llegue a la caja.
+     */
+    editadaTrasEnvio: boolean("editada_tras_envio").notNull().default(false),
+    editadaEn: timestamp("editada_en"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("crm_quotes_estado_idx").on(t.estado),
+    index("crm_quotes_contact_idx").on(t.contactId),
+    index("crm_quotes_telefono_idx").on(t.cotizanteTelefono),
+    index("crm_quotes_fecha_idx").on(t.createdAt),
+  ],
+);
+
+/**
+ * Cada pieza cotizada.
+ *
+ * El nombre y el precio se COPIAN al cotizar, no se leen del catálogo al
+ * mostrar: si mañana sube el precio de lista, la cotización que ya se le mandó
+ * a un cliente tiene que seguir diciendo lo que decía. Lo mismo con el tope de
+ * descuento, para poder explicar por qué esta cotización llevaba ese descuento
+ * sin que la regla de hoy contradiga la decisión de ayer.
+ */
+export const crmQuoteItems = pgTable(
+  "crm_quote_items",
+  {
+    id: serial("id").primaryKey(),
+    quoteId: integer("quote_id").notNull(),
+    productId: integer("product_id").notNull(),
+    productoNombre: varchar("producto_nombre", { length: 160 }).notNull(),
+    sku: varchar("sku", { length: 40 }),
+    marca: varchar("marca", { length: 80 }),
+    cantidad: integer("cantidad").notNull().default(1),
+    precioUnitario: integer("precio_unitario").notNull().default(0),
+    /** Descuento en pesos, no en porcentaje: se negocia "te lo dejo en X". */
+    descuento: integer("descuento").notNull().default(0),
+    /** El tope que regía cuando se aplicó, en puntos base (1000 = 10%). */
+    topeDescuentoBp: integer("tope_descuento_bp"),
+    total: integer("total").notNull().default(0),
+  },
+  (t) => [index("crm_quote_items_quote_idx").on(t.quoteId)],
 );
 
 // ─── WhatsApp ────────────────────────────────────────────────────────────────
@@ -465,3 +616,5 @@ export type CrmWaTemplate = typeof crmWaTemplates.$inferSelect;
 export type CrmSegment = typeof crmSegments.$inferSelect;
 export type CrmAlert = typeof crmAlerts.$inferSelect;
 export type CrmNarracion = typeof crmNarraciones.$inferSelect;
+export type CrmQuote = typeof crmQuotes.$inferSelect;
+export type CrmQuoteItem = typeof crmQuoteItems.$inferSelect;

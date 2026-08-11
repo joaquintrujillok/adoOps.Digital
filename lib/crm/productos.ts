@@ -232,7 +232,7 @@ export async function ventasPorProducto(desde?: Date): Promise<VentaProducto[]> 
       sku: crmProducts.sku,
       nombre: crmProducts.nombre,
       unidades: sql<number>`sum(${crmOrderItems.cantidad})::int`,
-      ingresos: sql<number>`sum(${crmOrderItems.cantidad} * ${crmOrderItems.precioUnitario})::int`,
+      ingresos: sql<number>`sum(${crmOrderItems.cantidad}::float8 * ${crmOrderItems.precioUnitario})::float8`,
       cuentas: sql<number>`count(distinct ${crmOrders.accountId})::int`,
     })
     .from(crmOrderItems)

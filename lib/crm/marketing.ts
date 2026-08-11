@@ -25,7 +25,7 @@ export interface RendimientoCampana {
   campana: CrmCampaign;
   toques: number;
   contactosAlcanzados: number;
-  cuentasAlcanzadas: number;
+  clientesAlcanzados: number;
   /** Oportunidades cuyo PRIMER toque fue esta campaña. */
   dealsPrimerToque: number;
   /** Oportunidades cuyo ÚLTIMO toque antes de abrirse fue esta campaña. */
@@ -55,7 +55,7 @@ export async function rendimientoCampanas(): Promise<RendimientoCampana[]> {
         campaignId: crmTouchpoints.campaignId,
         toques: sql<number>`count(*)::int`,
         contactos: sql<number>`count(distinct ${crmTouchpoints.contactId})::int`,
-        cuentas: sql<number>`count(distinct ${crmTouchpoints.accountId})::int`,
+        clientes: sql<number>`count(distinct ${crmTouchpoints.contactId})::int`,
       })
       .from(crmTouchpoints)
       .where(inArray(crmTouchpoints.campaignId, ids))
@@ -65,7 +65,7 @@ export async function rendimientoCampanas(): Promise<RendimientoCampana[]> {
         campaignId: crmDeals.campaignFirstId,
         deals: sql<number>`count(*)::int`,
         ganados: sql<number>`count(*) filter (where ${crmDeals.etapa} = 'ganado')::int`,
-        ingresos: sql<number>`coalesce(sum(${crmDeals.monto}) filter (where ${crmDeals.etapa} = 'ganado'),0)::int`,
+        ingresos: sql<number>`coalesce(sum(${crmDeals.monto}) filter (where ${crmDeals.etapa} = 'ganado'),0)::float8`,
       })
       .from(crmDeals)
       .where(inArray(crmDeals.campaignFirstId, ids))
@@ -74,7 +74,7 @@ export async function rendimientoCampanas(): Promise<RendimientoCampana[]> {
       .select({
         campaignId: crmDeals.campaignLastId,
         deals: sql<number>`count(*)::int`,
-        ingresos: sql<number>`coalesce(sum(${crmDeals.monto}) filter (where ${crmDeals.etapa} = 'ganado'),0)::int`,
+        ingresos: sql<number>`coalesce(sum(${crmDeals.monto}) filter (where ${crmDeals.etapa} = 'ganado'),0)::float8`,
       })
       .from(crmDeals)
       .where(inArray(crmDeals.campaignLastId, ids))
@@ -97,7 +97,7 @@ export async function rendimientoCampanas(): Promise<RendimientoCampana[]> {
       campana: c,
       toques: t?.toques ?? 0,
       contactosAlcanzados: t?.contactos ?? 0,
-      cuentasAlcanzadas: t?.cuentas ?? 0,
+      clientesAlcanzados: t?.clientes ?? 0,
       dealsPrimerToque,
       dealsUltimoToque: u?.deals ?? 0,
       ganadosPrimerToque: ganados,
@@ -117,7 +117,7 @@ export async function rendimientoCampanas(): Promise<RendimientoCampana[]> {
 export interface EmbudoMarketing {
   toques: number;
   contactosTocados: number;
-  cuentasTocadas: number;
+  clientesTocados: number;
   oportunidades: number;
   montoOportunidades: number;
   ganadas: number;
@@ -133,16 +133,16 @@ export async function embudoMarketing(desde?: Date): Promise<EmbudoMarketing> {
       .select({
         toques: sql<number>`count(*)::int`,
         contactos: sql<number>`count(distinct ${crmTouchpoints.contactId})::int`,
-        cuentas: sql<number>`count(distinct ${crmTouchpoints.accountId})::int`,
+        clientes: sql<number>`count(distinct ${crmTouchpoints.contactId})::int`,
       })
       .from(crmTouchpoints)
       .where(filtroFecha),
     db
       .select({
         total: sql<number>`count(*)::int`,
-        monto: sql<number>`coalesce(sum(${crmDeals.monto}),0)::int`,
+        monto: sql<number>`coalesce(sum(${crmDeals.monto}),0)::float8`,
         ganadas: sql<number>`count(*) filter (where ${crmDeals.etapa} = 'ganado')::int`,
-        montoGanado: sql<number>`coalesce(sum(${crmDeals.monto}) filter (where ${crmDeals.etapa} = 'ganado'),0)::int`,
+        montoGanado: sql<number>`coalesce(sum(${crmDeals.monto}) filter (where ${crmDeals.etapa} = 'ganado'),0)::float8`,
       })
       .from(crmDeals)
       .where(
@@ -150,13 +150,13 @@ export async function embudoMarketing(desde?: Date): Promise<EmbudoMarketing> {
           ? and(sql`${crmDeals.campaignFirstId} is not null`, gte(crmDeals.abiertoEn, desde))
           : sql`${crmDeals.campaignFirstId} is not null`,
       ),
-    db.select({ total: sql<number>`coalesce(sum(${crmCampaigns.costo}),0)::int` }).from(crmCampaigns),
+    db.select({ total: sql<number>`coalesce(sum(${crmCampaigns.costo}),0)::float8` }).from(crmCampaigns),
   ]);
 
   return {
     toques: toques[0]?.toques ?? 0,
     contactosTocados: toques[0]?.contactos ?? 0,
-    cuentasTocadas: toques[0]?.cuentas ?? 0,
+    clientesTocados: toques[0]?.clientes ?? 0,
     oportunidades: deals[0]?.total ?? 0,
     montoOportunidades: deals[0]?.monto ?? 0,
     ganadas: deals[0]?.ganadas ?? 0,
@@ -181,7 +181,7 @@ export async function origenDeNegocios(): Promise<OrigenNegocio[]> {
       fuente: sql<string>`coalesce(${crmDeals.fuente}, 'Sin origen')`,
       oportunidades: sql<number>`count(*)::int`,
       ganadas: sql<number>`count(*) filter (where ${crmDeals.etapa} = 'ganado')::int`,
-      ingresos: sql<number>`coalesce(sum(${crmDeals.monto}) filter (where ${crmDeals.etapa} = 'ganado'),0)::int`,
+      ingresos: sql<number>`coalesce(sum(${crmDeals.monto}) filter (where ${crmDeals.etapa} = 'ganado'),0)::float8`,
     })
     .from(crmDeals)
     .groupBy(sql`coalesce(${crmDeals.fuente}, 'Sin origen')`)
@@ -204,7 +204,7 @@ export async function origenDeNegocios(): Promise<OrigenNegocio[]> {
 export async function recorridoDeDeal(dealId: number) {
   const [deal] = await db
     .select({
-      accountId: crmDeals.accountId,
+      contactId: crmDeals.contactId,
       abiertoEn: crmDeals.abiertoEn,
       cerradoEn: crmDeals.cerradoEn,
       etapa: crmDeals.etapa,
@@ -227,7 +227,7 @@ export async function recorridoDeDeal(dealId: number) {
     })
     .from(crmTouchpoints)
     .leftJoin(crmCampaigns, eq(crmCampaigns.id, crmTouchpoints.campaignId))
-    .where(eq(crmTouchpoints.accountId, deal.accountId))
+    .where(eq(crmTouchpoints.contactId, deal.contactId ?? 0))
     .orderBy(crmTouchpoints.ocurridoEn);
 }
 

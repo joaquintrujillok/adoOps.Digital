@@ -3,7 +3,6 @@
 import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  crmAccounts,
   crmActivities,
   crmCampaigns,
   crmContacts,
@@ -21,8 +20,8 @@ export interface DealListado {
   etapa: string;
   monto: number;
   probabilidad: number;
-  accountId: number;
-  cuenta: string;
+  contactId: number | null;
+  cliente: string;
   contacto: string | null;
   owner: string | null;
   ownerId: number | null;
@@ -49,23 +48,22 @@ function conDiasSinTocar<T extends { ultimaActividadEn: Date | null; abiertoEn: 
 export async function listarDeals(opciones?: {
   ownerId?: number | null;
   etapas?: string[];
-  accountId?: number;
+  contactId?: number;
   limite?: number;
 }): Promise<DealListado[]> {
   const condiciones = [];
   if (opciones?.ownerId != null) condiciones.push(eq(crmDeals.ownerId, opciones.ownerId));
   if (opciones?.etapas?.length) condiciones.push(inArray(crmDeals.etapa, opciones.etapas));
-  if (opciones?.accountId) condiciones.push(eq(crmDeals.accountId, opciones.accountId));
+  if (opciones?.contactId) condiciones.push(eq(crmDeals.contactId, opciones.contactId));
 
   const filas = await db
     .select({
       d: crmDeals,
-      cuenta: crmAccounts.nombre,
+      cliente: crmContacts.nombre,
       contacto: crmContacts.nombre,
       owner: crmUsers.nombre,
     })
     .from(crmDeals)
-    .innerJoin(crmAccounts, eq(crmAccounts.id, crmDeals.accountId))
     .leftJoin(crmContacts, eq(crmContacts.id, crmDeals.contactId))
     .leftJoin(crmUsers, eq(crmUsers.id, crmDeals.ownerId))
     .where(condiciones.length ? and(...condiciones) : undefined)
@@ -79,8 +77,8 @@ export async function listarDeals(opciones?: {
       etapa: f.d.etapa,
       monto: f.d.monto,
       probabilidad: f.d.probabilidad,
-      accountId: f.d.accountId,
-      cuenta: f.cuenta,
+      contactId: f.d.contactId,
+      cliente: f.cliente ?? "Sin cliente",
       contacto: f.contacto,
       owner: f.owner,
       ownerId: f.d.ownerId,
@@ -123,8 +121,7 @@ export async function tablero(ownerId?: number | null): Promise<Columna[]> {
 
 export interface FichaDeal {
   deal: CrmDeal;
-  cuenta: { id: number; nombre: string; estado: string };
-  contacto: { id: number; nombre: string; telefono: string | null; email: string | null } | null;
+  cliente: { id: number; nombre: string; estado: string; telefono: string | null; email: string | null } | null;
   owner: string | null;
   items: {
     id: number;
@@ -147,17 +144,14 @@ export async function fichaDeal(dealId: number): Promise<FichaDeal | null> {
   const [fila] = await db
     .select({
       d: crmDeals,
-      cuentaId: crmAccounts.id,
-      cuenta: crmAccounts.nombre,
-      cuentaEstado: crmAccounts.estado,
       contactoId: crmContacts.id,
       contacto: crmContacts.nombre,
+      contactoEstado: crmContacts.estado,
       telefono: crmContacts.telefono,
       email: crmContacts.email,
       owner: crmUsers.nombre,
     })
     .from(crmDeals)
-    .innerJoin(crmAccounts, eq(crmAccounts.id, crmDeals.accountId))
     .leftJoin(crmContacts, eq(crmContacts.id, crmDeals.contactId))
     .leftJoin(crmUsers, eq(crmUsers.id, crmDeals.ownerId))
     .where(eq(crmDeals.id, dealId))
@@ -209,11 +203,11 @@ export async function fichaDeal(dealId: number): Promise<FichaDeal | null> {
 
   return {
     deal: fila.d,
-    cuenta: { id: fila.cuentaId, nombre: fila.cuenta, estado: fila.cuentaEstado },
-    contacto: fila.contactoId
+    cliente: fila.contactoId
       ? {
           id: fila.contactoId,
           nombre: fila.contacto!,
+          estado: fila.contactoEstado!,
           telefono: fila.telefono,
           email: fila.email,
         }
@@ -249,7 +243,7 @@ export async function moverEtapa(
 ): Promise<void> {
   const ahora = new Date();
   const [previo] = await db
-    .select({ etapa: crmDeals.etapa, titulo: crmDeals.titulo, accountId: crmDeals.accountId })
+    .select({ etapa: crmDeals.etapa, titulo: crmDeals.titulo, contactId: crmDeals.contactId })
     .from(crmDeals)
     .where(eq(crmDeals.id, dealId))
     .limit(1);
@@ -268,7 +262,7 @@ export async function moverEtapa(
 
   const { nombreEtapa } = await import("./etapas");
   await db.insert(crmActivities).values({
-    accountId: previo.accountId,
+    contactId: previo.contactId,
     dealId,
     tipo: "nota",
     titulo: `Etapa: ${nombreEtapa(previo.etapa)} → ${nombreEtapa(etapa)}`,
@@ -279,9 +273,8 @@ export async function moverEtapa(
 }
 
 export async function registrarActividad(datos: {
-  accountId: number;
+  contactId: number;
   dealId?: number | null;
-  contactId?: number | null;
   tipo: string;
   titulo: string;
   detalle?: string | null;
@@ -291,9 +284,8 @@ export async function registrarActividad(datos: {
 }): Promise<void> {
   const ahora = new Date();
   await db.insert(crmActivities).values({
-    accountId: datos.accountId,
+    contactId: datos.contactId,
     dealId: datos.dealId ?? null,
-    contactId: datos.contactId ?? null,
     tipo: datos.tipo,
     titulo: datos.titulo,
     detalle: datos.detalle ?? null,
@@ -324,13 +316,13 @@ export async function tareasPendientes(ownerId?: number | null) {
       id: crmActivities.id,
       titulo: crmActivities.titulo,
       venceEn: crmActivities.venceEn,
-      accountId: crmActivities.accountId,
-      cuenta: crmAccounts.nombre,
+      contactId: crmActivities.contactId,
+      cliente: crmContacts.nombre,
       dealId: crmActivities.dealId,
       owner: crmUsers.nombre,
     })
     .from(crmActivities)
-    .innerJoin(crmAccounts, eq(crmAccounts.id, crmActivities.accountId))
+    .leftJoin(crmContacts, eq(crmContacts.id, crmActivities.contactId))
     .leftJoin(crmUsers, eq(crmUsers.id, crmActivities.ownerId))
     .where(and(...condiciones))
     .orderBy(crmActivities.venceEn)
