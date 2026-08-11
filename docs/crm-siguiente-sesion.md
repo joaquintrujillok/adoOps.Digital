@@ -26,7 +26,9 @@ servicio para cross-sell.
 
 - Producción: <https://www.adoops.digital/crm>
 - Usuarios: `joaquin` / `adoops2026` (admin), `carla` / `demo1234` (gerente),
-  `matias` / `demo1234` (vendedor)
+  `matias` / `demo1234` (vendedor), `nelson` / `demo1234` (gerente, para probar).
+  `gerente` y `admin` pasan los mismos candados (`requireGerencia`), así que
+  Nelson puede tocar todo, Configuración incluida.
 - Local: `npm run dev -- --port 3100` en `/Users/joaquintrujillo/Proyectos/AdoOps/adoOps.Digital`
 
 ---
@@ -178,6 +180,31 @@ El caparazón (`components/crm/Modal.tsx`) es un `<dialog>` nativo: `showModal()
 trae gratis Escape, el foco atrapado, el fondo inerte y el backdrop. Cierra con
 `router.back()` porque el modal ES una ruta: cerrarlo tiene que deshacer la
 navegación, si no el botón «atrás» lo reabre.
+
+**Nueva cotización también abre en modal** (`@modal/(.)cotizaciones/nueva`), con
+`ancho="ancho"` porque el armador lleva una tabla de piezas adentro. Es la que
+más gana: se cotiza en el mostrador con el cliente enfrente, y las tres entradas
+al armador son justo las pantallas a las que hay que volver después. No hizo
+falta coordinar el cierre: `accionCrearCotizacion` redirige a la cotización
+recién creada, esa navegación resuelve el slot a `default.tsx` y el modal se
+cierra solo.
+
+**Las tarjetas del tablero se arrastran entre columnas**
+(`components/crm/ArrastreEtapa.tsx`), con la API nativa de HTML y sin librería:
+mover una tarjeta entre cuatro columnas es exactamente lo que esa API hace.
+
+El arrastre se agregó **encima** del selector de etapa, no en su lugar, y ahí hay
+una decisión que conviene no revertir: el comentario viejo de `MoverEtapa.tsx`
+descartaba el arrastre por accesibilidad, y tenía razón a medias. La API de
+arrastre de HTML no existe en táctil y no se maneja con teclado ni con lector de
+pantalla, así que reemplazar el selector dejaría el tablero inoperable justo para
+quien más lo necesita. Conviven: el arrastre es el atajo para el mouse, el
+selector es la garantía.
+
+Dos detalles del arrastre que están ahí a propósito: soltar una tarjeta en su
+propia columna **no** escribe nada —una actividad de "movió de propuesta a
+propuesta" ensucia la bitácora que alimenta las alertas de estancamiento— y
+mover a «Perdido» pide el motivo, igual que el selector.
 
 El criterio detrás de todo esto: **si un dato no cambia lo que la persona va a
 hacer en los próximos treinta segundos, no va en la vista de primer nivel.**

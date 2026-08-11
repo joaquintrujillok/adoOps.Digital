@@ -54,6 +54,7 @@ components/crm/                  ui.tsx (primitivas, incluida Plegable), charts.
                                  Modal.tsx (<dialog> nativo · cierra con router.back)
                                  HiloConversacion.tsx y FormularioContacto.tsx (bandeja de 3 columnas)
                                  CategoriaEnLinea.tsx (categoría editable en la tabla de pipeline)
+                                 ArrastreEtapa.tsx (arrastrar tarjetas entre columnas del tablero)
 scripts/crm-create-tables.mjs    Crea las tablas (idempotente, solo CREATE IF NOT EXISTS)
 scripts/crm-migrar-bandeja.mjs   Agrega leido_en y destacada a crm_wa_conversations
 scripts/crm-migrar-pipeline.mjs  Agrega categoria a crm_deals

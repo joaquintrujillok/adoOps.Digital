@@ -22,11 +22,20 @@ export default function Modal({
   bajada,
   children,
   pie,
+  ancho = "normal",
 }: {
   titulo: string;
   bajada?: string;
   children: React.ReactNode;
   pie?: React.ReactNode;
+  /**
+   * `ancho` para lo que se llena, no para lo que se lee.
+   *
+   * Una ficha se lee mejor angosta; un formulario con una tabla de piezas
+   * adentro, apretado a 38rem, obliga a hacer scroll horizontal para ver el
+   * precio de lo que se está agregando.
+   */
+  ancho?: "normal" | "ancho";
 }) {
   const router = useRouter();
   const ref = useRef<HTMLDialogElement>(null);
@@ -51,7 +60,11 @@ export default function Modal({
       // tokens igual —el top layer cambia el orden de pintado, no la herencia—,
       // mientras que repetir la clase le aplicaría también su `min-height:
       // 100vh` y el modal saldría estirado de borde a borde.
-      className="m-auto w-[min(38rem,calc(100vw-2rem))] rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-surface)] p-0 text-[var(--crm-ink)] shadow-[0_24px_60px_rgba(11,11,11,0.22)] backdrop:bg-[rgba(11,17,22,0.45)]"
+      className={`m-auto rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-surface)] p-0 text-[var(--crm-ink)] shadow-[0_24px_60px_rgba(11,11,11,0.22)] backdrop:bg-[rgba(11,17,22,0.45)] ${
+        ancho === "ancho"
+          ? "w-[min(52rem,calc(100vw-2rem))]"
+          : "w-[min(38rem,calc(100vw-2rem))]"
+      }`}
     >
       <header className="flex items-start justify-between gap-4 border-b border-[var(--crm-grid)] px-5 py-4">
         <div className="min-w-0">

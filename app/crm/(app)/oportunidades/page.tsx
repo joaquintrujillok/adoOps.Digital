@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Badge, Card, Lectura, PageHeader, StatTile, Vacio } from "@/components/crm/ui";
 import { Medidor } from "@/components/crm/charts";
 import MoverEtapa from "@/components/crm/MoverEtapa";
+import { ColumnaSoltable, TarjetaArrastrable } from "@/components/crm/ArrastreEtapa";
 import { requireSession } from "@/lib/crm/auth.actions";
 import { clp, clpCorto, numero, porcentaje } from "@/lib/crm/formato";
 import { tablero } from "@/lib/crm/pipeline";
@@ -78,7 +79,7 @@ export default async function Oportunidades({
     <>
       <PageHeader
         titulo="Oportunidades"
-        bajada="El tablero completo del pipeline. Cambiar la etapa deja registro automático en la bitácora de la cuenta."
+        bajada="El tablero completo del pipeline. Arrastra una tarjeta a otra columna, o usa su selector. Cualquiera de las dos deja registro en la bitácora."
         acciones={
           veTodo(sesion) ? (
             <div className="flex rounded-lg border border-[var(--crm-border)] bg-white p-0.5 text-[13px]">
@@ -159,6 +160,7 @@ export default async function Oportunidades({
               </div>
             </div>
 
+            <ColumnaSoltable etapa={col.etapa}>
             <div className="space-y-2.5">
               {col.deals.length === 0 && (
                 <div className="rounded-lg border border-dashed border-[var(--crm-axis)] px-4 py-6 text-center text-[13px] text-[var(--crm-muted)]">
@@ -169,8 +171,8 @@ export default async function Oportunidades({
               {col.deals.map((d) => {
                 const salud = scores.get(d.id);
                 return (
+                  <TarjetaArrastrable key={d.id} dealId={d.id} etapa={d.etapa}>
                   <article
-                    key={d.id}
                     className="rounded-xl border border-[var(--crm-border)] bg-[var(--crm-surface)] p-3.5 shadow-[0_1px_2px_rgba(11,11,11,0.04)]"
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -220,9 +222,11 @@ export default async function Oportunidades({
                       </div>
                     )}
                   </article>
+                  </TarjetaArrastrable>
                 );
               })}
             </div>
+            </ColumnaSoltable>
           </section>
         ))}
       </div>

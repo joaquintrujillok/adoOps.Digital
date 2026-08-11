@@ -7,9 +7,11 @@ import { accionMoverEtapa } from "@/lib/crm/acciones";
 /**
  * Selector de etapa que envía al cambiar.
  *
- * Se eligió un `select` en vez de arrastrar y soltar: el arrastre se ve bien en
- * un video y es un problema en una tabla de 40 filas, en un notebook, con
- * trackpad, y no funciona con teclado ni lector de pantalla.
+ * Convive con el arrastre del tablero (`ArrastreEtapa.tsx`) y no sobra: el
+ * arrastre es el atajo cómodo para el mouse, pero la API de arrastre de HTML no
+ * existe en táctil y no se maneja con teclado ni con lector de pantalla. Este
+ * `select` es el camino que funciona siempre, y además el único que sirve en una
+ * lista larga donde soltar en la columna correcta obliga a apuntar.
  */
 export default function MoverEtapa({
   dealId,
