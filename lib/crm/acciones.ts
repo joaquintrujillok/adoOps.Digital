@@ -7,6 +7,7 @@
 // autorización viviera solo en el proxy, bastaría con invocarla directamente.
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -14,6 +15,10 @@ import {
   crmContacts,
   crmDeals,
   crmInventory,
+  crmOrderItems,
+  crmOrders,
+  crmQuoteItems,
+  crmQuotes,
   crmSegments,
   crmWaMessages,
 } from "@/db/crm";
@@ -313,4 +318,158 @@ export async function accionAsignarDueno(formData: FormData): Promise<void> {
   const dealId = Number(formData.get("dealId"));
   await db.update(crmDeals).set({ ownerId: sesion.userId }).where(eq(crmDeals.id, dealId));
   revalidatePath("/crm/oportunidades");
+}
+
+// ─── Cotizaciones ────────────────────────────────────────────────────────────
+
+/**
+ * Crea una cotización desde el armador.
+ *
+ * Los ítems llegan como JSON en un campo oculto porque son una lista de largo
+ * variable; los precios NO viajan: `crearCotizacion` los relee del catálogo.
+ */
+export async function accionCrearCotizacion(formData: FormData): Promise<void> {
+  const sesion = await requireSession();
+
+  let items: { productId: number; cantidad: number; descuento?: number }[] = [];
+  try {
+    items = JSON.parse(String(formData.get("items") || "[]"));
+  } catch {
+    items = [];
+  }
+
+  const { crearCotizacion } = await import("./cotizaciones");
+  const resultado = await crearCotizacion({
+    contactId: formData.get("contactId") ? Number(formData.get("contactId")) : null,
+    cotizanteNombre: String(formData.get("nombre") || ""),
+    cotizanteTelefono: String(formData.get("telefono") || ""),
+    paraSiMismo: !formData.get("esRegalo"),
+    destinatarioNombre: String(formData.get("destinatario") || "") || null,
+    boutique: String(formData.get("boutique") || "") || null,
+    createdById: sesion.userId,
+    items,
+    descuentoGlobal: Number(formData.get("descuentoGlobal") || 0),
+  });
+
+  if (!resultado.ok) {
+    // El error viaja en la URL: la alternativa sería useActionState en el
+    // armador, que obligaría a subir todo el estado del formulario al cliente.
+    redirect(`/crm/cotizaciones/nueva?error=${encodeURIComponent(resultado.error)}`);
+  }
+
+  revalidatePath("/crm/cotizaciones");
+  redirect(`/crm/cotizaciones/${resultado.id}`);
+}
+
+/**
+ * Envía la cotización por WhatsApp.
+ *
+ * El cuerpo llega editado por quien vende —el mensaje se ajusta antes de
+ * mandarlo— pero el cierre con la palabra BAJA lo vuelve a pegar
+ * `mensajeCompleto()`: es la salida del cliente y no puede perderse porque
+ * alguien borró la última línea.
+ */
+export async function accionEnviarCotizacion(formData: FormData): Promise<void> {
+  const sesion = await requireSession();
+  const quoteId = Number(formData.get("quoteId"));
+  const cuerpo = String(formData.get("cuerpo") || "").trim();
+  if (!cuerpo) return;
+
+  const [q] = await db.select().from(crmQuotes).where(eq(crmQuotes.id, quoteId)).limit(1);
+  if (!q) return;
+
+  const { mensajeCompleto } = await import("./documento-cotizacion");
+  const conversationId = await conversacionDe(q.cotizanteTelefono, {
+    contactId: q.contactId,
+    nombre: q.cotizanteNombre,
+  });
+
+  const messageId = await redactar({
+    conversationId,
+    cuerpo: mensajeCompleto(cuerpo, sesion.nombre),
+    autorId: sesion.userId,
+    aprobado: true,
+  });
+  const resultado = await despacharMensaje(messageId);
+
+  // La cotización pasa a "enviada" solo si el mensaje efectivamente salió (o se
+  // simuló). Si un candado lo retuvo, sigue abierta: decir "enviada" cuando el
+  // cliente no recibió nada es la mentira que después nadie puede explicar.
+  if (resultado.estado === "sent" || resultado.estado === "simulado") {
+    await db
+      .update(crmQuotes)
+      .set({ estado: "enviada", enviadaEn: new Date(), conversationId })
+      .where(eq(crmQuotes.id, quoteId));
+  }
+
+  revalidatePath(`/crm/cotizaciones/${quoteId}`);
+  revalidatePath("/crm/cotizaciones");
+  revalidatePath("/crm/conversaciones");
+}
+
+/** Marca la cotización como vendida y deja la venta registrada. */
+export async function accionConvertirCotizacion(formData: FormData): Promise<void> {
+  await requireSession();
+  const quoteId = Number(formData.get("quoteId"));
+
+  const [q] = await db.select().from(crmQuotes).where(eq(crmQuotes.id, quoteId)).limit(1);
+  if (!q || q.estado === "convertida") return;
+
+  const items = await db
+    .select()
+    .from(crmQuoteItems)
+    .where(eq(crmQuoteItems.quoteId, quoteId));
+
+  const [orden] = await db
+    .insert(crmOrders)
+    .values({
+      contactId: q.contactId,
+      quoteId,
+      fecha: new Date(),
+      total: q.total,
+      canal: "Cotización",
+    })
+    .returning({ id: crmOrders.id });
+
+  if (items.length > 0) {
+    await db.insert(crmOrderItems).values(
+      items.map((i) => ({
+        orderId: orden.id,
+        productId: i.productId,
+        cantidad: i.cantidad,
+        // El precio que se guarda es el efectivamente cobrado por unidad, con
+        // su descuento aplicado: si se guardara el de lista, el histórico del
+        // cliente diría que pagó más de lo que pagó.
+        precioUnitario: Math.round(i.total / Math.max(1, i.cantidad)),
+      })),
+    );
+  }
+
+  await db
+    .update(crmQuotes)
+    .set({ estado: "convertida", convertidaEn: new Date(), orderId: orden.id })
+    .where(eq(crmQuotes.id, quoteId));
+
+  // Quien compra deja de ser prospecto.
+  if (q.contactId) {
+    await db
+      .update(crmContacts)
+      .set({ estado: "cliente" })
+      .where(eq(crmContacts.id, q.contactId));
+    revalidatePath(`/crm/contactos/${q.contactId}`);
+  }
+
+  revalidatePath(`/crm/cotizaciones/${quoteId}`);
+  revalidatePath("/crm/cotizaciones");
+}
+
+export async function accionDescartarCotizacion(formData: FormData): Promise<void> {
+  await requireSession();
+  const quoteId = Number(formData.get("quoteId"));
+  await db
+    .update(crmQuotes)
+    .set({ estado: "descartada" })
+    .where(eq(crmQuotes.id, quoteId));
+  revalidatePath("/crm/cotizaciones");
+  revalidatePath(`/crm/cotizaciones/${quoteId}`);
 }
