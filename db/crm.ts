@@ -21,6 +21,7 @@ import {
   jsonb,
   pgTable,
   serial,
+  smallint,
   text,
   timestamp,
   uniqueIndex,
@@ -777,3 +778,117 @@ export type CrmQuote = typeof crmQuotes.$inferSelect;
 export type CrmQuoteItem = typeof crmQuoteItems.$inferSelect;
 export type CrmShowroomVisita = typeof crmShowroomVisitas.$inferSelect;
 export type CrmSenal = typeof crmSenales.$inferSelect;
+
+// ─── El perfil: lo que se sabe y cómo se supo ────────────────────────────────
+
+/**
+ * Un dato conocido de una persona, con su procedencia.
+ *
+ * Existe como tabla de atributos y no como columnas de `crm_contacts` por tres
+ * razones que resultaron ser la misma: **hay que saber cuánto se confía en cada
+ * dato, cuándo se supo, y poder agregar datos nuevos sin migrar**.
+ *
+ * `estado` es lo más importante de acá y corrige un error del modelo anterior.
+ * Antes, un cliente sin parlantes comprados aparecía como "le faltan
+ * parlantes". Es falso: puede tenerlos hace diez años, comprados en otra parte.
+ * Son tres cosas distintas:
+ *
+ *   conocido   se sabe qué tiene
+ *   sin_dato   no se sabe. Es una pregunta pendiente, no una carencia
+ *   no_tiene   se preguntó y confirmó. **Esto** sí es una oportunidad
+ *
+ * Ofrecerle parlantes a quien está en `sin_dato` es la forma más rápida de que
+ * el cliente concluya que no lo conocen.
+ */
+export const crmPerfilAtributos = pgTable(
+  "crm_perfil_atributos",
+  {
+    id: serial("id").primaryKey(),
+    contactId: integer("contact_id").notNull(),
+    clave: varchar("clave", { length: 60 }).notNull(),
+    valor: text("valor"),
+    /** conocido | sin_dato | no_tiene */
+    estado: varchar("estado", { length: 12 }).notNull().default("conocido"),
+    /** 3 hay documento · 2 lo dijo y se anotó · 1 corazonada o inferencia */
+    confianza: smallint("confianza").notNull().default(2),
+    /** venta | audicion | cotizacion | conversacion | vendedor | inferido */
+    origen: varchar("origen", { length: 20 }).notNull().default("vendedor"),
+    origenId: integer("origen_id"),
+    registradoPor: integer("registrado_por"),
+    registradoEn: timestamp("registrado_en").defaultNow().notNull(),
+    /** Los datos de intención caducan: un presupuesto de hace dos años no lo es. */
+    vigenteHasta: timestamp("vigente_hasta"),
+  },
+  (t) => [
+    uniqueIndex("crm_perfil_atributo_idx").on(t.contactId, t.clave),
+    index("crm_perfil_clave_idx").on(t.clave),
+    index("crm_perfil_estado_idx").on(t.estado),
+  ],
+);
+
+/**
+ * Las cinco salas del showroom.
+ *
+ * Cuál se usó es un dato de venta, no de logística: quien pidió la Sala
+ * Reference y se quedó dos horas está en otra conversación que quien pasó por
+ * Lifestyle.
+ */
+export const crmSalas = pgTable("crm_salas", {
+  id: serial("id").primaryKey(),
+  nombre: varchar("nombre", { length: 60 }).notNull(),
+  descripcion: text("descripcion"),
+  capacidadMin: smallint("capacidad_min").notNull().default(1),
+  capacidadMax: smallint("capacidad_max").notNull().default(4),
+  /** Qué tan arriba del catálogo está el equipo montado, de 1 a 5. */
+  nivel: smallint("nivel").notNull().default(3),
+  orden: smallint("orden").notNull().default(0),
+  activa: boolean("activa").notNull().default(true),
+});
+
+/**
+ * La audición: lo más valioso que pasa en el negocio.
+ *
+ * Vive aparte de `crm_showroom_visitas` porque son cosas distintas. La visita
+ * es que alguien entró; la audición es que se sentó dos horas a escuchar un
+ * sistema concreto en una sala concreta. Una visita puede no tener audición, y
+ * un cliente de años puede venir a una audición sin ser una visita nueva.
+ *
+ * `descarto` está separado de `leGusto` a propósito: saber qué rechazó vale
+ * tanto como saber qué le gustó, y es lo que evita volver a ofrecerle
+ * exactamente lo que ya dijo que no.
+ */
+export const crmAudiciones = pgTable(
+  "crm_audiciones",
+  {
+    id: serial("id").primaryKey(),
+    contactId: integer("contact_id"),
+    visitaId: integer("visita_id"),
+    salaId: integer("sala_id"),
+    /** Con cita o pasó y había sala libre. Cambia cómo se lee el interés. */
+    conCita: boolean("con_cita").notNull().default(true),
+    fecha: timestamp("fecha").defaultNow().notNull(),
+    duracionMinutos: smallint("duracion_minutos"),
+    acompanantes: smallint("acompanantes").notNull().default(0),
+    /** Ids de crm_products, como JSON. Qué equipo estaba montado. */
+    equipoEscuchado: text("equipo_escuchado"),
+    /** En sus palabras. Es con lo que se le vuelve a escribir en seis meses. */
+    queDijo: text("que_dijo"),
+    leGusto: text("le_gusto"),
+    descarto: text("descarto"),
+    /** Lo que mencionó, si lo mencionó. Nunca se pregunta de frente. */
+    presupuestoMencionado: integer("presupuesto_mencionado"),
+    atendidoPor: integer("atendido_por"),
+    proximoPaso: text("proximo_paso"),
+    proximoPasoEn: timestamp("proximo_paso_en"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("crm_audiciones_contacto_idx").on(t.contactId),
+    index("crm_audiciones_fecha_idx").on(t.fecha),
+    index("crm_audiciones_sala_idx").on(t.salaId),
+  ],
+);
+
+export type CrmPerfilAtributo = typeof crmPerfilAtributos.$inferSelect;
+export type CrmSala = typeof crmSalas.$inferSelect;
+export type CrmAudicion = typeof crmAudiciones.$inferSelect;

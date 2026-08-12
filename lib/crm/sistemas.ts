@@ -20,23 +20,42 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 
-/** Los eslabones de la cadena, en el orden en que se arma un sistema. */
+/**
+ * Los cinco eslabones de la cadena, en el orden en que se arma un sistema.
+ *
+ * Son los de la presentación, y difieren de la primera versión de este módulo
+ * en dos puntos, ambos a favor de la presentación:
+ *
+ *   · **Previo y etapa se juntan en Amplificación.** Separarlos es correcto
+ *     técnicamente pero deja incompleto a todo el que tiene un integrado, que
+ *     es la mayoría. El mapa mostraba un hueco donde no hay ninguno.
+ *   · **El soporte se abre en Cables y Acondicionamiento.** Estaban juntos en
+ *     una bolsa llamada "soporte" que no se podía vender: son dos
+ *     conversaciones distintas, con argumentos distintos, y el acondicionador
+ *     de corriente casi nadie lo tiene.
+ *
+ * Racks y tubos quedaron fuera de los eslabones y se tratan como complemento.
+ * Un rack no es parte de la cadena de señal, y contarlo obligaba a que todos
+ * apareciesen incompletos para siempre.
+ */
 export const ESLABONES = [
   { clave: "fuente", nombre: "Fuente", categorias: ["Audio Digital", "Audio Análogo"] },
-  { clave: "previo", nombre: "Previo", categorias: ["Preamplificadores"] },
-  { clave: "etapa", nombre: "Etapa", categorias: ["Amplificadores"] },
-  { clave: "parlantes", nombre: "Parlantes", categorias: ["Parlantes y Cine"] },
   {
-    clave: "soporte",
-    nombre: "Soporte",
-    categorias: [
-      "Cables de Audio",
-      "Acondicionador de Potencia",
-      "Racks y Antivibración",
-      "Tubos y Válvulas",
-    ],
+    clave: "amplificacion",
+    nombre: "Amplificación",
+    categorias: ["Amplificadores", "Preamplificadores"],
+  },
+  { clave: "parlantes", nombre: "Parlantes", categorias: ["Parlantes y Cine"] },
+  { clave: "cables", nombre: "Cables", categorias: ["Cables de Audio"] },
+  {
+    clave: "acondicionamiento",
+    nombre: "Acondicionamiento",
+    categorias: ["Acondicionador de Potencia"],
   },
 ] as const;
+
+/** Fuera de la cadena de señal: complementan, no completan. */
+export const COMPLEMENTOS = ["Racks y Antivibración", "Tubos y Válvulas"] as const;
 
 export type ClaveEslabon = (typeof ESLABONES)[number]["clave"];
 
@@ -46,14 +65,14 @@ const ESLABON_DE_CATEGORIA = new Map<string, ClaveEslabon>(
 );
 
 /**
- * Los cuatro eslabones que forman el sistema propiamente tal.
+ * Los tres eslabones sin los cuales no hay sistema.
  *
- * El soporte queda fuera a propósito: un sistema sin cables no existe, pero
- * nadie diría que a alguien "le falta" el soporte. Es complemento, no eslabón
- * faltante, y meterlo en el conteo haría que todos los clientes aparecieran
- * incompletos para siempre.
+ * Cables y acondicionamiento son eslabones de la cadena y aparecen en el mapa,
+ * pero no cuentan para "sistema completo": todo el mundo tiene *algún* cable,
+ * aunque sea el que venía en la caja. Lo que se vende ahí es subir de nivel, no
+ * llenar un hueco, y son dos conversaciones distintas.
  */
-const ESENCIALES: ClaveEslabon[] = ["fuente", "previo", "etapa", "parlantes"];
+const ESENCIALES: ClaveEslabon[] = ["fuente", "amplificacion", "parlantes"];
 
 export interface PiezaDelSistema {
   productId: number;
@@ -160,7 +179,7 @@ export async function sistemasDeClientes(): Promise<SistemaCliente[]> {
       : ESENCIALES.filter((e) => piezas.some((p) => p.eslabon === e));
     const faltantes = ESENCIALES.filter((e) => !cubiertos.includes(e));
 
-    const componentes = piezas.filter((p) => p.eslabon !== "soporte");
+    const componentes = piezas.filter((p) => ESENCIALES.includes(p.eslabon));
     const invertido = compras.reduce((s, f) => s + Number(f.precio), 0);
     const nivel = componentes.length ? Math.max(...componentes.map((p) => p.precio)) : 0;
     const nivelTipico = medianaDe(componentes.map((p) => p.precio));
@@ -214,7 +233,7 @@ function detectarEslabonDebil(
 ): SistemaCliente["eslabonDebil"] {
   if (componentes.length < 2 || nivel === 0) return null;
 
-  // Por eslabón se toma la pieza más cara: si alguien cambió de etapa, lo que
+  // Por eslabón se toma la pieza más cara: si alguien cambió de amplificación, lo que
   // manda es la que tiene puesta hoy, no la que reemplazó.
   const mejorPorEslabon = new Map<ClaveEslabon, PiezaDelSistema>();
   for (const p of componentes) {
@@ -354,7 +373,7 @@ export interface ResumenSistemas {
   conEslabonDebil: number;
   /** Cuánto vale, a precio de lista, cerrar los sistemas en construcción. */
   oportunidadEnPesos: number;
-  /** Qué eslabón falta más seguido, contando solo sistemas en construcción. */
+  /** Qué eslabón esencial falta más seguido, entre los sistemas en construcción. */
   faltantesPorEslabon: { eslabon: ClaveEslabon; nombre: string; clientes: number }[];
 }
 
@@ -372,7 +391,7 @@ export async function resumenSistemas(): Promise<ResumenSistemas> {
    * Alguien que compró un par de parlantes y nada más tiene, técnicamente,
    * tres eslabones faltantes. Contarlo como "sistema incompleto" infla el
    * número hasta que deja de significar algo: en la primera versión salían
-   * cuarenta y cuatro clientes sin previo, sobre cincuenta y cuatro, y con eso
+   * cuarenta y cuatro clientes sin amplificación, sobre cincuenta y cuatro, y con eso
    * el panel decía "casi todos", que es lo mismo que no decir nada.
    *
    * Un sistema en construcción es alguien que ya volvió al menos una vez. Esa
@@ -394,7 +413,7 @@ export async function resumenSistemas(): Promise<ResumenSistemas> {
     // A precio de lista y sin descuento. Es un techo, no un pronóstico, y hay
     // que presentarlo como tal: en este rubro la venta grande se negocia.
     oportunidadEnPesos: recomendaciones.reduce((s, r) => s + (r.sugerido?.precio ?? 0), 0),
-    faltantesPorEslabon: ESLABONES.filter((e) => e.clave !== "soporte")
+    faltantesPorEslabon: ESLABONES.filter((e) => ESENCIALES.includes(e.clave))
       .map((e) => ({ eslabon: e.clave, nombre: e.nombre, clientes: faltantes.get(e.clave) ?? 0 }))
       .sort((a, b) => b.clientes - a.clientes),
   };

@@ -65,6 +65,7 @@ export default async function CrmAppLayout({
         { href: "/crm/cotizaciones", etiqueta: "Cotizaciones", icono: "▤" },
         { href: "/crm/oportunidades", etiqueta: "Oportunidades", icono: "◆" },
         { href: "/crm/showroom", etiqueta: "Showroom", icono: "▨" },
+        { href: "/crm/audiciones", etiqueta: "Audiciones", icono: "♪" },
       ],
     },
     {
