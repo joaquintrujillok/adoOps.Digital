@@ -276,26 +276,55 @@ export interface ClienteRfm extends ClienteAnalitico {
 }
 
 /**
- * Convierte una lista de valores en quintiles 1-5.
+ * Escalas por cortes absolutos, no por quintiles.
  *
- * Quintiles por posición y no por rangos fijos: los rangos absolutos hay que
- * recalibrarlos cada vez que el negocio crece, y el día que nadie los recalibra
- * el modelo miente. Con quintiles, "estar en el 20% que más gasta" significa lo
- * mismo hoy y en dos años.
+ * Esta fue la decisión más importante del modelo y va contra el manual. El RFM
+ * de libro reparte la cartera en quintiles, y con cien mil clientes eso está
+ * bien. Acá hay ochenta y tantos y entran tres o cuatro compras al mes.
  *
- * `invertido` sirve para recencia, donde menos es mejor.
+ * Con esa cantidad el quintil deja de describir el negocio y empieza a
+ * inventarlo: el 20% superior son diecisiete personas **por definición**, hayan
+ * gastado cuarenta millones o seiscientas lucas. Si un año la cartera es pareja,
+ * el modelo igual va a coronar campeones y condenar perdidos, porque su trabajo
+ * es partir la lista en cinco, no medir. Y al revés: basta que entre un cliente
+ * de $39.900.000 para que todos los demás bajen un escalón sin haber cambiado su
+ * conducta. La jerarquía se movería sola.
+ *
+ * Los cortes fijos no tienen ese defecto y además se explican en una frase.
+ * "M5 es sobre treinta millones" es algo que un gerente repite en una reunión.
+ * "M5 es el quintil superior de la distribución" no lo es, y lo que no se puede
+ * repetir no se usa.
+ *
+ * El costo es real y hay que decirlo: estos números quedan amarrados a la
+ * realidad del 2026 y hay que revisarlos si cambia el mix o si el peso se mueve
+ * fuerte. Es un costo barato comparado con un dashboard que miente en silencio.
  */
-function quintiles(valores: number[], invertido = false): (v: number) => number {
-  const ordenados = [...valores].sort((a, b) => a - b);
-  const corte = (p: number) => ordenados[Math.min(ordenados.length - 1, Math.floor(ordenados.length * p))];
-  const cortes = [corte(0.2), corte(0.4), corte(0.6), corte(0.8)];
-
+function escalaPorCortes(cortes: number[], invertido = false): (v: number) => number {
   return (v: number) => {
     let nivel = 1;
     for (const c of cortes) if (v > c) nivel++;
     return invertido ? 6 - nivel : nivel;
   };
 }
+
+/**
+ * Recencia en días, calibrada al ciclo del rubro.
+ *
+ * Un sistema de audio no se renueva como un reloj ni como un par de zapatos. El
+ * cliente compra los parlantes, escucha un año, y recién ahí empieza a pensar en
+ * la etapa de potencia. Dieciocho meses de silencio son normales acá y serían
+ * alarma en cualquier retail. Por eso R3 llega hasta los dos años: alguien que
+ * compró hace veinte meses no está perdido, está escuchando.
+ */
+const CORTES_RECENCIA = [180, 365, 730, 1095]; // 6m · 12m · 24m · 36m
+
+/**
+ * Monto acumulado en pesos, calibrado al catálogo real ($49.900 a $39.900.000).
+ *
+ * Los tramos siguen el sistema, no la estadística: bajo el millón se compran
+ * cables y accesorios; sobre los treinta hay un sistema de referencia completo.
+ */
+const CORTES_MONTO = [1_000_000, 4_000_000, 12_000_000, 30_000_000];
 
 /**
  * Asigna el segmento según la combinación de R y F.
@@ -333,8 +362,8 @@ function segmentoDe(r: number, f: number, m: number): SegmentoRfm {
  * superior de la distribución de frecuencia" no lo es.
  */
 function escalaFrecuencia(compras: number): number {
-  if (compras >= 6) return 5;
-  if (compras >= 4) return 4;
+  if (compras >= 5) return 5;
+  if (compras === 4) return 4;
   if (compras === 3) return 3;
   if (compras === 2) return 2;
   return 1;
@@ -343,17 +372,23 @@ function escalaFrecuencia(compras: number): number {
 export function calcularRfm(clientes: ClienteAnalitico[]): ClienteRfm[] {
   if (clientes.length === 0) return [];
 
-  const escalaR = quintiles(clientes.map((c) => c.recencia ?? 9999), true);
-  const escalaF = escalaFrecuencia;
-  const escalaM = quintiles(clientes.map((c) => c.monto));
+  const escalaR = escalaPorCortes(CORTES_RECENCIA, true);
+  const escalaM = escalaPorCortes(CORTES_MONTO);
 
   return clientes.map((c) => {
     const r = escalaR(c.recencia ?? 9999);
-    const f = escalaF(c.compras);
+    const f = escalaFrecuencia(c.compras);
     const m = escalaM(c.monto);
     return { ...c, r, f, m, segmento: segmentoDe(r, f, m) };
   });
 }
+
+/** Los cortes, en texto, para mostrarlos junto a la matriz. */
+export const LEYENDA_ESCALAS = {
+  recencia: ["Más de 3 años", "2 a 3 años", "1 a 2 años", "6 a 12 meses", "Últimos 6 meses"],
+  frecuencia: ["1 compra", "2 compras", "3 compras", "4 compras", "5 o más"],
+  monto: ["Bajo $1M", "$1M a $4M", "$4M a $12M", "$12M a $30M", "Sobre $30M"],
+} as const;
 
 export interface ResumenSegmento {
   segmento: SegmentoRfm;
@@ -579,39 +614,48 @@ export function resumirLtv(clientes: ClienteAnalitico[]): ResumenLtv {
 }
 
 export interface Cohorte {
-  /** Mes de la primera compra, `YYYY-MM`. */
-  mes: string;
+  /** Año de la primera compra. */
+  clave: string;
   etiqueta: string;
   clientes: number;
-  /** Ingreso acumulado promedio por cliente en el mes N desde su entrada. */
+  /** Ingreso acumulado promedio por cliente al cerrar el trimestre N. */
   acumulado: number[];
-  /** Cuántos siguieron comprando en el mes N. */
+  /** Cuántos de la cohorte compraron durante el trimestre N. */
   retencion: number[];
   ltvActual: number;
 }
 
 /**
- * Cohortes por mes de adquisición.
+ * Cohortes por año de adquisición, medidas en trimestres.
  *
- * Cada cohorte se mide en meses desde SU primera compra, no en calendario: así
- * el mes 6 de la cohorte de enero es comparable con el mes 6 de la de agosto,
- * que es justamente la pregunta —¿los clientes que entraron este año valen más
- * o menos que los del año pasado a la misma edad?
+ * La versión anterior agrupaba por mes de entrada y medía mes a mes, que es lo
+ * que hace todo el mundo. Acá no funciona. Entran unos treinta clientes nuevos
+ * al año: una cohorte mensual son dos o tres personas, y con dos personas la
+ * tabla no muestra una tendencia, muestra si a uno de los dos le gustó el
+ * amplificador. Basta que uno compre parlantes para que su cohorte parezca la
+ * mejor de la historia.
+ *
+ * Agrupar por año deja treinta clientes por fila —ahí sí un promedio significa
+ * algo— y medir en trimestres respeta el ritmo del rubro, donde entre una compra
+ * y la siguiente pasan meses. La pregunta que responde sigue siendo la misma y
+ * es la que importa: ¿los clientes que entraron este año valen más o menos que
+ * los del año pasado a la misma edad?
  */
-export async function cohortes(mesesMaximos = 24): Promise<Cohorte[]> {
+export async function cohortes(trimestresMaximos = 12): Promise<Cohorte[]> {
   const filas = await db.execute(sql`
     SELECT c.id AS "contactId",
-           to_char(date_trunc('month', c.primera_compra_en), 'YYYY-MM') AS cohorte,
-           o.fecha, o.total::float8 AS total,
-           (EXTRACT(YEAR FROM AGE(o.fecha, c.primera_compra_en)) * 12
-            + EXTRACT(MONTH FROM AGE(o.fecha, c.primera_compra_en)))::int AS "mesRelativo" 
+           to_char(date_trunc('year', c.primera_compra_en), 'YYYY') AS cohorte,
+           o.total::float8 AS total,
+           (FLOOR((EXTRACT(YEAR FROM AGE(o.fecha, c.primera_compra_en)) * 12
+                   + EXTRACT(MONTH FROM AGE(o.fecha, c.primera_compra_en))) / 3))::int
+             AS "trimestreRelativo"
     FROM crm_contacts c
     JOIN crm_orders o ON o.contact_id = c.id
     WHERE c.primera_compra_en IS NOT NULL
-    ORDER BY cohorte, "mesRelativo"
+    ORDER BY cohorte, "trimestreRelativo"
   `);
 
-  type Fila = { contactId: number; cohorte: string; total: number; mesRelativo: number };
+  type Fila = { contactId: number; cohorte: string; total: number; trimestreRelativo: number };
   const datos = filas.rows as unknown as Fila[];
 
   const porCohorte = new Map<string, Fila[]>();
@@ -623,23 +667,22 @@ export async function cohortes(mesesMaximos = 24): Promise<Cohorte[]> {
 
   const resultado: Cohorte[] = [];
 
-  for (const [mes, filasCohorte] of [...porCohorte.entries()].sort()) {
+  for (const [anio, filasCohorte] of [...porCohorte.entries()].sort()) {
     const clientes = new Set(filasCohorte.map((f) => f.contactId));
     const acumulado: number[] = [];
     const retencion: number[] = [];
     let suma = 0;
 
-    for (let m = 0; m <= mesesMaximos; m++) {
-      const delMes = filasCohorte.filter((f) => f.mesRelativo === m);
-      suma += delMes.reduce((s, f) => s + Number(f.total), 0);
+    for (let t = 0; t <= trimestresMaximos; t++) {
+      const delTrimestre = filasCohorte.filter((f) => f.trimestreRelativo === t);
+      suma += delTrimestre.reduce((s, f) => s + Number(f.total), 0);
       acumulado.push(Math.round(suma / clientes.size));
-      retencion.push(new Set(delMes.map((f) => f.contactId)).size);
+      retencion.push(new Set(delTrimestre.map((f) => f.contactId)).size);
     }
 
-    const [anio, m] = mes.split("-");
     resultado.push({
-      mes,
-      etiqueta: `${["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"][Number(m) - 1]} ${anio.slice(2)}`,
+      clave: anio,
+      etiqueta: anio,
       clientes: clientes.size,
       acumulado,
       retencion,
@@ -777,8 +820,8 @@ export interface CalidadDatos {
     conConsentimiento: number;
     conWhatsapp: number;
   };
-  /** Evolución mensual del porcentaje identificado. */
-  evolucion: { mes: string; etiqueta: string; identificadas: number; total: number; porcentaje: number }[];
+  /** Evolución trimestral del porcentaje identificado. */
+  evolucion: { periodo: string; etiqueta: string; identificadas: number; total: number; porcentaje: number }[];
 }
 
 export async function calidadDatos(): Promise<CalidadDatos> {
@@ -805,13 +848,20 @@ export async function calidadDatos(): Promise<CalidadDatos> {
              COUNT(*) FILTER (WHERE opt_in_whatsapp)::int AS con_whatsapp
       FROM crm_contacts
     `),
+    // Por trimestre y no por mes: con tres o cuatro ventas mensuales, el
+    // porcentaje de identificación salta entre 33% y 100% según si el vendedor
+    // alcanzó a pedir el RUT una vez más. Eso no es una tendencia, es ruido
+    // dibujado como gráfico. El trimestre junta una docena de ventas, que ya es
+    // suficiente para que el número signifique algo.
     db.execute(sql`
-      SELECT to_char(date_trunc('month', fecha), 'YYYY-MM') AS mes,
+      SELECT to_char(date_trunc('quarter', fecha), 'YYYY-Q') AS periodo,
+             EXTRACT(QUARTER FROM fecha)::int AS trimestre,
+             to_char(fecha, 'YYYY') AS anio,
              COUNT(*)::int AS total,
              COUNT(*) FILTER (WHERE identificado)::int AS identificadas
       FROM crm_orders
-      WHERE fecha >= NOW() - INTERVAL '12 months'
-      GROUP BY 1 ORDER BY 1
+      WHERE fecha >= NOW() - INTERVAL '24 months'
+      GROUP BY 1, 2, 3 ORDER BY 3, 2
     `),
   ]);
 
@@ -819,7 +869,6 @@ export async function calidadDatos(): Promise<CalidadDatos> {
     total: number; identificadas: number; monto_identificado: number; monto_anonimo: number;
   };
   const c = contactos.rows[0] as unknown as Record<string, number>;
-  const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
   return {
     ventasTotales: v.total,
@@ -840,18 +889,17 @@ export async function calidadDatos(): Promise<CalidadDatos> {
       conConsentimiento: Number(c.con_consentimiento),
       conWhatsapp: Number(c.con_whatsapp),
     },
-    evolucion: (evolucion.rows as unknown as { mes: string; total: number; identificadas: number }[]).map(
-      (f) => {
-        const [anio, m] = f.mes.split("-");
-        return {
-          mes: f.mes,
-          etiqueta: `${MESES[Number(m) - 1]} ${anio.slice(2)}`,
-          identificadas: Number(f.identificadas),
-          total: Number(f.total),
-          porcentaje: Number(f.total) > 0 ? (Number(f.identificadas) / Number(f.total)) * 100 : 0,
-        };
-      },
-    ),
+    evolucion: (
+      evolucion.rows as unknown as {
+        periodo: string; trimestre: number; anio: string; total: number; identificadas: number;
+      }[]
+    ).map((f) => ({
+      periodo: f.periodo,
+      etiqueta: `T${f.trimestre} ${f.anio.slice(2)}`,
+      identificadas: Number(f.identificadas),
+      total: Number(f.total),
+      porcentaje: Number(f.total) > 0 ? (Number(f.identificadas) / Number(f.total)) * 100 : 0,
+    })),
   };
 }
 
@@ -867,29 +915,71 @@ export interface Panorama {
   facturacionPrevia: number;
   variacion: number | null;
   ticketPromedio: number;
-  frecuenciaAnual: number;
+  /**
+   * La mediana del ticket, que acá dice más que el promedio: el catálogo va de
+   * $49.900 a $39.900.000, así que una venta de parlantes arrastra el promedio
+   * de todo un año. La mediana muestra cómo es la venta típica de verdad.
+   */
+  ticketMediana: number;
+  /** El número que manda el negocio: cuántas ventas entran al mes. */
+  ventasPorMesPromedio: number;
   tasaRecompra: number;
   omnicanal: number;
   ingresosPorCanal: { canal: string; monto: number; ventas: number }[];
-  ventasPorMes: { etiqueta: string; monto: number; ventas: number }[];
+  ventasPorTrimestre: { etiqueta: string; monto: number; ventas: number }[];
+  /**
+   * Las últimas ventas con nombre y apellido.
+   *
+   * Con cuarenta ventas al año esto no es un detalle decorativo, es el corazón
+   * del panorama. El gerente no necesita que le resuman un mes que tuvo tres
+   * ventas: necesita ver cuáles fueron.
+   */
+  ultimasVentas: {
+    id: number;
+    fecha: Date;
+    cliente: string | null;
+    contactId: number | null;
+    total: number;
+    origen: string;
+    detalle: string | null;
+  }[];
 }
 
 export async function panorama(rfm: ClienteRfm[]): Promise<Panorama> {
-  const [canales, meses, previa] = await Promise.all([
+  const [canales, trimestres, previa, ultimas, tickets] = await Promise.all([
     db.execute(sql`
       SELECT origen AS canal, COALESCE(SUM(total),0)::float8 AS monto, COUNT(*)::int AS ventas
       FROM crm_orders WHERE fecha >= NOW() - INTERVAL '12 months'
       GROUP BY origen ORDER BY monto DESC
     `),
+    // Trimestres en vez de meses: un mes con tres ventas dibuja un serrucho
+    // donde no hay ninguna historia. Que febrero tenga dos ventas y marzo cinco
+    // no significa nada; que un trimestre caiga a la mitad del anterior sí.
     db.execute(sql`
-      SELECT to_char(date_trunc('month', fecha), 'YYYY-MM') AS mes,
+      SELECT EXTRACT(QUARTER FROM fecha)::int AS trimestre,
+             to_char(fecha, 'YYYY') AS anio,
              COALESCE(SUM(total),0)::float8 AS monto, COUNT(*)::int AS ventas
-      FROM crm_orders WHERE fecha >= NOW() - INTERVAL '12 months'
-      GROUP BY 1 ORDER BY 1
+      FROM crm_orders WHERE fecha >= NOW() - INTERVAL '24 months'
+      GROUP BY 1, 2 ORDER BY 2, 1
     `),
     db.execute(sql`
       SELECT COALESCE(SUM(total),0)::float8 AS monto FROM crm_orders
       WHERE fecha >= NOW() - INTERVAL '24 months' AND fecha < NOW() - INTERVAL '12 months'
+    `),
+    db.execute(sql`
+      SELECT o.id, o.fecha, o.total::float8 AS total, o.origen,
+             c.nombre AS cliente, c.id AS "contactId",
+             (SELECT p.nombre FROM crm_order_items i
+                JOIN crm_products p ON p.id = i.product_id
+               WHERE i.order_id = o.id
+               ORDER BY i.precio_unitario DESC LIMIT 1) AS detalle
+      FROM crm_orders o
+      LEFT JOIN crm_contacts c ON c.id = o.contact_id
+      ORDER BY o.fecha DESC LIMIT 12
+    `),
+    db.execute(sql`
+      SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY total)::float8 AS mediana
+      FROM crm_orders WHERE fecha >= NOW() - INTERVAL '12 months'
     `),
   ]);
 
@@ -907,7 +997,9 @@ export async function panorama(rfm: ClienteRfm[]): Promise<Panorama> {
     (s, f) => s + Number(f.monto), 0,
   );
   const facturacionPrevia = Number((previa.rows[0] as unknown as { monto: number }).monto);
-  const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+  const ventas12m = (canales.rows as unknown as { ventas: number }[]).reduce(
+    (s, f) => s + Number(f.ventas), 0,
+  );
 
   return {
     clientesConCompra: rfm.length,
@@ -926,10 +1018,10 @@ export async function panorama(rfm: ClienteRfm[]): Promise<Panorama> {
     ticketPromedio: rfm.length
       ? Math.round(rfm.reduce((s, c) => s + c.monto, 0) / rfm.reduce((s, c) => s + c.compras, 0))
       : 0,
-    frecuenciaAnual: activos.length
-      ? activos.reduce((s, c) => s + (c.cicloDias ? 365 / Math.max(30, c.cicloDias) : 0.5), 0) /
-        activos.length
-      : 0,
+    ticketMediana: Math.round(
+      Number((tickets.rows[0] as unknown as { mediana: number | null })?.mediana ?? 0),
+    ),
+    ventasPorMesPromedio: ventas12m / 12,
     tasaRecompra: rfm.length
       ? (rfm.filter((c) => c.compras > 1).length / rfm.length) * 100
       : 0,
@@ -941,13 +1033,26 @@ export async function panorama(rfm: ClienteRfm[]): Promise<Panorama> {
         ventas: Number(f.ventas),
       }),
     ),
-    ventasPorMes: (meses.rows as unknown as { mes: string; monto: number; ventas: number }[]).map((f) => {
-      const [anio, m] = f.mes.split("-");
-      return {
-        etiqueta: `${MESES[Number(m) - 1]} ${anio.slice(2)}`,
-        monto: Number(f.monto),
-        ventas: Number(f.ventas),
-      };
-    }),
+    ventasPorTrimestre: (
+      trimestres.rows as unknown as { trimestre: number; anio: string; monto: number; ventas: number }[]
+    ).map((f) => ({
+      etiqueta: `T${f.trimestre} ${f.anio.slice(2)}`,
+      monto: Number(f.monto),
+      ventas: Number(f.ventas),
+    })),
+    ultimasVentas: (
+      ultimas.rows as unknown as {
+        id: number; fecha: string; cliente: string | null; contactId: number | null;
+        total: number; origen: string; detalle: string | null;
+      }[]
+    ).map((f) => ({
+      id: Number(f.id),
+      fecha: new Date(f.fecha),
+      cliente: f.cliente,
+      contactId: f.contactId,
+      total: Number(f.total),
+      origen: f.origen,
+      detalle: f.detalle,
+    })),
   };
 }

@@ -1,15 +1,22 @@
 /* =============================================================================
-   CRM adoOps — tokens de color y tipografía
+   CRM Highend Chile — tokens de color y tipografía
    =============================================================================
 
-   El CRM es una aplicación de escritorio interna y se fija en modo claro
-   (`color-scheme: light`): no sigue el tema del sistema. Es deliberado — la
-   web corporativa que lo rodea también es clara, y media docena de pantallas
-   densas en modo oscuro es superficie que nadie pidió mantener.
+   Los colores salen del sitio del cliente, medidos sobre la página y no
+   elegidos a ojo: el bronce #ab8a62 de sus acentos y el negro #161616 de sus
+   secciones oscuras. La tipografía de su web es Nunito.
+
+   **Por qué el CRM sigue siendo claro y su sitio es oscuro.** El hero de
+   highend.cl es una fotografía oscura de una sala de escucha, y funciona para
+   lo que tiene que hacer: vender una sensación. Acá hay seis pantallas de
+   tablas densas que alguien mira ocho horas, y el fondo oscuro las vuelve
+   cansadoras. Su propio sitio hace lo mismo apenas se entra al catálogo: fondo
+   blanco. Lo que se toma de la marca es el bronce y el negro de la barra
+   lateral, que es donde la identidad se ve sin costo de legibilidad.
 
    Los colores de serie salen de una paleta categórica validada para daltonismo
-   (ΔE CVD ≥ 8 entre pares adyacentes sobre superficie clara). El verde de marca
-   de adoOps se usa para la interfaz —botones, acentos, navegación— y NUNCA como
+   (ΔE CVD ≥ 8 entre pares adyacentes sobre superficie clara). El bronce de
+   marca se usa para la interfaz —botones, acentos, navegación— y NUNCA como
    color de serie: si la marca pintara datos, cambiar la marca cambiaría lo que
    significa una barra.
    ============================================================================= */
@@ -17,21 +24,21 @@
 .crm-root {
   color-scheme: light;
 
-  /* Superficies e ink */
-  --crm-plane: #f9f9f7;
-  --crm-surface: #fcfcfb;
-  --crm-ink: #0b0b0b;
-  --crm-ink-2: #52514e;
-  --crm-muted: #898781;
-  --crm-grid: #e1e0d9;
-  --crm-axis: #c3c2b7;
-  --crm-border: rgba(11, 11, 11, 0.1);
+  /* Superficies e ink — neutros cálidos, para que el bronce no desentone */
+  --crm-plane: #faf9f7;
+  --crm-surface: #ffffff;
+  --crm-ink: #0f0e0d;
+  --crm-ink-2: #55524d;
+  --crm-muted: #8b877f;
+  --crm-grid: #e6e2da;
+  --crm-axis: #c8c3b8;
+  --crm-border: rgba(15, 14, 13, 0.1);
 
-  /* Marca adoOps — interfaz, no datos */
-  --crm-brand: #20a64c;
-  --crm-brand-dark: #16713a;
-  --crm-brand-soft: #eaf7ef;
-  --crm-sidebar: #0e1116;
+  /* Marca Highend — interfaz, no datos */
+  --crm-brand: #ab8a62;
+  --crm-brand-dark: #8a6c48;
+  --crm-brand-soft: #f6f1e9;
+  --crm-sidebar: #161616;
 
   /* Series categóricas (orden fijo, nunca cíclico) */
   --series-1: #2a78d6;
@@ -101,11 +108,11 @@
 }
 .crm-nav-link:hover {
   background: rgba(255, 255, 255, 0.06);
-  color: #e8ecf1;
+  color: #ece7de;
 }
 .crm-nav-link[data-activo="true"] {
-  background: rgba(43, 220, 110, 0.12);
-  color: #7ff0a8;
+  background: rgba(171, 138, 98, 0.16);
+  color: #d9bd93;
   font-weight: 600;
 }
 

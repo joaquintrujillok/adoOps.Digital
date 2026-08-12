@@ -18,12 +18,18 @@ export default async function LoginPage({
   return (
     <div className="flex min-h-screen items-center justify-center px-5 py-12">
       <div className="w-full max-w-[380px]">
+        {/* Wordmark tipográfico y no el PNG del logo, por una razón práctica:
+            el archivo de la marca es claro sobre transparente —hecho para el
+            hero oscuro de su sitio— y sobre este fondo blanco desaparecería.
+            En la barra lateral, que sí es negra, se usa el PNG. */}
         <div className="mb-7 text-center">
-          <div className="text-[22px] font-semibold text-[var(--crm-ink)]">
-            ado<span className="text-[var(--crm-brand)]">Ops</span>{" "}
-            <span className="font-normal text-[var(--crm-ink-2)]">CRM</span>
+          <div className="text-[22px] font-semibold uppercase tracking-[0.18em] text-[var(--crm-ink)]">
+            High<span className="text-[var(--crm-brand)]">end</span>
           </div>
-          <p className="mt-1.5 text-[13px] text-[var(--crm-ink-2)]">
+          <div className="mt-1 text-[11px] font-medium uppercase tracking-[0.3em] text-[var(--crm-muted)]">
+            Chile · CRM
+          </div>
+          <p className="mt-3 text-[13px] text-[var(--crm-ink-2)]">
             Ingresa con tu cuenta para entrar al CRM comercial.
           </p>
         </div>

@@ -35,6 +35,8 @@ import {
   SEGMENTOS,
 } from "@/lib/crm/analitica";
 import { clp, clpCorto, numero, porcentaje } from "@/lib/crm/formato";
+import { resumenShowroom } from "@/lib/crm/showroom";
+import { recomendacionesDeUpgrade, resumenSistemas } from "@/lib/crm/sistemas";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +45,9 @@ const VISTAS = [
   { id: "rfm", etiqueta: "Segmentos RFM" },
   { id: "valor", etiqueta: "Valor de vida" },
   { id: "producto", etiqueta: "Producto" },
+  // La vista propia del rubro. Va después de Producto porque se apoya en el
+  // catálogo, y antes de Calidad del dato porque es de las que más se miran.
+  { id: "sistemas", etiqueta: "Sistemas y upgrade" },
   { id: "datos", etiqueta: "Calidad del dato" },
 ] as const;
 
@@ -87,6 +92,7 @@ export default async function Clientes({
       {vista === "rfm" && <VistaRfm rfm={rfm} />}
       {vista === "valor" && <VistaValor rfm={rfm} />}
       {vista === "producto" && <VistaProducto rfm={rfm} />}
+      {vista === "sistemas" && <VistaSistemas />}
       {vista === "datos" && <VistaDatos />}
     </>
   );
@@ -95,10 +101,11 @@ export default async function Clientes({
 // ─── Panorama ────────────────────────────────────────────────────────────────
 
 async function VistaPanorama({ rfm }: { rfm: Awaited<ReturnType<typeof calcularRfm>> }) {
-  const [p, ltv, calidad] = await Promise.all([
+  const [p, ltv, calidad, showroom] = await Promise.all([
     panorama(rfm),
     Promise.resolve(resumirLtv(rfm)),
     calidadDatos(),
+    resumenShowroom(),
   ]);
 
   const respaldo =
@@ -132,6 +139,30 @@ async function VistaPanorama({ rfm }: { rfm: Awaited<ReturnType<typeof calcularR
           etiqueta="Valor de vida promedio"
           valor={clp(ltv.ltvHistorico)}
           contexto={`mediana ${clp(ltv.ltvMediana)}`}
+        />
+      </div>
+
+      {/*
+        El ritmo del negocio, arriba de todo.
+        Es el número que ordena la lectura de todo lo demás: cuando entran
+        cuatro ventas al mes, cualquier porcentaje con decimales que aparezca
+        más abajo hay que leerlo sabiendo sobre cuántos casos se calculó.
+      */}
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <StatTile
+          etiqueta="Ventas al mes"
+          valor={p.ventasPorMesPromedio.toFixed(1)}
+          contexto="promedio de los últimos 12 meses"
+        />
+        <StatTile
+          etiqueta="Venta típica"
+          valor={clp(p.ticketMediana)}
+          contexto={`el promedio es ${clp(p.ticketPromedio)}`}
+        />
+        <StatTile
+          etiqueta="Concentración"
+          valor={porcentaje(ltv.concentracionTop20, 0)}
+          contexto="de la facturación viene del 20% de los clientes"
         />
       </div>
 
@@ -174,15 +205,20 @@ async function VistaPanorama({ rfm }: { rfm: Awaited<ReturnType<typeof calcularR
       <div className="mb-6 grid gap-5 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <Figura
-            titulo="Facturación mensual"
-            subtitulo="Últimos 12 meses, todos los canales"
-            pie="Fuente: ventas del punto de venta y del e-commerce. El último mes va incompleto."
+            titulo="Facturación por trimestre"
+            subtitulo="Últimos 24 meses, todos los canales"
+            // Por trimestre y no por mes a propósito. Con tres o cuatro ventas
+            // mensuales, la curva mensual es un serrucho que sube y baja según
+            // si una venta cayó el 30 o el 2, y no hay ninguna decisión que
+            // tomar mirándola. El trimestre junta una docena de ventas y ahí
+            // sí una caída significa algo.
+            pie="Agrupado por trimestre: con tres o cuatro ventas al mes, la curva mensual muestra ruido, no tendencia. El trimestre en curso va incompleto."
           >
             <Lineas
               series={[
                 {
                   nombre: "Facturación",
-                  puntos: p.ventasPorMes.map((m) => ({ x: m.etiqueta, y: m.monto })),
+                  puntos: p.ventasPorTrimestre.map((t) => ({ x: t.etiqueta, y: t.monto })),
                 },
               ]}
               formatoY={clpCorto}
@@ -216,18 +252,76 @@ async function VistaPanorama({ rfm }: { rfm: Awaited<ReturnType<typeof calcularR
         </Card>
       </div>
 
+      {/* Últimas ventas, con nombre.
+          Con cuarenta ventas al año esto no es un adorno: es la vista más
+          usada del panel. Nadie necesita que le resuman un mes de tres ventas
+          —necesita ver cuáles fueron, quién compró y qué se llevó. */}
+      <Card className="mb-6">
+        <Figura
+          titulo="Las últimas ventas"
+          subtitulo="Todas, con nombre"
+          pie="A este volumen conviene mirar las ventas una por una. Los promedios vienen después."
+        >
+          <Tabla
+            columnas={[
+              "Fecha",
+              "Cliente",
+              "Qué se llevó",
+              "Canal",
+              { titulo: "Monto", alinear: "der" },
+            ]}
+          >
+            {p.ultimasVentas.map((v) => (
+              <tr key={v.id}>
+                <td className="crm-num whitespace-nowrap">
+                  {v.fecha.toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "2-digit" })}
+                </td>
+                <td>
+                  {v.contactId ? (
+                    <Link href={`/crm/contactos/${v.contactId}`} className="crm-link">
+                      {v.cliente}
+                    </Link>
+                  ) : (
+                    <span className="crm-muted">Sin identificar</span>
+                  )}
+                </td>
+                <td className="crm-muted">{v.detalle ?? "—"}</td>
+                <td className="crm-muted">{v.origen === "ecommerce" ? "E-commerce" : "Showroom"}</td>
+                <td className="crm-num text-right font-medium">{clp(v.total)}</td>
+              </tr>
+            ))}
+          </Tabla>
+        </Figura>
+      </Card>
+
       <Lectura titulo="El dato que ordena el proyecto">
+        {/*
+          Este texto cambió de raíz cuando el mock pasó a la escala real, y el
+          cambio vale la pena explicarlo. Con el mock masivo el argumento era
+          que la mitad de las boletas salía sin cliente. Acá eso sería falso:
+          nadie despacha parlantes de veintiocho millones sin saber a quién, y
+          los datos lo muestran con un porcentaje de identificación altísimo.
+
+          Sostener el argumento viejo habría sido cómodo y habría durado hasta
+          la primera pregunta del gerente. El hueco real de este negocio está
+          antes de la venta, no en ella.
+        */}
         <p>
-          <strong>{porcentaje(100 - calidad.porcentajeIdentificado, 1)} de las ventas no tiene
-          cliente asociado</strong>, y eso son {clp(calidad.montoAnonimo)} que existen en la
-          contabilidad y no existen en el CRM: no tienen segmento, no tienen valor de vida y no
-          se les puede escribir.
+          Las ventas están bien registradas: <strong>{porcentaje(calidad.porcentajeIdentificado, 0)} tiene
+          cliente asociado</strong>. En un negocio de ticket alto es lo esperable —hay factura, hay
+          despacho, hay instalación— y no es ahí donde falta información.
         </p>
         <p>
-          Subir esa cifra es la palanca más barata del proyecto. Cada punto porcentual son{" "}
-          {clp(Math.round((calidad.montoIdentificado + calidad.montoAnonimo) / 100))} de venta que
-          pasan a ser analizables. Por eso la captura en el showroom no es un módulo aparte: es lo
-          que hace que todo lo demás tenga con qué trabajar.
+          El hueco está antes. Al showroom entraron{" "}
+          <strong>{numero(showroom.total30d)} personas en los últimos 30 días</strong> contra{" "}
+          {p.ventasPorMesPromedio.toFixed(1)} ventas al mes. La diferencia son personas que
+          escucharon un equipo, se fueron a pensarlo y hoy no existen en ningún registro: no se les
+          puede avisar cuándo llega lo que estaban esperando.
+        </p>
+        <p>
+          A este volumen el cálculo es directo. Con una venta típica de {clp(p.ticketMediana)},{" "}
+          <strong>recuperar dos visitas al año paga el sistema completo</strong>. Por eso la captura
+          en el showroom no es un módulo más: es el que alimenta a todos los otros.
         </p>
       </Lectura>
     </>
@@ -369,9 +463,11 @@ async function VistaValor({ rfm }: { rfm: Awaited<ReturnType<typeof calcularRfm>
   const coh = await cohortes(12);
   const top = [...rfm].sort((a, b) => b.monto - a.monto).slice(0, 12);
 
-  // Se muestran las cohortes con al menos 6 meses de vida: con menos, el
-  // acumulado todavía no dice nada y la tabla invita a comparar lo incomparable.
-  const cohortesUtiles = coh.filter((c) => c.clientes >= 3).slice(-14);
+  // Se muestran las cohortes con al menos tres clientes. El umbral es bajo a
+  // propósito ahora que las cohortes son anuales: son cuatro o cinco filas en
+  // total y esconder una porque tiene cuatro personas dejaría la tabla sin
+  // el año contra el que hay que comparar.
+  const cohortesUtiles = coh.filter((c) => c.clientes >= 3);
 
   return (
     <>
@@ -424,7 +520,7 @@ async function VistaValor({ rfm }: { rfm: Awaited<ReturnType<typeof calcularRfm>
 
       <Card
         titulo="Valor acumulado por cohorte"
-        descripcion="Cada fila son los clientes que compraron por primera vez ese mes. Las columnas son los meses transcurridos desde su entrada."
+        descripcion="Cada fila son los clientes que compraron por primera vez ese año. Las columnas son los trimestres transcurridos desde su entrada."
         className="mb-6"
       >
         {cohortesUtiles.length === 0 ? (
@@ -441,9 +537,18 @@ async function VistaValor({ rfm }: { rfm: Awaited<ReturnType<typeof calcularRfm>
               formato={clpCorto}
             />
             <p className="mt-3 text-[12px] text-[var(--crm-muted)]">
-              Las celdas vacías de la derecha no son ceros: son meses que esa cohorte todavía no
-              vivió. Comparar el mes 6 de una cohorte con el mes 6 de otra responde la pregunta que
-              importa — si los clientes nuevos valen más o menos que los de antes a la misma edad.
+              Las celdas vacías de la derecha no son ceros: son trimestres que esa cohorte todavía
+              no vivió. Comparar el trimestre 4 de una cohorte con el trimestre 4 de otra responde
+              la pregunta que importa — si los clientes nuevos valen más o menos que los de antes a
+              la misma edad.
+            </p>
+            <p className="mt-2 text-[12px] text-[var(--crm-muted)]">
+              {/* La justificación va en pantalla y no solo en el código: a quien
+                  mire esta tabla le va a extrañar que no sea mensual como en
+                  todas partes, y la respuesta tiene que estar ahí mismo. */}
+              Las cohortes son anuales y no mensuales porque entran unos veinte clientes nuevos al
+              año: una cohorte de un mes serían dos personas, y con dos personas el promedio no
+              muestra una tendencia, muestra a uno de los dos.
             </p>
           </>
         )}
@@ -650,6 +755,162 @@ async function VistaProducto({ rfm }: { rfm: Awaited<ReturnType<typeof calcularR
   );
 }
 
+// ─── Sistemas y ruta de upgrade ──────────────────────────────────────────────
+
+/**
+ * La vista que solo existe porque el negocio es este y no otro.
+ *
+ * El RFM y el LTV sirven en cualquier retail. Esto no: un equipo de audio es
+ * una cadena —fuente, previo, etapa, parlantes— y suena tan bien como su
+ * eslabón más flojo. Saber qué tiene armado cada cliente y qué le falta es la
+ * conversación de venta más natural del rubro, y sale entera de datos que la
+ * tienda ya tiene.
+ *
+ * Con tres o cuatro ventas al mes, además, es el panel que reemplaza a los
+ * promedios: acá no hay distribuciones, hay veinte personas con nombre y una
+ * razón concreta para llamar a cada una.
+ */
+async function VistaSistemas() {
+  const [resumen, recomendaciones] = await Promise.all([
+    resumenSistemas(),
+    recomendacionesDeUpgrade(20),
+  ]);
+
+  return (
+    <>
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatTile
+          etiqueta="Armando su sistema"
+          valor={numero(resumen.enConstruccion)}
+          contexto="volvieron al menos una vez"
+        />
+        <StatTile
+          etiqueta="Sistemas completos"
+          valor={numero(resumen.completos)}
+          contexto="tienen los cuatro eslabones"
+        />
+        <StatTile
+          etiqueta="Con eslabón débil"
+          valor={numero(resumen.conEslabonDebil)}
+          contexto="una pieza desentona con el resto"
+        />
+        <StatTile
+          etiqueta="Compra suelta"
+          valor={numero(resumen.compraSuelta)}
+          contexto="una sola pieza, sin sistema todavía"
+        />
+      </div>
+
+      <div className="mb-6">
+        <Lectura titulo="Cómo se lee esta pantalla">
+          <p>
+            En audio nadie compra dos veces lo mismo: se compra <strong>lo que falta</strong>. El
+            cliente parte por los parlantes o por la fuente y vuelve meses después por la etapa. Esa
+            es la recompra de este rubro, y es predecible mirando lo que ya se llevó.
+          </p>
+          <p>
+            Hay dos motivos para llamar. <strong>Completar</strong> es que le falta un eslabón para
+            cerrar el equipo. <strong>Equilibrar</strong> es que tiene una pieza muy por debajo del
+            resto —parlantes de veinte millones movidos por una etapa de cuatro— y el sistema está
+            rindiendo menos de lo que costó.
+          </p>
+          <p>
+            {/* El techo hay que declararlo en la pantalla, no en una nota al pie
+                de la propuesta: es la diferencia entre una cifra y una promesa. */}
+            El precio sugerido es <strong>de lista y sin descuento</strong>, apuntando al nivel en
+            que ese cliente compra habitualmente y no a su pieza más cara. Es una referencia para
+            abrir la conversación, no un pronóstico de venta: acá la pieza grande se negocia.
+          </p>
+        </Lectura>
+      </div>
+
+      <div className="mb-6 grid gap-5 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <Figura
+            titulo="Las veinte conversaciones que existen hoy"
+            subtitulo="Ordenadas por lo que cada cliente ha invertido"
+            pie="Veinte y no todas: una lista de sesenta recomendaciones es una lista que nadie trabaja. Estas son las que caben en el mes de alguien que además atiende el showroom."
+          >
+            <Tabla
+              columnas={[
+                "Cliente",
+                "Motivo",
+                "Qué le falta",
+                { titulo: "Ha invertido", alinear: "der" },
+                { titulo: "Referencia", alinear: "der" },
+              ]}
+            >
+              {recomendaciones.map((r) => (
+                <tr key={`${r.contactId}-${r.eslabon}`}>
+                  <td>
+                    <Link href={`/crm/contactos/${r.contactId}`} className="crm-link">
+                      {r.cliente}
+                    </Link>
+                    <div className="text-[12px] text-[var(--crm-muted)]">
+                      {r.diasSinComprar} días sin comprar
+                    </div>
+                  </td>
+                  <td>
+                    <span
+                      className="rounded px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wide"
+                      style={
+                        r.tipo === "equilibrar"
+                          ? { background: "var(--crm-brand-soft)", color: "var(--crm-brand-dark)" }
+                          : { background: "rgba(42,120,214,0.1)", color: "var(--series-1)" }
+                      }
+                    >
+                      {r.tipo}
+                    </span>
+                    <div className="mt-1 max-w-[380px] text-[12px] text-[var(--crm-ink-2)]">
+                      {r.motivo}
+                    </div>
+                  </td>
+                  <td className="whitespace-nowrap">{r.eslabonNombre}</td>
+                  <td className="crm-num text-right">{clp(r.invertido)}</td>
+                  <td className="crm-num text-right">
+                    {r.sugerido ? (
+                      <>
+                        <div className="font-medium">{clp(r.sugerido.precio)}</div>
+                        <div className="text-[12px] text-[var(--crm-muted)]">
+                          {r.sugerido.nombre}
+                        </div>
+                      </>
+                    ) : (
+                      <span className="crm-muted">—</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </Tabla>
+          </Figura>
+        </Card>
+
+        <Card>
+          <Figura
+            titulo="Qué eslabón falta más"
+            subtitulo="Solo sobre quienes ya están armando un sistema"
+            pie="El soporte —cables, acondicionador, racks— queda fuera del conteo: es complemento, no eslabón faltante, y meterlo dejaría a todos incompletos para siempre."
+          >
+            <Tabla columnas={["Eslabón", { titulo: "Clientes", alinear: "der" }]}>
+              {resumen.faltantesPorEslabon.map((f) => (
+                <tr key={f.eslabon}>
+                  <td>{f.nombre}</td>
+                  <td className="crm-num text-right font-medium">{numero(f.clientes)}</td>
+                </tr>
+              ))}
+            </Tabla>
+            <p className="mt-4 text-[13px] text-[var(--crm-ink-2)]">
+              A precio de lista, cerrar estos sistemas son{" "}
+              <strong>{clp(resumen.oportunidadEnPesos)}</strong>. Es un techo teórico y hay que
+              decirlo así: nadie va a comprar todo, y lo que se compre se va a negociar.
+            </p>
+          </Figura>
+        </Card>
+      </div>
+    </>
+  );
+}
+
 // ─── Calidad del dato ────────────────────────────────────────────────────────
 
 async function VistaDatos() {
@@ -701,8 +962,8 @@ async function VistaDatos() {
         <Card>
           <Figura
             titulo="Evolución de la identificación"
-            subtitulo="Porcentaje de ventas con cliente asociado, por mes"
-            pie="Este es el indicador a seguir semana a semana una vez implementada la captura."
+            subtitulo="Porcentaje de ventas con cliente asociado, por trimestre"
+            pie="Por trimestre: sobre tres o cuatro ventas al mes, este porcentaje salta entre 33% y 100% según si el vendedor alcanzó a pedir el RUT una vez más. El trimestre junta una docena de ventas y ahí el número ya significa algo."
           >
             <Lineas
               series={[

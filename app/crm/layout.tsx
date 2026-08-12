@@ -6,8 +6,8 @@ import "./crm.css";
 // redirección consigo mismo.
 
 export const metadata: Metadata = {
-  title: "CRM · adoOps",
-  description: "CRM comercial de adoOps",
+  title: "CRM · Highend Chile",
+  description: "CRM comercial de Highend Chile",
   robots: { index: false, follow: false },
 };
 
