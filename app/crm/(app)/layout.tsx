@@ -49,6 +49,7 @@ export default async function CrmAppLayout({
       titulo: "Día a día",
       items: [
         { href: "/crm", etiqueta: "Visión general", icono: "◉" },
+        { href: "/crm/clientes", etiqueta: "Clientes", icono: "◍" },
         { href: "/crm/contactos", etiqueta: "Contactos", icono: "▣" },
         { href: "/crm/conversaciones", etiqueta: "Conversaciones", icono: "✆", badge: whatsapp },
         { href: "/crm/cotizaciones", etiqueta: "Cotizaciones", icono: "▤" },

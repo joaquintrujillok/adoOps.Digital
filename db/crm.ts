@@ -116,6 +116,17 @@ export const crmContacts = pgTable(
     notas: text("notas"),
     /** Preferencias declaradas: marcas, estilo, tallas. Alimenta el cross-sell. */
     preferencias: text("preferencias"),
+
+    // ── Identidad e historia ──
+    /** RUT: la llave con la que el POS identifica a una persona en Chile. */
+    rut: varchar("rut", { length: 20 }),
+    /** Cuándo compró por primera vez. Define su cohorte y no cambia nunca más. */
+    primeraCompraEn: timestamp("primera_compra_en"),
+    /** Consentimiento para recibir comunicaciones, con su fecha. */
+    consentimiento: boolean("consentimiento").notNull().default(false),
+    consentimientoEn: timestamp("consentimiento_en"),
+    /** Cumpleaños: solo día y mes importan, pero se guarda la fecha completa. */
+    cumpleanos: timestamp("cumpleanos"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
@@ -345,11 +356,42 @@ export const crmOrders = pgTable(
     /** CLP. Suma de los items. */
     total: integer("total").notNull().default(0),
     canal: varchar("canal", { length: 40 }),
+
+    // ── Origen omnicanal ──
+    //
+    // El CRM no vende: recibe ventas de dos sistemas que no se conocen entre sí
+    // —el POS de la tienda y el e-commerce— y su trabajo es reconocer que el
+    // señor que compró en Alonso de Córdova es el mismo que pidió una correa
+    // por la web. Sin `origen` esa pregunta no se puede hacer.
+    /** 'pos' | 'ecommerce' | 'manual' */
+    origen: varchar("origen", { length: 20 }).notNull().default("pos"),
+    /** Id en el sistema de origen. Es lo que hace la sincronización idempotente. */
+    externalId: varchar("external_id", { length: 80 }),
+    /** Tipo de documento del POS: boleta, factura, nota de venta. */
+    documento: varchar("documento", { length: 30 }),
+    numeroDocumento: varchar("numero_documento", { length: 40 }),
+    sucursal: varchar("sucursal", { length: 80 }),
+    /**
+     * Si la venta quedó asociada a una persona.
+     *
+     * **Es el indicador que ordena todo el proyecto.** Una boleta sin RUT ni
+     * correo ni teléfono es una venta que existe en la contabilidad y no existe
+     * en el CRM: no tiene RFM, no tiene LTV, no se le puede escribir. Guardarlo
+     * como columna —y no deducirlo de `contact_id is null`— permite distinguir
+     * "no se pidió el dato" de "se pidió y no se pudo cruzar".
+     */
+    identificado: boolean("identificado").notNull().default(true),
+    /** Cómo se identificó: rut, email, telefono, cuenta_web, manual. */
+    metodoIdentificacion: varchar("metodo_identificacion", { length: 20 }),
+    vendedor: varchar("vendedor", { length: 120 }),
+    medioPago: varchar("medio_pago", { length: 40 }),
   },
   (t) => [
     index("crm_orders_contact_idx").on(t.contactId),
     index("crm_orders_account_idx").on(t.accountId),
     index("crm_orders_fecha_idx").on(t.fecha),
+    index("crm_orders_origen_idx").on(t.origen),
+    uniqueIndex("crm_orders_external_idx").on(t.origen, t.externalId),
   ],
 );
 
@@ -365,6 +407,103 @@ export const crmOrderItems = pgTable(
   (t) => [
     index("crm_order_items_order_idx").on(t.orderId),
     index("crm_order_items_product_idx").on(t.productId),
+  ],
+);
+
+// ─── Captura en showroom ─────────────────────────────────────────────────────
+
+/**
+ * El visitante que entró a la tienda y dejó sus datos.
+ *
+ * Existe como tabla propia y no como un contacto más porque son dos cosas
+ * distintas: acá entra gente que todavía no compró y que puede no volver nunca.
+ * Mezclarlos desde el minuto cero ensucia la cartera y hace que el puntaje de
+ * potencial promedie sobre personas de las que no se sabe nada.
+ *
+ * Cuando la visita se convierte —compra, cotiza o responde— se crea el contacto
+ * y `contact_id` los une. Hasta entonces vive acá.
+ */
+export const crmShowroomVisitas = pgTable(
+  "crm_showroom_visitas",
+  {
+    id: serial("id").primaryKey(),
+    nombre: varchar("nombre", { length: 120 }).notNull(),
+    telefono: varchar("telefono", { length: 20 }),
+    email: varchar("email", { length: 254 }),
+    /** Qué vino a ver. Es lo que hace accionable el seguimiento. */
+    interes: varchar("interes", { length: 120 }),
+    detalle: text("detalle"),
+    boutique: varchar("boutique", { length: 80 }),
+    /** Cómo llegó el dato: formulario con QR, tablet del vendedor, evento. */
+    medio: varchar("medio", { length: 30 }).notNull().default("qr"),
+    /** Nombre del evento o activación, cuando corresponde. */
+    evento: varchar("evento", { length: 120 }),
+    /**
+     * Consentimiento explícito para recibir comunicaciones.
+     *
+     * Sin esto marcado el dato sirve para el registro de visitas y para nada
+     * más: no se le escribe. La ley 19.628 y el sentido común coinciden acá.
+     */
+    consentimiento: boolean("consentimiento").notNull().default(false),
+    /** Momento exacto del consentimiento: es lo que se muestra si alguien reclama. */
+    consentimientoEn: timestamp("consentimiento_en"),
+    atendidoPor: integer("atendido_por"),
+    contactId: integer("contact_id"),
+    /** pendiente | contactado | convertido | descartado */
+    estado: varchar("estado", { length: 20 }).notNull().default("pendiente"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("crm_showroom_estado_idx").on(t.estado),
+    index("crm_showroom_fecha_idx").on(t.createdAt),
+    index("crm_showroom_telefono_idx").on(t.telefono),
+  ],
+);
+
+// ─── Señales de conversación ─────────────────────────────────────────────────
+
+/**
+ * Un hecho concreto que justifica que alguien llame o escriba hoy.
+ *
+ * El problema del ejecutivo no es a quién contactar: es **qué decirle** que no
+ * suene a "hola, ¿cómo estás?". Una señal trae tres cosas —motivo, evidencia y
+ * un borrador— para que el contacto tenga contenido desde el primer segundo.
+ *
+ * `clave` es la huella del hallazgo: permite recalcular todos los días sin
+ * duplicar la misma señal. Y una señal se acciona o se descarta, nunca se
+ * acumula: un panel que solo crece se convierte en otra bandeja que nadie mira.
+ */
+export const crmSenales = pgTable(
+  "crm_senales",
+  {
+    id: serial("id").primaryKey(),
+    clave: varchar("clave", { length: 200 }).notNull(),
+    contactId: integer("contact_id").notNull(),
+    /** recompra | aniversario | complemento | mantencion | novedad_marca | reactivacion | cumpleanos */
+    tipo: varchar("tipo", { length: 40 }).notNull(),
+    /** Qué tan urgente es hablarle: alta, media, baja. */
+    prioridad: varchar("prioridad", { length: 10 }).notNull().default("media"),
+    /** El motivo, en una línea. */
+    titulo: varchar("titulo", { length: 250 }).notNull(),
+    /** El dato que sostiene el motivo. Sin evidencia es una corazonada. */
+    evidencia: text("evidencia"),
+    /** El mensaje listo para editar y mandar. */
+    borrador: text("borrador"),
+    /** Producto o categoría a la que apunta, si aplica. */
+    productId: integer("product_id"),
+    ownerId: integer("owner_id"),
+    /** pendiente | accionada | descartada */
+    estado: varchar("estado", { length: 20 }).notNull().default("pendiente"),
+    /** Vale hasta esta fecha: una señal de cumpleaños en marzo no sirve en junio. */
+    venceEn: timestamp("vence_en"),
+    generadaEn: timestamp("generada_en").defaultNow().notNull(),
+    resueltaEn: timestamp("resuelta_en"),
+  },
+  (t) => [
+    uniqueIndex("crm_senales_clave_idx").on(t.clave),
+    index("crm_senales_estado_idx").on(t.estado),
+    index("crm_senales_contact_idx").on(t.contactId),
+    index("crm_senales_owner_idx").on(t.ownerId),
   ],
 );
 
@@ -636,3 +775,5 @@ export type CrmAlert = typeof crmAlerts.$inferSelect;
 export type CrmNarracion = typeof crmNarraciones.$inferSelect;
 export type CrmQuote = typeof crmQuotes.$inferSelect;
 export type CrmQuoteItem = typeof crmQuoteItems.$inferSelect;
+export type CrmShowroomVisita = typeof crmShowroomVisitas.$inferSelect;
+export type CrmSenal = typeof crmSenales.$inferSelect;

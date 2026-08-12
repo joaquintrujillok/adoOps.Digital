@@ -14,7 +14,7 @@
 // El tooltip nativo es una decisión consciente: da la capa de detalle al pasar
 // el mouse sin convertir cada gráfico en un componente de cliente.
 
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 
 const SERIES = [
   "var(--series-1)",
@@ -461,5 +461,220 @@ export function Figura({
       {children}
       {pie && <div className="mt-3 text-[12px] text-[var(--crm-muted)]">{pie}</div>}
     </figure>
+  );
+}
+
+// ─── Matriz RFM ──────────────────────────────────────────────────────────────
+
+export type CeldaRfm = { r: number; f: number; clientes: number; monto: number };
+
+/**
+ * La matriz 5×5 de recencia por frecuencia.
+ *
+ * El color codifica **cantidad de clientes** y no monto: la pregunta que se le
+ * hace a esta matriz es "¿dónde está mi gente?", y usar el monto haría que dos
+ * celdas con un solo cliente millonario se vean como el centro del negocio.
+ * El monto va en el tooltip y en la tabla de segmentos, que es donde se compara.
+ *
+ * Rampa secuencial de un solo tono, clara a oscura: es lo que corresponde a una
+ * magnitud. Un arcoíris acá inventaría categorías donde solo hay más y menos.
+ */
+export function MatrizRfm({
+  celdas,
+  formatoMonto,
+}: {
+  celdas: CeldaRfm[];
+  formatoMonto: (n: number) => string;
+}) {
+  const maximo = Math.max(...celdas.map((c) => c.clientes), 1);
+
+  const tono = (n: number) => {
+    if (n === 0) return "var(--crm-surface)";
+    const nivel = Math.ceil((n / maximo) * 6);
+    return `var(--ramp-${Math.min(6, Math.max(1, nivel))})`;
+  };
+
+  return (
+    <div className="flex gap-2">
+      <div className="flex flex-col justify-center">
+        <span className="whitespace-nowrap text-[11px] uppercase tracking-wide text-[var(--crm-muted)] [writing-mode:vertical-rl] [transform:rotate(180deg)]">
+          Recencia →
+        </span>
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className="grid grid-cols-[auto_repeat(5,minmax(0,1fr))] gap-1">
+          {[5, 4, 3, 2, 1].map((r) => (
+            <Fragment key={r}>
+              <div className="crm-num flex w-6 items-center justify-end pr-1 text-[11px] text-[var(--crm-muted)]">
+                {r}
+              </div>
+              {[1, 2, 3, 4, 5].map((f) => {
+                const celda = celdas.find((c) => c.r === r && c.f === f);
+                const n = celda?.clientes ?? 0;
+                // El texto se invierte en las celdas oscuras: mantenerlo negro
+                // sobre el paso 5 o 6 de la rampa lo vuelve ilegible.
+                const oscura = n > maximo * 0.5;
+                return (
+                  <div
+                    key={f}
+                    className="flex aspect-square items-center justify-center rounded-md border border-[var(--crm-grid)] text-[13px] font-medium"
+                    style={{
+                      background: tono(n),
+                      color: n === 0 ? "var(--crm-muted)" : oscura ? "#fff" : "var(--crm-ink)",
+                    }}
+                    title={`Recencia ${r} · Frecuencia ${f}: ${n} clientes · ${formatoMonto(celda?.monto ?? 0)}`}
+                  >
+                    {n > 0 ? n : "·"}
+                  </div>
+                );
+              })}
+            </Fragment>
+          ))}
+        </div>
+        <div className="mt-1 grid grid-cols-[auto_repeat(5,minmax(0,1fr))] gap-1">
+          <div className="w-6" />
+          {[1, 2, 3, 4, 5].map((f) => (
+            <div key={f} className="crm-num text-center text-[11px] text-[var(--crm-muted)]">
+              {f}
+            </div>
+          ))}
+        </div>
+        <div className="mt-1 text-center text-[11px] uppercase tracking-wide text-[var(--crm-muted)]">
+          Frecuencia →
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Cohortes ────────────────────────────────────────────────────────────────
+
+/**
+ * Heatmap de cohortes: cada fila es un mes de entrada, cada columna los meses
+ * transcurridos desde esa entrada.
+ *
+ * La diagonal vacía de abajo a la derecha no es un error: las cohortes recientes
+ * todavía no vivieron esos meses. Mostrarlas en blanco —y no en cero— es lo que
+ * evita que alguien lea una caída donde solo falta tiempo.
+ */
+export function Cohortes({
+  filas,
+  columnas = 12,
+  formato,
+}: {
+  filas: { etiqueta: string; clientes: number; valores: number[] }[];
+  columnas?: number;
+  formato: (n: number) => string;
+}) {
+  const todos = filas.flatMap((f) => f.valores.slice(0, columnas)).filter((v) => v > 0);
+  const maximo = Math.max(...todos, 1);
+
+  const tono = (v: number) => {
+    if (v <= 0) return "var(--crm-surface)";
+    const nivel = Math.ceil((v / maximo) * 6);
+    return `var(--ramp-${Math.min(6, Math.max(1, nivel))})`;
+  };
+
+  return (
+    <div className="crm-scroll overflow-x-auto">
+      <table className="w-full border-separate border-spacing-[2px] text-[12px]">
+        <thead>
+          <tr>
+            <th className="sticky left-0 bg-[var(--crm-surface)] px-2 text-left font-medium text-[var(--crm-muted)]">
+              Entraron en
+            </th>
+            <th className="px-2 text-right font-medium text-[var(--crm-muted)]">Clientes</th>
+            {Array.from({ length: columnas }, (_, i) => (
+              <th key={i} className="crm-num px-1 text-center font-medium text-[var(--crm-muted)]">
+                {i}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {filas.map((f) => {
+            // Cuántos meses vivió realmente esta cohorte: más allá de eso no hay
+            // dato, y pintar cero sería inventar una caída.
+            const vividos = f.valores.length;
+            return (
+              <tr key={f.etiqueta}>
+                <td className="sticky left-0 whitespace-nowrap bg-[var(--crm-surface)] px-2 font-medium">
+                  {f.etiqueta}
+                </td>
+                <td className="crm-num px-2 text-right text-[var(--crm-ink-2)]">{f.clientes}</td>
+                {Array.from({ length: columnas }, (_, i) => {
+                  const v = f.valores[i];
+                  if (i >= vividos || v === undefined) {
+                    return <td key={i} className="rounded bg-transparent" />;
+                  }
+                  const oscura = v > maximo * 0.5;
+                  return (
+                    <td
+                      key={i}
+                      className="crm-num rounded px-1 py-1.5 text-center"
+                      style={{
+                        background: tono(v),
+                        color: v === 0 ? "var(--crm-muted)" : oscura ? "#fff" : "var(--crm-ink)",
+                      }}
+                      title={`${f.etiqueta} · mes ${i}: ${formato(v)}`}
+                    >
+                      {v > 0 ? formato(v) : "·"}
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── Barra apilada ───────────────────────────────────────────────────────────
+
+/**
+ * Una sola barra con la composición del total.
+ *
+ * Lleva 2px de separación entre tramos y etiqueta directa en los que superan el
+ * 8%: por debajo de eso el texto no cabe y se sale de su tramo.
+ */
+export function BarraApilada({
+  partes,
+  alto = 40,
+  formato,
+}: {
+  partes: { etiqueta: string; valor: number; color?: string }[];
+  alto?: number;
+  formato: (n: number) => string;
+}) {
+  const total = partes.reduce((s, p) => s + p.valor, 0) || 1;
+
+  return (
+    <div>
+      <div className="flex gap-[2px] overflow-hidden rounded-lg" style={{ height: alto }}>
+        {partes.map((p, i) => {
+          const pct = (p.valor / total) * 100;
+          if (pct <= 0) return null;
+          return (
+            <div
+              key={p.etiqueta}
+              className="flex items-center justify-center text-[12px] font-medium text-white"
+              style={{ width: `${pct}%`, background: p.color ?? colorSerie(i) }}
+              title={`${p.etiqueta}: ${formato(p.valor)} (${pct.toFixed(1)}%)`}
+            >
+              {pct >= 8 && `${pct.toFixed(0)}%`}
+            </div>
+          );
+        })}
+      </div>
+      <Leyenda
+        items={partes.map((p, i) => ({
+          etiqueta: `${p.etiqueta} · ${formato(p.valor)}`,
+          color: p.color ?? colorSerie(i),
+        }))}
+      />
+    </div>
   );
 }
