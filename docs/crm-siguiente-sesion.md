@@ -4,31 +4,39 @@ Documento de traspaso. Con esto se retoma el trabajo sin la conversación previa
 La referencia técnica del módulo está en [`docs/crm.md`](./crm.md); esto es solo
 qué está hecho, qué falta y qué no hay que romper.
 
-**Última actualización:** 11 de agosto de 2026 · los tres pendientes del traspaso
-anterior cerrados (conversaciones en tres columnas, embudo con el formato de la
-referencia, pipeline y KPIs) más la primera pasada de minimalismo. Verificado en
-local contra la base real; **sin commitear ni desplegar todavía**.
+**Última actualización:** 12 de agosto de 2026 · **el CRM pasó a ser dedicado a
+Highend Chile**. Catálogo real, identidad de marca y toda la analítica
+recalibrada al volumen de nicho. Verificado en local y commiteado.
 
 ---
 
 ## Qué es
 
 CRM comercial en `/crm`, dentro de la web corporativa (mismo repo, mismo deploy,
-misma base de Neon). Se construyó para **salir a vender el producto**: el
-prospecto concreto es una boutique de audio de alta fidelidad, y el mock imita su
-mecánica comercial sin usar su producto.
+misma base de Neon). Se construyó para **salir a vender el producto** a un
+prospecto concreto: **Highend Chile** (<https://highend.cl>), distribuidor de
+audio de alta fidelidad.
 
-**El mock es Belmont Alta Relojería** — relojería fina y alta joyería, showroom en
-Alonso de Córdova. Marcas y clientes inventados. Se eligió el rubro porque
-reproduce lo que importa mostrar: ticket alto, venta consultiva por WhatsApp,
-cita en showroom, catálogo por marca, coleccionista que vuelve, accesorios y
-servicio para cross-sell.
+**Ya no hay mock de otro rubro.** Hasta el 11 de agosto la demo corría con una
+boutique de relojería ficticia ("Belmont"), elegida para no ser evidente con el
+producto del cliente. Eso se reemplazó: ahora el catálogo es **el real de
+Highend** —70 productos, 26 marcas, 11 categorías, de $49.900 a $39.900.000— y
+solo los clientes y las ventas son simulados.
+
+### El dato que gobierna todo el diseño
+
+**Tres o cuatro ventas al mes.** Lo dio el cliente y obligó a rehacer el modelo
+analítico, no a ajustarlo. Antes de tocar cualquier cosa de analítica, leer la
+sección «La escala cambia qué es verdad» más abajo.
 
 - Producción: <https://www.adoops.digital/crm>
-- Usuarios: `joaquin` / `adoops2026` (admin), `carla` / `demo1234` (gerente),
-  `matias` / `demo1234` (vendedor), `nelson` / `demo1234` (gerente, para probar).
+- Usuarios: `joaquin` / `adoops2026` (admin), `demo` / `Highend2026` (admin),
+  `carla` / `demo1234` (gerente), `matias` / `demo1234` (vendedor),
+  `nelson` / `demo1234` (gerente, para probar).
   `gerente` y `admin` pasan los mismos candados (`requireGerencia`), así que
   Nelson puede tocar todo, Configuración incluida.
+- `general.empresa` en `crm_settings` quedó en **"Highend Chile"**: es lo que se
+  muestra bajo el nombre del usuario en la barra lateral.
 - Local: `npm run dev -- --port 3100` en `/Users/joaquintrujillo/Proyectos/AdoOps/adoOps.Digital`
 
 ---
@@ -137,9 +145,10 @@ deshace el último filtro en vez de salir de la pantalla.
 (idempotente, aditivo, ya corrido). NULL significa "usa la de las piezas" —la de
 mayor subtotal, no la más repetida—; solo cuando alguien la corrige queda
 escrita, y desde ahí manda. Existe porque la derivación falla justo donde
-importa: un cronómetro cotizado como regalo corporativo pesa en "Alta relojería"
-cuando el negocio es de empresa, y eso lo sabe quien vende, no el catálogo. Una
-columna llena de NULL dice que nadie tuvo que intervenir.
+importa: un amplificador cotizado dentro de una instalación de cine pesa en
+"Amplificadores" cuando el negocio era de "Audio Video", y eso lo sabe quien
+vende, no el catálogo. Una columna llena de NULL dice que nadie tuvo que
+intervenir.
 
 **El periodo abre en 3 meses.** Un pipeline de alta gama se mueve en semanas: con
 la ventana de una semana la pantalla arranca casi vacía y parece que no hay
@@ -211,22 +220,70 @@ hacer en los próximos treinta segundos, no va en la vista de primer nivel.**
 
 ---
 
+## La escala cambia qué es verdad
+
+Con 3-4 ventas al mes hay técnicas de analítica estándar que **dejan de medir y
+empiezan a inventar**. Esto es lo que se cambió y por qué; si alguien revierte
+algo de acá, el dashboard vuelve a mentir en silencio.
+
+| Antes | Ahora | Por qué |
+|---|---|---|
+| RFM por quintiles | **Cortes absolutos** (`CORTES_RECENCIA`, `CORTES_MONTO` en `lib/crm/analitica.ts`) | Con 76 clientes el quintil superior son 15 personas *por definición*, hayan gastado $40M o $600K. Y bastaba que entrara un cliente de $39,9M para que todos bajaran un escalón sin cambiar su conducta |
+| Cohortes mensuales | **Anuales, medidas en trimestres** | Entran ~20 clientes nuevos al año: una cohorte mensual son 2 personas, y ahí el promedio no muestra una tendencia sino a uno de los dos |
+| Series mensuales | **Trimestrales** | Que febrero tenga 2 ventas y marzo 5 no significa nada |
+| Solo ticket promedio | **Mediana junto al promedio** | El catálogo va de $49.900 a $39.900.000: una venta de parlantes arrastra el promedio de todo un año |
+| Sin ventas nominales | **Últimas ventas con nombre**, arriba en el panorama | A este volumen es la vista más útil del panel |
+
+**El corte de recencia R1 es "más de 3 años".** Por eso el seed genera **cuatro**
+años de historia (`DIAS_HISTORIA = 1460`): con tres, esa fila del RFM quedaba
+vacía por construcción y se leía como un error. La tentación de mover el corte a
+2,5 años para que se llenara está explícitamente descartada en el comentario del
+script — sería deformar el modelo para que el mock se vea bien.
+
+---
+
+## Módulo de sistemas — lo único que no serviría en otro rubro
+
+`lib/crm/sistemas.ts` + vista `?vista=sistemas`.
+
+Un equipo de audio es una cadena: **fuente → previo → etapa → parlantes**, más
+soporte (cables, acondicionador, racks, tubos). Suena tan bien como su eslabón
+más flojo. El módulo reconstruye qué tiene armado cada cliente desde sus compras
+y produce dos tipos de conversación:
+
+- **Completar** — le falta un eslabón para cerrar el equipo.
+- **Equilibrar** — tiene una pieza bajo el 25% de su pieza más cara.
+
+Dos decisiones que costó afinar y conviene no deshacer:
+
+1. **`nivelTipico` (mediana) para recomendar, no `nivel` (máximo).** Apuntando al
+   pico, todas las recomendaciones terminaban sugiriendo el mismo producto del
+   tope del catálogo — la señal más clara de que no estaba mirando al cliente.
+2. **Solo cuenta como "sistema incompleto" quien tiene 2+ piezas.** Contando a
+   los de una sola compra salían 44 clientes sin previo sobre 54, y el panel
+   decía "casi todos", que es lo mismo que no decir nada.
+
+---
+
 ## Pendientes
 
-Ninguno de los tres del traspaso anterior. Lo que queda anotado como siguiente
-paso, en orden de valor:
-
-1. **Segunda pasada de minimalismo.** Quedaron sin tocar las pantallas que
-   acumulan tarjetas de cifras: `/crm` y `/crm/reportes` muestran cuatro
-   `StatTile` y dos gráficos antes de cualquier acción. El criterio de los
-   treinta segundos todavía no se les aplicó.
-2. **El modal de contacto abre desde el kanban y la cartera, pero no desde
-   `/crm/pipeline`.** La tabla de oportunidades linkea al contacto y a la
-   oportunidad, y ambos interceptan bien; falta revisar que la trazabilidad del
-   modal se lea igual de bien entrando desde ahí.
-3. **`docs/crm.md` está desactualizado** en su tabla de módulos y en la
-   descripción de la base de demostración (habla de Andes Supply, que era el
-   mock anterior). Vale una pasada de sincronización.
+1. **Forms anidados en `/crm/senales`.** Hay un `<form action={accionResolverSenal}>`
+   dentro de un `<form action={accionEnviarSenal}>` (~líneas 139-210 de
+   `app/crm/(app)/senales/page.tsx`). Es HTML inválido y dispara error de
+   hidratación de React en cada carga. Se arregla con `formAction` en los botones.
+2. **`vidaPromedioDias` da 8 meses**, que no refleja el ciclo largo de este rubro
+   (uno a dos años entre compras). Es un problema del cálculo o del seed; está
+   marcado en `docs/brief-presentacion-crm.md` como cifra que **no** hay que
+   mostrar hasta corregirla.
+3. **La variación de facturación da −38,8%.** Es ruido del mock: con 47 ventas al
+   año, dos operaciones grandes mueven la cifra decenas de puntos. No es un bug,
+   pero conviene decidir si se suaviza el seed antes de la reunión.
+4. **Segunda pasada de minimalismo** en `/crm` y `/crm/reportes`, que siguen
+   mostrando cuatro `StatTile` y dos gráficos antes de cualquier acción.
+5. **El modal de contacto no abre desde `/crm/pipeline`** (sí desde el kanban y
+   la cartera).
+6. **`docs/crm.md` está desactualizado** en su tabla de módulos y en la
+   descripción de la base de demostración.
 
 ---
 
@@ -333,10 +390,28 @@ node scripts/crm-create-tables.mjs      # crea las tablas (idempotente)
 node scripts/crm-migrar-v2.mjs          # migración al eje contacto (idempotente)
 node scripts/crm-migrar-bandeja.mjs     # leido_en + destacada (idempotente, ya corrido)
 node scripts/crm-migrar-pipeline.mjs    # crm_deals.categoria (idempotente, ya corrido)
+node scripts/crm-migrar-analitica.mjs    # origen, identidad, showroom, señales (idempotente)
 node scripts/crm-usuario.mjs <u> <c> <rol> "Nombre"
-node scripts/crm-seed.mjs               # base de demostración
-node scripts/crm-seed.mjs --limpiar     # borra los datos, no los usuarios
+
+# Base de demostración de Highend — EN ESTE ORDEN
+node scripts/crm-catalogo-highend.mjs   # catálogo real (70 productos)
+node scripts/crm-catalogo-highend.mjs --listar   # solo muestra qué haría
+node scripts/crm-seed-highend.mjs       # 76 clientes, 156 ventas, 78 visitas
+node scripts/crm-seed-highend.mjs --limpiar      # borra los datos, no los usuarios
 ```
+
+**El catálogo va primero.** `crm-catalogo-highend.mjs` trunca `crm_products`
+junto con `crm_order_items` y `crm_quote_items`: borrar productos sin borrar las
+ventas dejaría líneas apuntando a ids que ya no existen. El seed reconstruye
+todo sobre los ids nuevos.
+
+Ambos son **determinísticos** (semilla fija): dos corridas dan exactamente lo
+mismo. Si se regeneran, **todas las cifras de `docs/brief-presentacion-crm.md`
+cambian** y hay que volver a medirlas antes de cualquier reunión.
+
+`scripts/crm-seed.mjs` y `crm-seed-analitica.mjs` son los del mock de relojería.
+Quedaron en el repo por si hace falta volver atrás, pero **no correrlos**: dejan
+la base con un catálogo que no es el del cliente.
 
 Tras sembrar hay que apretar **«Volver a analizar»** en Alertas y acciones, o
 llamar a `/api/crm/cron/alertas` con `Authorization: Bearer $CRON_SECRET`.

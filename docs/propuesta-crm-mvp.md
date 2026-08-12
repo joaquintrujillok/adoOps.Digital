@@ -14,7 +14,8 @@ responder preguntas que deberían ser simples:
 - ¿Cuántos clientes tenemos, y cuántos siguen activos?
 - ¿Cuánto vale un cliente a lo largo del tiempo?
 - ¿Quiénes están a punto de dejar de comprar?
-- ¿El que compra en la tienda es el mismo que compra en la web?
+- ¿Qué tiene armado cada cliente y qué le falta?
+- ¿Cuánta gente entró al showroom este mes y qué pasó con ellos?
 - ¿Qué producto trae los clientes que después vuelven?
 
 Este MVP existe para responderlas. **El entregable principal es un dashboard**,
@@ -25,23 +26,35 @@ confiables de los cuales alimentarse.
 
 ## El problema que hay que nombrar antes de empezar
 
-Un punto de venta registra al cliente **solo cuando el cliente pide su boleta con
-datos**. En retail presencial, una parte importante de las ventas sale sin RUT,
-sin correo y sin teléfono: existen en la contabilidad y no existen como cliente.
+Conviene empezar por lo que **no** es el problema, porque es lo que un
+diagnóstico apurado diría.
 
-Esto no es un problema de software y no se resuelve integrando mejor. Se resuelve
-con un hábito en el mostrador, y por eso la propuesta tiene dos piezas que van
-juntas:
+En muchos comercios el punto de venta registra al cliente solo cuando el cliente
+pide su boleta con datos, y una parte grande de las ventas termina sin RUT, sin
+correo y sin teléfono. **Acá no pasa eso.** Con ticket alto hay factura, hay
+despacho y muchas veces hay instalación: la venta queda con nombre. En la demo,
+el 92% de las ventas tiene cliente identificado.
 
-1. **El dashboard**, que muestra qué se puede saber hoy — incluida la cifra
-   incómoda de cuánta venta no tiene dueño.
-2. **La captura en el showroom**, que es la palanca para que esa cifra suba.
+**El hueco está antes de la venta.** A este showroom entra gente a escuchar un
+sistema durante una o dos horas, agradece y se va a pensarlo. Vuelve en seis
+meses, o no vuelve. En el intertanto no existe para nadie: no hay boleta, no hay
+ficha, y no hay forma de avisarle cuando llega el equipo que estaba esperando.
 
-Vender solo la primera produce un tablero honesto sobre una base incompleta.
+Por cada persona que compra, entran alrededor de cuatro. En un retail masivo esa
+fuga sería tolerable. Con tres o cuatro ventas al mes, **cada visita perdida
+pesa**, y el cálculo es directo: con una venta típica de cinco millones,
+recuperar una sola visita al año paga el sistema completo.
+
+Esto no se resuelve integrando mejor. Se resuelve con un hábito en la sala, y
+por eso la propuesta tiene dos piezas que van juntas:
+
+1. **El dashboard**, que muestra todo lo que se puede saber de quienes ya
+   compraron —incluido qué tiene armado cada uno y qué le falta.
+2. **La captura en el showroom**, que incorpora a quienes todavía no compraron y
+   hoy no están en ninguna parte.
+
+Vender solo la primera produce un tablero honesto sobre la mitad del negocio.
 Vender solo la segunda produce datos que nadie mira. Van juntas.
-
-> En la demo, la primera cifra del dashboard es el porcentaje de ventas
-> identificadas. Es deliberado: es el termómetro del proyecto entero.
 
 ---
 
@@ -49,23 +62,38 @@ Vender solo la segunda produce datos que nadie mira. Van juntas.
 
 ### 1. Dashboard de clientes
 
-Cinco vistas sobre la base unificada de POS + e-commerce:
+Seis vistas sobre la base unificada de POS + e-commerce:
 
 | Vista | Qué responde |
 |---|---|
-| **Panorama** | Cuántos clientes hay, cuántos están activos, cuánto vale la base, de dónde viene la venta |
+| **Panorama** | Cuántos clientes hay, cuántos están activos, cuánto vale la base, y cuáles fueron las últimas ventas —con nombre— |
 | **Segmentos RFM** | En qué estado está cada cliente y qué corresponde hacer con cada grupo, incluida la migración entre segmentos |
 | **Valor de vida** | Cuánto vale un cliente, cómo se comporta cada cohorte de entrada y cuánto más valen los que compran en ambos canales |
 | **Producto** | Por qué categoría entra cada cliente, qué compra después y qué producto trae los clientes que vuelven |
+| **Sistemas y upgrade** | Qué tiene armado cada cliente, qué eslabón le falta y cuál desentona con el resto de su equipo |
 | **Calidad del dato** | Qué porcentaje de la venta tiene cliente asociado y con qué se puede contactar a la base |
 
 **Segmentación RFM** con once segmentos nombrados (campeones, leales, en riesgo,
 no los puedo perder, hibernando…), cada uno con la acción que le corresponde.
-Los cortes se calculan sobre la base real, no con umbrales fijos que envejecen.
 
-**Valor de vida** histórico y proyectado, con cohortes por mes de adquisición
-para responder si los clientes nuevos valen más o menos que los de antes a la
-misma edad.
+**Los cortes son absolutos, no percentiles**, y esa decisión merece una línea
+porque va contra el manual. El RFM de libro reparte la cartera en quintiles, lo
+que está bien con cien mil clientes. Con setenta y seis, el quintil superior son
+quince personas *por definición* —hayan gastado cuarenta millones o seiscientas
+lucas— y el modelo deja de medir para empezar a inventar una jerarquía. Peor:
+bastaría que entrara un cliente de treinta y nueve millones para que todos los
+demás bajaran un escalón sin haber cambiado su conducta.
+
+Con cortes fijos, "M5 es sobre treinta millones" es una frase que se repite en
+una reunión y significa siempre lo mismo. El costo es que hay que revisarlos si
+cambia el mix o si el peso se mueve fuerte, y está anotado en el código.
+
+**Valor de vida** histórico y proyectado, con cohortes **por año de adquisición
+medidas en trimestres**, para responder si los clientes nuevos valen más o menos
+que los de antes a la misma edad. Anuales por la misma razón que los cortes son
+absolutos: entran unos veinte clientes nuevos al año, así que una cohorte
+mensual serían dos personas, y con dos personas un promedio no muestra una
+tendencia — muestra a uno de los dos.
 
 ### 2. Captura en el showroom
 
@@ -187,7 +215,7 @@ sincronización nunca duplica ventas.
 | Fase | Qué entrega | Duración estimada |
 |---|---|---|
 | **1 · Fundación de datos** | Integración con RelBase y WooCommerce, resolución de identidad, base unificada, dashboard completo | 4 a 6 semanas |
-| **2 · Captura** | Formulario con QR por tienda, bandeja de seguimiento, indicador de identificación en el dashboard | 2 semanas |
+| **2 · Captura** | Formulario con QR en la sala, bandeja de seguimiento, conteo de visitas y su conversión en el dashboard | 2 semanas |
 | **3 · Activación** | Motor de señales, alertas al ejecutivo, WhatsApp con controles de envío | 3 a 4 semanas |
 
 Las fases 2 y 3 pueden solaparse. La fase 1 no: sin datos confiables, todo lo
@@ -215,24 +243,34 @@ demás se construye sobre arena.
 | Supuesto | Riesgo si no se cumple | Cómo lo manejamos |
 |---|---|---|
 | Los DTE de RelBase traen los datos del cliente cuando existen | El cruce de identidad queda solo con el correo del e-commerce | Auditoría de datos en la primera semana, antes de comprometer alcance |
-| El histórico disponible cubre al menos 24 meses | Las cohortes y el valor de vida quedan sin base | Se muestra lo que haya y se marca explícitamente el período cubierto |
+| El histórico disponible cubre al menos 36 meses | Las cohortes y el valor de vida quedan sin base. Con el ciclo largo de este rubro, dos años no alcanzan para ver una recompra | Se muestra lo que haya y se marca explícitamente el período cubierto |
 | El e-commerce identifica a todos sus compradores | Cae el porcentaje de identificación global | Es lo esperable; el dashboard lo separa por canal |
-| El equipo de tienda adopta la captura | El dashboard queda estancado en la cifra de hoy | El indicador de identificación se sigue semanalmente desde el día uno |
+| El equipo de la sala adopta la captura | Se sigue sin saber nada de quien entra y no compra, que es el hueco central | El conteo de visitas y su conversión se sigue semanalmente desde el día uno |
+| La cantidad de clientes con dos o más compras es suficiente | El módulo de sistemas queda con poco que decir: hace falta más de una pieza para detectar qué falta | Se mide en la auditoría de la primera semana |
 
-**El riesgo principal no es técnico.** Es que la base identificada sea más chica
-de lo que se espera. Por eso la primera semana del proyecto es una auditoría de
-datos con acceso de lectura: antes de comprometer un alcance, medimos cuántas
-ventas tienen cliente y con qué se puede contactar a esa gente.
+**El riesgo principal no es técnico.** Es que la cantidad de clientes con
+historial de más de una compra sea menor de lo que se espera, porque de ahí sale
+casi todo el valor del sistema: la ruta de upgrade, las señales de recompra y
+las cohortes. Por eso la primera semana del proyecto es una auditoría de datos
+con acceso de lectura: antes de comprometer un alcance, medimos cuántos clientes
+volvieron y cuánta historia hay.
 
 ---
 
 ## Lo que se ve en la demo
 
-La demostración corre sobre una base simulada con la forma de los datos reales:
-1.200 clientes, 3.500 ventas de tres años llegando por los dos canales, con la
-distribución que tiene el retail de verdad —dos de cada tres clientes compran una
-sola vez— y con un porcentaje de ventas sin cliente identificado.
+La demostración corre con **el catálogo real de Highend Chile** —sus once
+categorías, sus veintiséis marcas y sus rangos de precio— y una base de clientes
+simulada calibrada al volumen que ellos mismos indicaron: **76 clientes y 156
+ventas en cuatro años, tres o tres y medio al mes**.
 
-Nada de eso es adorno: un dashboard de RFM con veinte clientes de prueba no
-muestra nada, y uno donde todos los clientes compran tres veces muestra una
-realidad que no existe.
+Ese tamaño es la decisión de fondo de toda la demo. La tentación era mostrar
+miles de transacciones para que los gráficos se vieran llenos, y habría sido un
+error: con este volumen dejan de funcionar los quintiles, las cohortes mensuales
+y los promedios como titular. El sistema está calibrado a la escala real del
+negocio, no a la que haría lucir mejor una lámina.
+
+La distribución también es la del rubro y no la del retail común: la mayoría
+compra una vez, y quien vuelve lo hace para **subir de nivel**, no para reponer.
+Un cliente que ya tiene los parlantes vuelve por la etapa de potencia. Sin eso,
+el módulo de sistemas no tendría nada que encontrar.
