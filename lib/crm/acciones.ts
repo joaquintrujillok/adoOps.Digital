@@ -589,3 +589,62 @@ export async function accionDescartarCotizacion(formData: FormData): Promise<voi
   revalidatePath("/crm/cotizaciones");
   revalidatePath(`/crm/cotizaciones/${quoteId}`);
 }
+
+// ─── Señales de conversación ─────────────────────────────────────────────────
+
+export async function accionRecalcularSenales(): Promise<void> {
+  await requireSession();
+  const { recalcularSenales } = await import("./senales");
+  await recalcularSenales();
+  revalidatePath("/crm/senales");
+}
+
+export async function accionResolverSenal(formData: FormData): Promise<void> {
+  await requireSession();
+  const { cambiarEstadoSenal } = await import("./senales");
+  await cambiarEstadoSenal(
+    Number(formData.get("senalId")),
+    String(formData.get("estado")) as "accionada" | "descartada",
+  );
+  revalidatePath("/crm/senales");
+}
+
+/**
+ * Manda el borrador de la señal por WhatsApp y la marca como accionada.
+ *
+ * El texto llega editado por quien vende: el sistema propone, la persona
+ * decide. Un mensaje automático a un cliente que gasta millones es la forma más
+ * rápida de que la relación se sienta industrial.
+ */
+export async function accionEnviarSenal(formData: FormData): Promise<void> {
+  const sesion = await requireSession();
+  const senalId = Number(formData.get("senalId"));
+  const contactId = Number(formData.get("contactId"));
+  const cuerpo = String(formData.get("cuerpo") || "").trim();
+  if (!cuerpo) return;
+
+  const [c] = await db
+    .select({ telefono: crmContacts.telefono, nombre: crmContacts.nombre })
+    .from(crmContacts)
+    .where(eq(crmContacts.id, contactId))
+    .limit(1);
+  if (!c?.telefono) return;
+
+  const conversationId = await conversacionDe(c.telefono, {
+    contactId,
+    nombre: c.nombre,
+  });
+  const messageId = await redactar({
+    conversationId,
+    cuerpo,
+    autorId: sesion.userId,
+    aprobado: true,
+  });
+  await despacharMensaje(messageId);
+
+  const { cambiarEstadoSenal } = await import("./senales");
+  await cambiarEstadoSenal(senalId, "accionada");
+
+  revalidatePath("/crm/senales");
+  revalidatePath("/crm/conversaciones");
+}

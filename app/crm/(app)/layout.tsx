@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { crmAlerts, crmWaMessages } from "@/db/crm";
+import { crmAlerts, crmSenales, crmWaMessages } from "@/db/crm";
 import Nav, { type GrupoNav } from "@/components/crm/Nav";
 import { logoutAction, requireSession } from "@/lib/crm/auth.actions";
 import { leer, CLAVES } from "@/lib/crm/settings";
@@ -11,7 +11,7 @@ import { leer, CLAVES } from "@/lib/crm/settings";
 export const dynamic = "force-dynamic";
 
 async function contadores() {
-  const [alertas, porRevisar] = await Promise.all([
+  const [alertas, porRevisar, senalesPendientes] = await Promise.all([
     db.select({ id: crmAlerts.id }).from(crmAlerts).where(eq(crmAlerts.estado, "abierta")),
     db
       .select({ id: crmWaMessages.id })
@@ -22,8 +22,16 @@ async function contadores() {
           inArray(crmWaMessages.estado, ["draft", "retenido", "failed"]),
         ),
       ),
+    db
+      .select({ id: crmSenales.id })
+      .from(crmSenales)
+      .where(eq(crmSenales.estado, "pendiente")),
   ]);
-  return { alertas: alertas.length, whatsapp: porRevisar.length };
+  return {
+    alertas: alertas.length,
+    whatsapp: porRevisar.length,
+    senales: senalesPendientes.length,
+  };
 }
 
 export default async function CrmAppLayout({
@@ -39,7 +47,7 @@ export default async function CrmAppLayout({
   modal: React.ReactNode;
 }) {
   const sesion = await requireSession();
-  const [{ alertas, whatsapp }, empresa] = await Promise.all([
+  const [{ alertas, whatsapp, senales }, empresa] = await Promise.all([
     contadores(),
     leer(CLAVES.empresa),
   ]);
@@ -51,9 +59,11 @@ export default async function CrmAppLayout({
         { href: "/crm", etiqueta: "Visión general", icono: "◉" },
         { href: "/crm/clientes", etiqueta: "Clientes", icono: "◍" },
         { href: "/crm/contactos", etiqueta: "Contactos", icono: "▣" },
+        { href: "/crm/senales", etiqueta: "Señales", icono: "◈", badge: senales },
         { href: "/crm/conversaciones", etiqueta: "Conversaciones", icono: "✆", badge: whatsapp },
         { href: "/crm/cotizaciones", etiqueta: "Cotizaciones", icono: "▤" },
         { href: "/crm/oportunidades", etiqueta: "Oportunidades", icono: "◆" },
+        { href: "/crm/showroom", etiqueta: "Showroom", icono: "▨" },
       ],
     },
     {
