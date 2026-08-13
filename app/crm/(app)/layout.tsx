@@ -62,21 +62,20 @@ export default async function CrmAppLayout({
         { href: "/crm/contactos", etiqueta: "Contactos", icono: "▣" },
         { href: "/crm/senales", etiqueta: "Señales", icono: "◈", badge: senales },
         { href: "/crm/conversaciones", etiqueta: "Conversaciones", icono: "✆", badge: whatsapp },
-        { href: "/crm/cotizaciones", etiqueta: "Cotizaciones", icono: "▤" },
-        { href: "/crm/oportunidades", etiqueta: "Oportunidades", icono: "◆" },
         { href: "/crm/showroom", etiqueta: "Showroom", icono: "▨" },
         { href: "/crm/audiciones", etiqueta: "Audiciones", icono: "♪" },
       ],
     },
+    // Un solo módulo de análisis, y es deliberado.
+    //
+    // Antes había cinco —reportes, alertas, segmentos, marketing, pipeline— y
+    // con tres ventas al mes eso es más pantallas que ventas. Cada una obligaba
+    // a elegir dónde mirar, y la respuesta correcta casi siempre era la misma.
+    // Las rutas siguen existiendo para quien las tenga guardadas; lo que se
+    // sacó es la invitación permanente a perderse entre ellas.
     {
       titulo: "Análisis",
-      items: [
-        { href: "/crm/pipeline", etiqueta: "Pipeline y KPIs", icono: "▥" },
-        { href: "/crm/reportes", etiqueta: "Reportes", icono: "▦" },
-        { href: "/crm/inteligencia", etiqueta: "Alertas y acciones", icono: "◈", badge: alertas },
-        { href: "/crm/segmentos", etiqueta: "Segmentos y recompra", icono: "◍" },
-        { href: "/crm/marketing", etiqueta: "Marketing y origen", icono: "◎" },
-      ],
+      items: [{ href: "/crm/pipeline", etiqueta: "Pipeline y KPIs", icono: "▥" }],
     },
     {
       titulo: "Catálogo y ajustes",

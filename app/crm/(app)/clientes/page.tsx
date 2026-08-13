@@ -37,12 +37,18 @@ import {
 import { clp, clpCorto, numero, porcentaje } from "@/lib/crm/formato";
 import { resumenShowroom } from "@/lib/crm/showroom";
 import { recomendacionesDeUpgrade, resumenSistemas } from "@/lib/crm/sistemas";
+import {
+  alBordeDelSalto,
+  ascensosDelAnio,
+  carteraPorSegmento,
+  definicionDe,
+} from "@/lib/crm/segmentos-valor";
 
 export const dynamic = "force-dynamic";
 
 const VISTAS = [
   { id: "panorama", etiqueta: "Panorama" },
-  { id: "rfm", etiqueta: "Segmentos RFM" },
+  { id: "segmentos", etiqueta: "Segmentos" },
   { id: "valor", etiqueta: "Valor de vida" },
   { id: "producto", etiqueta: "Producto" },
   // La vista propia del rubro. Va después de Producto porque se apoya en el
@@ -89,7 +95,7 @@ export default async function Clientes({
       </nav>
 
       {vista === "panorama" && <VistaPanorama rfm={rfm} />}
-      {vista === "rfm" && <VistaRfm rfm={rfm} />}
+      {vista === "segmentos" && <VistaSegmentos />}
       {vista === "valor" && <VistaValor rfm={rfm} />}
       {vista === "producto" && <VistaProducto rfm={rfm} />}
       {vista === "sistemas" && <VistaSistemas />}
@@ -330,128 +336,208 @@ async function VistaPanorama({ rfm }: { rfm: Awaited<ReturnType<typeof calcularR
 
 // ─── RFM ─────────────────────────────────────────────────────────────────────
 
-async function VistaRfm({ rfm }: { rfm: Awaited<ReturnType<typeof calcularRfm>> }) {
-  const resumen = resumirSegmentos(rfm);
-  const celdas = matrizRfm(rfm);
-  const migracion = await migracionSegmentos(3);
+async function VistaSegmentos() {
+  const [cartera, ascensos, alBorde] = await Promise.all([
+    carteraPorSegmento(),
+    ascensosDelAnio(),
+    alBordeDelSalto(8),
+  ]);
 
-  const criticos = resumen.filter((s) =>
-    ["no_perder", "en_riesgo", "necesitan_atencion"].includes(s.segmento),
-  );
-  const montoCritico = criticos.reduce((s, x) => s + x.monto, 0);
+  const totalClientes = cartera.reduce((s, c) => s + c.clientes, 0);
+  const arriba = cartera.filter((s) => s.clave === "reference" || s.clave === "highend");
+  const clientesArriba = arriba.reduce((s, c) => s + c.clientes, 0);
+  const montoArriba = arriba.reduce((s, c) => s + c.porcentajeMonto, 0);
 
   return (
     <>
+      {/*
+        Cuatro tarjetas y no once. La segmentación anterior era RFM de manual
+        —campeones, leales, hibernando— y sobre setenta y seis personas dejaba
+        siete por casilla, con nombres que nadie del negocio usa. Estos cuatro
+        tramos los definió el negocio en pesos, y por eso se pueden repetir.
+      */}
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {cartera.map((s) => (
+          <Card key={s.clave}>
+            <div className="flex items-center gap-2">
+              <span
+                aria-hidden
+                className="inline-block h-2.5 w-2.5 shrink-0 rounded-[3px]"
+                style={{ background: s.tono }}
+              />
+              <div className="text-[13px] font-semibold uppercase tracking-wide text-[var(--crm-ink)]">
+                {s.nombre}
+              </div>
+            </div>
+            <div className="mt-1 text-[12px] text-[var(--crm-muted)]">{s.rango}</div>
+            <div className="mt-3 flex items-baseline gap-2">
+              <span className="crm-num text-[32px] font-semibold leading-none">
+                {numero(s.clientes)}
+              </span>
+              <span className="text-[13px] text-[var(--crm-ink-2)]">
+                {s.clientes === 1 ? "cliente" : "clientes"}
+              </span>
+            </div>
+            <div className="mt-2.5 text-[13px] text-[var(--crm-ink-2)]">
+              {clp(s.monto)}
+              <span className="text-[var(--crm-muted)]"> · {porcentaje(s.porcentajeMonto, 0)} del total</span>
+            </div>
+            <div className="mt-1 text-[12px] text-[var(--crm-muted)]">
+              Promedio {clp(s.valorPromedio)} · {numero(s.activos)} activos
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      <div className="mb-6">
+        <Lectura titulo="Lo que dicen estos cuatro números">
+          <p>
+            <strong>
+              {numero(clientesArriba)} de {numero(totalClientes)} clientes concentran el{" "}
+              {porcentaje(montoArriba, 0)} de la facturación.
+            </strong>{" "}
+            Con tres ventas al mes, eso no es una curiosidad estadística: es la lista de personas
+            que hay que tratar por nombre, y cabe en una hoja.
+          </p>
+          <p>
+            Los cortes están en pesos y los puso el negocio, no una fórmula. Es lo que permite
+            decir <em>&ldquo;Reference es sobre cien millones&rdquo;</em> en una reunión y que
+            signifique siempre lo mismo. Un porcentaje de la cartera —el 20% que más compra— sobre
+            setenta y seis personas serían quince por definición, hubieran puesto cien millones o
+            cinco.
+          </p>
+        </Lectura>
+      </div>
+
+      {/* ── Los ascensos: la métrica de crecimiento que este volumen sí permite ── */}
       <div className="mb-6 grid gap-5 lg:grid-cols-2">
         <Card
-          titulo="Dónde está la base"
-          descripcion="Recencia (qué tan reciente compró) contra frecuencia (cuántas veces). El color es cantidad de clientes."
+          titulo="Quiénes subieron de tramo este año"
+          descripcion="La medida de crecimiento que se puede leer a este volumen."
         >
-          <MatrizRfm celdas={celdas} formatoMonto={clp} />
-          <p className="mt-3 text-[12px] text-[var(--crm-muted)]">
-            Arriba a la derecha están los mejores: compran seguido y hace poco. Abajo a la
-            izquierda, los que ya se fueron. La recencia va por quintiles de la base —así el
-            corte sigue significando lo mismo cuando el negocio crece— y la frecuencia por
-            número de compras: F1 es una compra, F5 son seis o más.
-          </p>
+          {ascensos.length === 0 ? (
+            <Vacio mensaje="Nadie cambió de tramo en los últimos doce meses" />
+          ) : (
+            <>
+              <Tabla columnas={["Cliente", "Movimiento", { titulo: "Sumó", alinear: "der" }]}>
+                {ascensos.slice(0, 8).map((a) => (
+                  <tr key={a.contactId}>
+                    <td>
+                      <Link href={`/crm/contactos/${a.contactId}`} className="crm-link">
+                        {a.nombre}
+                      </Link>
+                    </td>
+                    <td className="text-[13px]">
+                      <span className="text-[var(--crm-muted)]">{definicionDe(a.desde).nombre}</span>
+                      <span className="mx-1.5 text-[var(--crm-brand)]">→</span>
+                      <span className="font-medium text-[var(--crm-brand-dark)]">
+                        {definicionDe(a.hacia).nombre}
+                      </span>
+                    </td>
+                    <td className="crm-num text-right font-medium">
+                      {clp(a.valorAhora - a.valorAntes)}
+                    </td>
+                  </tr>
+                ))}
+              </Tabla>
+              <p className="mt-3 text-[12px] text-[var(--crm-muted)]">
+                &ldquo;La facturación subió un 12%&rdquo; sobre cuarenta ventas al año es ruido.
+                &ldquo;Estos {numero(ascensos.length)} clientes subieron de tramo&rdquo; es un hecho
+                sobre el que se puede actuar.
+              </p>
+            </>
+          )}
         </Card>
 
         <Card
-          titulo={`Movimiento de los últimos ${migracion.mesesAtras} meses`}
-          descripcion="Una foto dice cuántos hay en cada grupo; esto dice quién se está moviendo."
-          padding={false}
+          titulo="A un paso del tramo siguiente"
+          descripcion="Una sola compra los cruza. Es la lista más accionable del panel."
         >
-          {migracion.movimientos.length === 0 ? (
-            <div className="p-5">
-              <Vacio mensaje="Sin movimientos en el período" />
-            </div>
+          {alBorde.length === 0 ? (
+            <Vacio mensaje="Nadie está cerca de cruzar un corte" />
           ) : (
-            <Tabla columnas={["Pasaron de", "A", { titulo: "Clientes", alinear: "der" }]}>
-              {migracion.movimientos.slice(0, 10).map((m, i) => (
-                <tr key={i}>
-                  <td className="text-[var(--crm-ink-2)]">{m.nombreDesde}</td>
+            <Tabla
+              columnas={[
+                "Cliente",
+                { titulo: "Lleva", alinear: "der" },
+                { titulo: "Le falta", alinear: "der" },
+                "Para entrar a",
+              ]}
+            >
+              {alBorde.map((b) => (
+                <tr key={b.contactId}>
                   <td>
-                    <span className="flex items-center gap-1.5">
-                      <span aria-hidden style={{ color: m.mejora ? "var(--status-good-text)" : "var(--status-critical)" }}>
-                        {m.mejora ? "▲" : "▼"}
-                      </span>
-                      <strong>{m.nombreHasta}</strong>
-                    </span>
+                    <Link href={`/crm/contactos/${b.contactId}`} className="crm-link">
+                      {b.nombre}
+                    </Link>
                   </td>
-                  <td className="crm-num text-right font-medium">{numero(m.clientes)}</td>
+                  <td className="crm-num text-right">{clp(b.valor)}</td>
+                  <td className="crm-num text-right font-semibold text-[var(--crm-brand-dark)]">
+                    {clp(b.falta)}
+                  </td>
+                  <td className="text-[13px]">{definicionDe(b.siguiente).nombre}</td>
                 </tr>
               ))}
-              <tr>
-                <td colSpan={2} className="text-[var(--crm-ink-2)]">
-                  Clientes nuevos en el período
-                </td>
-                <td className="crm-num text-right font-medium">{numero(migracion.nuevos)}</td>
-              </tr>
             </Tabla>
           )}
         </Card>
       </div>
 
-      {criticos.length > 0 && (
-        <div className="mb-6">
-          <Lectura titulo="Por dónde partir">
-            <p>
-              {numero(criticos.reduce((s, x) => s + x.clientes, 0))} clientes están en los grupos
-              que exigen acción —{criticos.map((c) => c.nombre.toLowerCase()).join(", ")}— y entre
-              todos han comprado <strong>{clp(montoCritico)}</strong>. No son prospectos: son gente
-              que ya confió en la marca y se está enfriando.
-            </p>
-          </Lectura>
-        </div>
-      )}
-
-      <Card titulo="Los segmentos" descripcion="Ordenados por lo que han comprado. Cada uno con lo que corresponde hacer." padding={false}>
-        <Tabla
-          columnas={[
-            "Segmento",
-            { titulo: "Clientes", alinear: "der" },
-            { titulo: "% base", alinear: "der" },
-            { titulo: "Comprado", alinear: "der" },
-            { titulo: "% ingresos", alinear: "der" },
-            { titulo: "Ticket", alinear: "der" },
-            { titulo: "Sin comprar", alinear: "der" },
-            { titulo: "Contactables", alinear: "der" },
-          ]}
+      {/* ── La cartera con nombre y apellido ──
+          A este volumen se listan las personas, no se resumen. Un panel que
+          diga "Reference: 8" y no diga quiénes son obliga a otra consulta que
+          nadie hace. */}
+      {cartera.map((s) => (
+        <Card
+          key={s.clave}
+          titulo={`${s.nombre} · ${s.rango}`}
+          descripcion={s.descripcion}
+          className="mb-5"
+          padding={false}
         >
-          {resumen.map((s) => (
-            <tr key={s.segmento}>
-              <td>
-                <div className="flex items-center gap-2">
-                  <span
-                    aria-hidden
-                    className="inline-block h-2.5 w-2.5 shrink-0 rounded-[3px]"
-                    style={{ background: s.tono }}
-                  />
-                  <div>
-                    <div className="font-medium">{s.nombre}</div>
-                    <div className="text-[12px] text-[var(--crm-muted)]">{s.descripcion}</div>
-                    <div className="mt-0.5 text-[12px] text-[var(--crm-brand-dark)]">
-                      → {s.accion}
-                    </div>
-                  </div>
-                </div>
-              </td>
-              <td className="crm-num text-right font-medium">{numero(s.clientes)}</td>
-              <td className="crm-num text-right">{porcentaje(s.porcentaje, 1)}</td>
-              <td className="crm-num text-right font-medium">{clp(s.monto)}</td>
-              <td className="crm-num text-right">{porcentaje(s.porcentajeMonto, 1)}</td>
-              <td className="crm-num text-right">{clp(s.ticketPromedio)}</td>
-              <td className="crm-num text-right">{numero(s.recenciaMediana)} d</td>
-              <td className="crm-num text-right">
-                {numero(s.contactables)}
-                <div className="text-[12px] text-[var(--crm-muted)]">
-                  {porcentaje(s.clientes > 0 ? (s.contactables / s.clientes) * 100 : 0, 0)}
-                </div>
-              </td>
-            </tr>
-          ))}
-        </Tabla>
-      </Card>
+          <div className="border-b border-[var(--crm-grid)] bg-[var(--crm-brand-soft)]/40 px-5 py-3 text-[13px] text-[var(--crm-brand-dark)]">
+            <strong>Qué corresponde hacer:</strong> {s.accion}
+          </div>
+          {s.miembros.length === 0 ? (
+            <Vacio mensaje="Sin clientes en este tramo" />
+          ) : (
+            <div className="max-h-[420px] overflow-y-auto crm-scroll">
+              <Tabla
+                columnas={[
+                  "Cliente",
+                  { titulo: "Ha invertido", alinear: "der" },
+                  { titulo: "Compras", alinear: "der" },
+                  { titulo: "Última", alinear: "der" },
+                ]}
+              >
+                {s.miembros.map((m) => (
+                  <tr key={m.contactId}>
+                    <td>
+                      <Link href={`/crm/contactos/${m.contactId}`} className="crm-link">
+                        {m.nombre}
+                      </Link>
+                      {m.telefono ? (
+                        <div className="crm-num text-[12px] text-[var(--crm-muted)]">
+                          {m.telefono}
+                        </div>
+                      ) : null}
+                    </td>
+                    <td className="crm-num text-right font-medium">{clp(m.valor)}</td>
+                    <td className="crm-num text-right">{numero(m.compras)}</td>
+                    <td className="crm-num text-right text-[var(--crm-ink-2)]">
+                      {m.diasSinComprar === null
+                        ? "—"
+                        : m.diasSinComprar > 730
+                          ? `${Math.floor(m.diasSinComprar / 365)} años`
+                          : `${numero(m.diasSinComprar)} d`}
+                    </td>
+                  </tr>
+                ))}
+              </Tabla>
+            </div>
+          )}
+        </Card>
+      ))}
     </>
   );
 }

@@ -1,264 +1,315 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { Badge, Card, PageHeader, StatTile, Tabla, Vacio, btnSecundario } from "@/components/crm/ui";
-import { Embudo, Figura, Lineas } from "@/components/crm/charts";
+import { Card, PageHeader, StatTile, Tabla, Vacio, btnSecundario } from "@/components/crm/ui";
+import { Figura, Lineas } from "@/components/crm/charts";
 import { LecturaEsqueleto, LecturaNarrada } from "@/components/crm/LecturaNarrada";
 import { requireSession } from "@/lib/crm/auth.actions";
 import { clp, clpCorto, fecha, numero, porcentaje } from "@/lib/crm/formato";
-import { listarAlertas } from "@/lib/crm/insights";
-import { ingresosPorMes } from "@/lib/crm/marketing";
-import { tareasPendientes } from "@/lib/crm/pipeline";
-import { concentracion, embudoConversion, resumenComercial, topClientes } from "@/lib/crm/reportes";
-import { ownerScope } from "@/lib/crm/session";
-import { accionCompletarTarea } from "@/lib/crm/acciones";
+import { calcularRfm, clientesAnaliticos, panorama } from "@/lib/crm/analitica";
+import {
+  alBordeDelSalto,
+  ascensosDelAnio,
+  carteraPorSegmento,
+  definicionDe,
+} from "@/lib/crm/segmentos-valor";
+import { resumenAudiciones } from "@/lib/crm/audiciones";
+import { huecosDeCartera } from "@/lib/crm/preguntas";
+import { resumirSenales } from "@/lib/crm/senales";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * La portada, reordenada alrededor de la cartera.
+ *
+ * La versión anterior abría con pipeline ponderado, tasa de cierre y ciclo de
+ * venta: los indicadores de un CRM de venta B2B con decenas de oportunidades
+ * simultáneas. Acá entran tres ventas al mes. Una "tasa de cierre del 34,2%"
+ * sobre ese volumen es una fracción con denominador de una cifra disfrazada de
+ * precisión, y el ciclo de venta se mide en meses de conversación que ninguna
+ * etapa de embudo refleja.
+ *
+ * Lo que sí ordena el día en este negocio son cuatro cosas, y en este orden:
+ * **cómo está repartida la cartera, qué se vendió, quién está a un paso de
+ * subir de tramo, y a quién hay que llamar hoy.**
+ */
 export default async function VisionGeneral() {
   const sesion = await requireSession();
-  const alcance = ownerScope(sesion);
 
-  const [resumen, alertas, meses, embudo, tareas, top, conc] = await Promise.all([
-    resumenComercial(30),
-    listarAlertas("abierta"),
-    ingresosPorMes(12),
-    embudoConversion(),
-    tareasPendientes(alcance),
-    topClientes(365, 5),
-    concentracion(365),
+  const base = await clientesAnaliticos();
+  const rfm = calcularRfm(base);
+
+  const [p, cartera, ascensos, alBorde, audiciones, senales, huecos] = await Promise.all([
+    panorama(rfm),
+    carteraPorSegmento(),
+    ascensosDelAnio(),
+    alBordeDelSalto(6),
+    resumenAudiciones(),
+    resumirSenales(),
+    huecosDeCartera(5),
   ]);
 
-  const altas = alertas.filter((a) => a.severidad === "alta");
+  const totalClientes = cartera.reduce((s, c) => s + c.clientes, 0);
+  const arriba = cartera.filter((s) => s.clave === "reference" || s.clave === "highend");
+  const clientesArriba = arriba.reduce((s, c) => s + c.clientes, 0);
+  const montoArriba = arriba.reduce((s, c) => s + c.porcentajeMonto, 0);
 
-  // El respaldo es un texto completo, no un placeholder: si el modelo no está
-  // disponible, esta pantalla igual tiene que decir algo útil.
-  const respaldo = [
-    `En los últimos 30 días se facturaron ${clp(resumen.ingresos.valor)} en ${numero(resumen.ordenes.valor)} órdenes`,
-    resumen.ingresos.variacion !== null
-      ? `, un ${porcentaje(Math.abs(resumen.ingresos.variacion), 1)} ${resumen.ingresos.variacion >= 0 ? "más" : "menos"} que el período anterior.`
-      : ".",
-    ` El pipeline abierto suma ${clp(resumen.pipelineAbierto)} y, ponderado por probabilidad, se esperan ${clp(resumen.pipelinePonderado)}.`,
-    alertas.length
-      ? ` Hay ${alertas.length} alertas abiertas${altas.length ? `, ${altas.length} de severidad alta` : ""}: conviene partir por ahí.`
-      : " No hay alertas abiertas.",
-  ].join("");
-
-  const cifras = {
-    ingresos30d: resumen.ingresos.valor,
-    ingresosPeriodoAnterior: resumen.ingresos.anterior,
-    variacionIngresos: resumen.ingresos.variacion,
-    ordenes30d: resumen.ordenes.valor,
-    ticketPromedio: resumen.ticketPromedio.valor,
-    pipelineAbierto: resumen.pipelineAbierto,
-    pipelinePonderado: resumen.pipelinePonderado,
-    oportunidadesAbiertas: resumen.oportunidadesAbiertas,
-    tasaCierre: resumen.tasaCierre,
-    cicloVentaDias: resumen.cicloVentaDias,
-    alertasAbiertas: alertas.length,
-    alertasAltas: altas.length,
-    tituloAlertaMasGrave: altas[0]?.titulo ?? null,
-    concentracionTop3: conc.top3,
-  };
+  const respaldo =
+    `La cartera son ${numero(totalClientes)} clientes repartidos en cuatro tramos por lo que han ` +
+    `invertido. ${numero(clientesArriba)} de ellos concentran el ${porcentaje(montoArriba, 0)} de la ` +
+    `facturación. En los últimos doce meses se facturaron ${clp(p.facturacion12m)} en ` +
+    `${p.ventasPorMesPromedio.toFixed(1)} ventas al mes, con una venta típica de ${clp(p.ticketMediana)}. ` +
+    `${numero(ascensos.length)} clientes cambiaron de tramo este año y ${numero(alBorde.length)} están ` +
+    `a una compra de cruzar al siguiente.`;
 
   return (
     <>
       <PageHeader
         titulo={`Hola, ${sesion.nombre.split(" ")[0]}`}
-        bajada={`Esto es lo que está pasando comercialmente en los ${resumen.periodo.etiqueta}.`}
+        bajada="Cómo está repartida la cartera, qué se vendió y a quién hay que llamar."
         acciones={
-          <Link href="/crm/inteligencia" className={btnSecundario}>
-            ◈ Ver alertas ({alertas.length})
+          <Link href="/crm/audiciones/nueva" className={btnSecundario}>
+            ♪ Cerrar una audición
           </Link>
         }
       />
 
+      {/* ── La cartera en cuatro tramos. Lo primero que se ve ── */}
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {cartera.map((s) => (
+          <Link key={s.clave} href="/crm/clientes?vista=segmentos" className="block">
+            <Card className="h-full transition hover:border-[var(--crm-brand)]">
+              <div className="flex items-center gap-2">
+                <span
+                  aria-hidden
+                  className="inline-block h-2.5 w-2.5 shrink-0 rounded-[3px]"
+                  style={{ background: s.tono }}
+                />
+                <div className="text-[13px] font-semibold uppercase tracking-wide text-[var(--crm-ink)]">
+                  {s.nombre}
+                </div>
+              </div>
+              <div className="mt-1 text-[12px] text-[var(--crm-muted)]">{s.rango}</div>
+              <div className="mt-3 flex items-baseline gap-2">
+                <span className="crm-num text-[30px] font-semibold leading-none">
+                  {numero(s.clientes)}
+                </span>
+                <span className="text-[13px] text-[var(--crm-ink-2)]">
+                  {s.clientes === 1 ? "cliente" : "clientes"}
+                </span>
+              </div>
+              <div className="mt-2 text-[13px] text-[var(--crm-ink-2)]">
+                {porcentaje(s.porcentajeMonto, 0)}
+                <span className="text-[var(--crm-muted)]"> de la facturación</span>
+              </div>
+            </Card>
+          </Link>
+        ))}
+      </div>
+
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile
-          etiqueta="Facturado (30 días)"
-          valor={clp(resumen.ingresos.valor)}
-          delta={resumen.ingresos.variacion}
-          contexto="vs 30 días previos"
+          etiqueta="Facturación 12 meses"
+          valor={clp(p.facturacion12m)}
+          contexto={`${p.ventasPorMesPromedio.toFixed(1)} ventas al mes`}
         />
         <StatTile
-          etiqueta="Pipeline ponderado"
-          valor={clp(resumen.pipelinePonderado)}
-          contexto={`de ${clp(resumen.pipelineAbierto)} abiertos`}
-          href="/crm/oportunidades"
+          etiqueta="Venta típica"
+          valor={clp(p.ticketMediana)}
+          contexto={`el promedio es ${clp(p.ticketPromedio)}`}
         />
         <StatTile
-          etiqueta="Tasa de cierre"
-          valor={porcentaje(resumen.tasaCierre, 1)}
-          contexto={
-            resumen.cicloVentaDias
-              ? `ciclo de ${resumen.cicloVentaDias} días`
-              : "sin ciclo calculable"
-          }
+          etiqueta="Audiciones · 30 días"
+          valor={numero(audiciones.total30d)}
+          contexto={`${audiciones.porVenta.toFixed(1)} por cada venta`}
+          href="/crm/audiciones"
         />
         <StatTile
-          etiqueta="Ticket promedio"
-          valor={clp(resumen.ticketPromedio.valor)}
-          delta={resumen.ticketPromedio.variacion}
-          contexto="vs período anterior"
+          etiqueta="Señales pendientes"
+          valor={numero(senales.total)}
+          contexto={`${numero(senales.altas)} de prioridad alta`}
+          href="/crm/senales"
         />
       </div>
 
       <div className="mb-6">
         <Suspense fallback={<LecturaEsqueleto />}>
           <LecturaNarrada
-            clave="portada"
-            resumen={cifras}
-            contexto="Resumen ejecutivo de la portada de un CRM comercial, para el gerente comercial"
+            clave="portada-segmentos"
+            resumen={{
+              clientesTotales: totalClientes,
+              clientesTramoAlto: clientesArriba,
+              porcentajeFacturacionTramoAlto: montoArriba,
+              facturacion12m: p.facturacion12m,
+              ventasPorMes: p.ventasPorMesPromedio,
+              ventaTipica: p.ticketMediana,
+              ventaPromedio: p.ticketPromedio,
+              ascensosDeTramo: ascensos.length,
+              alBordeDelSalto: alBorde.length,
+              audiciones30d: audiciones.total30d,
+              senalesPendientes: senales.total,
+            }}
+            contexto="Portada de un CRM de audio de alta fidelidad con tres ventas al mes, para el gerente comercial. La cartera se segmenta en cuatro tramos por lo invertido: Reference sobre 100 millones, Highend de 50 a 100, Entusiasta de 10 a 50 y Entrada bajo 10."
             respaldo={respaldo}
           />
         </Suspense>
       </div>
 
+      {/* ── Las ventas, con nombre. A este volumen se miran una por una ── */}
       <div className="mb-6 grid gap-5 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+        <Card className="lg:col-span-2" padding={false} titulo="Las últimas ventas">
+          {p.ultimasVentas.length === 0 ? (
+            <Vacio mensaje="Todavía no hay ventas registradas" />
+          ) : (
+            <Tabla
+              columnas={[
+                "Fecha",
+                "Cliente",
+                "Qué se llevó",
+                { titulo: "Monto", alinear: "der" },
+              ]}
+            >
+              {p.ultimasVentas.slice(0, 8).map((v) => (
+                <tr key={v.id}>
+                  <td className="crm-num whitespace-nowrap">{fecha(v.fecha)}</td>
+                  <td>
+                    {v.contactId ? (
+                      <Link href={`/crm/contactos/${v.contactId}`} className="crm-link">
+                        {v.cliente}
+                      </Link>
+                    ) : (
+                      <span className="crm-muted">Sin identificar</span>
+                    )}
+                  </td>
+                  <td className="crm-muted max-w-[260px] truncate">{v.detalle ?? "—"}</td>
+                  <td className="crm-num text-right font-medium">{clp(v.total)}</td>
+                </tr>
+              ))}
+            </Tabla>
+          )}
+        </Card>
+
+        <Card>
           <Figura
-            titulo="Facturación mensual"
-            subtitulo="Últimos 12 meses, en pesos"
-            pie="Fuente: órdenes cerradas del CRM. El último punto es el mes en curso y va incompleto; los meses sin ventas se muestran en cero, no se omiten."
+            titulo="Facturación por trimestre"
+            subtitulo="Últimos 24 meses"
+            pie="Por trimestre y no por mes: con tres ventas mensuales la curva mensual muestra ruido, no tendencia."
           >
             <Lineas
               series={[
                 {
                   nombre: "Facturación",
-                  puntos: meses.map((m) => ({ x: m.etiqueta, y: m.total })),
+                  puntos: p.ventasPorTrimestre.map((t) => ({ x: t.etiqueta, y: t.monto })),
                 },
               ]}
               formatoY={clpCorto}
             />
           </Figura>
         </Card>
-
-        <Card>
-          <Figura
-            titulo="Embudo de conversión"
-            subtitulo="Oportunidades que llegaron a cada etapa"
-          >
-            <Embudo
-              pasos={embudo.map((p) => ({
-                etiqueta: p.nombre,
-                valor: p.oportunidades,
-                detalle: clpCorto(p.monto),
-              }))}
-            />
-          </Figura>
-        </Card>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-3">
+      {/* ── Lo accionable: quién está a punto de subir y a quién falta conocer ── */}
+      <div className="mb-6 grid gap-5 lg:grid-cols-2">
         <Card
-          titulo="Lo más urgente"
-          descripcion="Alertas de severidad alta"
-          className="lg:col-span-2"
-          acciones={
-            <Link href="/crm/inteligencia" className="text-[13px] text-[var(--crm-brand-dark)]">
-              Ver todas →
-            </Link>
-          }
+          titulo="A un paso del tramo siguiente"
+          descripcion="Una sola compra los cruza."
           padding={false}
         >
-          {altas.length === 0 ? (
-            <div className="p-5">
-              <Vacio
-                mensaje="No hay alertas de severidad alta"
-                sugerencia="El motor revisa oportunidades estancadas, caídas de cuentas, stock comprometido y ventanas de recompra."
-              />
-            </div>
+          {alBorde.length === 0 ? (
+            <Vacio mensaje="Nadie está cerca de cruzar un corte" />
           ) : (
-            <ul className="divide-y divide-[var(--crm-grid)]">
-              {altas.slice(0, 5).map((a) => (
-                <li key={a.id} className="px-5 py-3.5">
-                  <div className="flex items-start gap-3">
-                    <Badge tono="critico" icono="▲">
-                      Alta
-                    </Badge>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[14px] font-medium text-[var(--crm-ink)]">
-                        {a.titulo}
-                      </div>
-                      <p className="mt-0.5 text-[13px] text-[var(--crm-ink-2)]">
-                        {a.detalle}
-                      </p>
+            <Tabla
+              columnas={[
+                "Cliente",
+                { titulo: "Le falta", alinear: "der" },
+                "Para entrar a",
+              ]}
+            >
+              {alBorde.map((b) => (
+                <tr key={b.contactId}>
+                  <td>
+                    <Link href={`/crm/contactos/${b.contactId}`} className="crm-link">
+                      {b.nombre}
+                    </Link>
+                    <div className="crm-num text-[12px] text-[var(--crm-muted)]">
+                      lleva {clp(b.valor)}
                     </div>
-                  </div>
-                </li>
+                  </td>
+                  <td className="crm-num text-right font-semibold text-[var(--crm-brand-dark)]">
+                    {clp(b.falta)}
+                  </td>
+                  <td className="text-[13px]">{definicionDe(b.siguiente).nombre}</td>
+                </tr>
               ))}
-            </ul>
+            </Tabla>
           )}
         </Card>
 
-        <Card titulo="Tus tareas" descripcion="Pendientes asignadas a ti" padding={false}>
-          {tareas.length === 0 ? (
-            <div className="p-5">
-              <Vacio mensaje="Sin tareas pendientes" />
-            </div>
+        <Card
+          titulo="A quién le falta preguntarle"
+          descripcion="Plata invertida contra lo poco que sabemos de esa persona."
+          padding={false}
+        >
+          {huecos.length === 0 ? (
+            <Vacio mensaje="Sin cartera con compras todavía" />
           ) : (
-            <ul className="divide-y divide-[var(--crm-grid)]">
-              {tareas.slice(0, 8).map((t) => (
-                <li key={t.id} className="flex items-start gap-2 px-5 py-3">
-                  <form action={accionCompletarTarea}>
-                    <input type="hidden" name="actividadId" value={t.id} />
-                    <button
-                      type="submit"
-                      title="Marcar como hecha"
-                      className="mt-0.5 h-4 w-4 rounded border border-[var(--crm-axis)] text-[11px] leading-none text-transparent hover:border-[var(--crm-brand)] hover:text-[var(--crm-brand)]"
-                    >
-                      ✓
-                    </button>
-                  </form>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[13px] text-[var(--crm-ink)]">{t.titulo}</div>
-                    <div className="text-[12px] text-[var(--crm-muted)]">
-                      <Link href={`/crm/contactos/${t.contactId}`} className="hover:underline">
-                        {t.cliente}
-                      </Link>
-                      {t.venceEn && (
-                        <span className={t.vencida ? "ml-2 text-[#96201f]" : "ml-2"}>
-                          {t.vencida ? "venció" : "vence"} {fecha(t.venceEn)}
-                        </span>
-                      )}
+            <Tabla
+              columnas={["Cliente", { titulo: "Sabemos", alinear: "der" }, "La pregunta"]}
+            >
+              {huecos.map((h) => (
+                <tr key={h.contactId}>
+                  <td>
+                    <Link href={`/crm/contactos/${h.contactId}`} className="crm-link">
+                      {h.cliente}
+                    </Link>
+                    <div className="crm-num text-[12px] text-[var(--crm-muted)]">
+                      {clp(h.invertido)}
                     </div>
-                  </div>
-                </li>
+                  </td>
+                  <td className="crm-num text-right font-medium">{h.puntaje}%</td>
+                  <td className="max-w-[260px] text-[13px] text-[var(--crm-ink-2)]">
+                    {h.siguiente?.texto ?? "Ya sabemos lo importante"}
+                  </td>
+                </tr>
               ))}
-            </ul>
+            </Tabla>
           )}
         </Card>
       </div>
 
-      <div className="mt-6">
-        <Card
-          titulo="Clientes que más compraron"
-          descripcion={`Últimos 12 meses · los 3 más grandes concentran el ${porcentaje(conc.top3, 1)} de la facturación`}
-          padding={false}
-        >
+      {/* ── Los ascensos: la medida de crecimiento que este volumen permite ── */}
+      <Card
+        titulo="Quiénes subieron de tramo este año"
+        descripcion="Sobre cuarenta ventas al año, esto dice más que una variación porcentual."
+        padding={false}
+      >
+        {ascensos.length === 0 ? (
+          <Vacio mensaje="Nadie cambió de tramo en los últimos doce meses" />
+        ) : (
           <Tabla
-            columnas={[
-              "Cliente",
-              { titulo: "Órdenes", alinear: "der" },
-              { titulo: "Facturado", alinear: "der" },
-            ]}
+            columnas={["Cliente", "Movimiento", { titulo: "Sumó este año", alinear: "der" }]}
           >
-            {top.map((t) => (
-              <tr key={t.contactId}>
+            {ascensos.slice(0, 6).map((a) => (
+              <tr key={a.contactId}>
                 <td>
-                  <Link
-                    href={`/crm/contactos/${t.contactId}`}
-                    className="font-medium hover:text-[var(--crm-brand-dark)]"
-                  >
-                    {t.nombre}
+                  <Link href={`/crm/contactos/${a.contactId}`} className="crm-link">
+                    {a.nombre}
                   </Link>
                 </td>
-                <td className="crm-num text-right">{numero(t.ordenes)}</td>
-                <td className="crm-num text-right font-medium">{clp(t.total)}</td>
+                <td className="text-[13px]">
+                  <span className="text-[var(--crm-muted)]">{definicionDe(a.desde).nombre}</span>
+                  <span className="mx-1.5 text-[var(--crm-brand)]">→</span>
+                  <span className="font-medium text-[var(--crm-brand-dark)]">
+                    {definicionDe(a.hacia).nombre}
+                  </span>
+                </td>
+                <td className="crm-num text-right font-medium">
+                  {clp(a.valorAhora - a.valorAntes)}
+                </td>
               </tr>
             ))}
           </Tabla>
-        </Card>
-      </div>
+        )}
+      </Card>
     </>
   );
 }
