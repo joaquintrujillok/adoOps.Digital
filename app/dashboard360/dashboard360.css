@@ -1,0 +1,202 @@
+/* =============================================================================
+   Dashboard360 — tokens de color y tipografía
+   =============================================================================
+
+   Los colores de interfaz salen de la propia marca adoOps, medidos sobre el
+   código de la home y no elegidos a ojo: el verde #2ed477 de los acentos, el
+   teal #0e8a82 de los estados y el navy #0e1d33 de las secciones oscuras.
+
+   **Por qué el tablero es claro si la home es oscura.** El hero de adoOps es
+   una escena oscura y funciona para lo que tiene que hacer: vender una
+   sensación en diez segundos. Acá hay cuatro pantallas de cifras densas que
+   alguien mira durante una reunión de directorio, y sobre fondo oscuro las
+   tablas cansan. Lo que se toma de la marca es el verde y el navy de la barra
+   lateral, que es donde la identidad se ve sin costo de legibilidad.
+
+   **Los colores de serie son los mismos del CRM y eso es deliberado.** Salen de
+   una paleta categórica validada (ΔE CVD ≥ 8 entre pares adyacentes sobre
+   superficie clara, verificada con el validador, no estimada). Compartirla
+   entre productos de adoOps significa que el azul es el azul en los dos.
+
+   El verde de marca se usa para la interfaz —botones, acentos, navegación— y
+   NUNCA como color de serie: si la marca pintara datos, cambiar la marca
+   cambiaría lo que significa una barra.
+
+   Tres series quedaron bajo 3:1 de contraste contra la superficie (#1baf7a,
+   #eda100, #e87ba4). El validador lo marca como WARN y obliga a compensar: por
+   eso todo gráfico de este módulo lleva leyenda visible y etiqueta directa, y
+   toda pantalla ofrece la tabla con las mismas cifras.
+   ============================================================================= */
+
+.d360-root {
+  color-scheme: light;
+
+  /* Superficies e ink — neutros fríos, para que el navy no desentone */
+  --d360-plane: #f7f9fa;
+  --d360-surface: #ffffff;
+  --d360-ink: #0b1523;
+  --d360-ink-2: #43566a;
+  --d360-muted: #7d8f9e;
+  --d360-grid: #e4eaee;
+  --d360-axis: #c3ced6;
+  --d360-border: rgba(11, 21, 35, 0.1);
+
+  /* Marca adoOps — interfaz, no datos */
+  --d360-brand: #0e8a82;
+  --d360-brand-dark: #0a6a64;
+  --d360-brand-soft: #e6f5f3;
+  --d360-accent: #2ed477;
+  --d360-sidebar: #0e1d33;
+
+  /* Series categóricas (orden fijo, nunca cíclico) */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #008300;
+  --series-7: #4a3aa7;
+  --series-8: #e34948;
+
+  /* Rampa ordinal azul (embudo, escalones). No más clara que el paso 250. */
+  --ramp-1: #86b6ef;
+  --ramp-2: #5598e7;
+  --ramp-3: #3987e5;
+  --ramp-4: #2a78d6;
+  --ramp-5: #256abf;
+  --ramp-6: #184f95;
+
+  /* Estado — reservados, jamás como serie. Siempre con ícono + etiqueta. */
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-serious: #ec835a;
+  --status-critical: #d03b3b;
+  --status-good-text: #006300;
+
+  background: var(--d360-plane);
+  color: var(--d360-ink);
+  min-height: 100vh;
+  font-family: var(--font-inter), system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.d360-root h1,
+.d360-root h2,
+.d360-root h3 {
+  font-family: var(--font-sora), var(--font-inter), system-ui, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+/* Columnas de cifras alineadas: tabulares. El resto, proporcionales. */
+.d360-num {
+  font-variant-numeric: tabular-nums;
+}
+
+.d360-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.d360-scroll::-webkit-scrollbar-thumb {
+  background: #d3dbe0;
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+/* Barra lateral */
+.d360-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  color: #93a4b4;
+  font-size: 14px;
+  line-height: 1.2;
+  transition: background 0.15s, color 0.15s;
+}
+.d360-nav-link:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #e6eef5;
+}
+.d360-nav-link[data-activo="true"] {
+  background: rgba(46, 212, 119, 0.14);
+  color: #7be9ae;
+  font-weight: 600;
+}
+
+/* Tablas densas */
+.d360-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 14px;
+}
+.d360-table th {
+  text-align: left;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--d360-muted);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--d360-grid);
+  white-space: nowrap;
+}
+.d360-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--d360-grid);
+  color: var(--d360-ink);
+  vertical-align: middle;
+}
+.d360-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.d360-table tbody tr:hover td {
+  background: #f3f7f9;
+}
+
+/* El informe al directorio se lee en pantalla y se imprime. Markdown renderizado
+   con medidas de lectura, no de tablero. */
+.d360-prosa {
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--d360-ink-2);
+}
+.d360-prosa h2 {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--d360-ink);
+  margin: 26px 0 10px;
+}
+.d360-prosa h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--d360-ink);
+  margin: 20px 0 8px;
+}
+.d360-prosa p {
+  margin: 0 0 12px;
+}
+.d360-prosa ul {
+  margin: 0 0 14px;
+  padding-left: 20px;
+  list-style: disc;
+}
+.d360-prosa li {
+  margin-bottom: 6px;
+}
+.d360-prosa strong {
+  color: var(--d360-ink);
+  font-weight: 600;
+}
+
+/* Impresión: el informe al directorio termina en papel más seguido de lo que
+   uno cree. */
+@media print {
+  .d360-no-print {
+    display: none !important;
+  }
+  .d360-root {
+    background: #fff;
+  }
+}

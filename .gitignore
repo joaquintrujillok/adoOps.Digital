@@ -43,3 +43,13 @@ next-env.d.ts
 # fase 0 · datos del SII (3 GB, se re-descargan)
 /scripts/datos_sii/
 /scripts/salida/
+
+.env*.local
+
+# Credenciales de cliente OAuth descargadas desde Google Cloud.
+# Nunca deben llegar al repositorio: traen el client_secret en claro.
+client_secret*.json
+
+# Exportaciones de Google Ads. Chrome las descarga acá y traen datos del cliente.
+Informe*.csv
+*.csv

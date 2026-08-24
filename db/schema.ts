@@ -336,3 +336,11 @@ export * from "./crm";
 // formulario de la web corporativa y no tiene relación con `lead_*`.
 // =============================================================================
 export * from "./leads";
+
+// =============================================================================
+// Dashboard360 (/dashboard360) — las tablas viven en db/dashboard360.ts y se
+// reexportan acá por el mismo motivo que el CRM: drizzle-kit solo mira el
+// `schema` declarado en drizzle.config.ts.
+// =============================================================================
+
+export * from "./dashboard360";
