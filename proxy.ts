@@ -1,7 +1,12 @@
 // Proxy (lo que en Next ≤15 se llamaba middleware).
 //
-// Solo custodia el CRM: el `matcher` lo limita a /crm y /api/crm, así que la web
-// corporativa, TV Mix y las demos siguen sirviéndose sin pasar por acá.
+// Custodia el CRM y el motor de nurturing: el `matcher` lo limita a /crm, /leads
+// y sus APIs, así que la web corporativa, TV Mix y las demos siguen sirviéndose
+// sin pasar por acá.
+//
+// /leads usa la MISMA sesión que /crm —misma cookie, mismo login— porque es la
+// misma gente operando dos partes del mismo sistema. Un segundo login sería una
+// segunda contraseña que alguien apunta en un papel.
 //
 // Verifica el mismo HMAC-SHA256 que emite lib/crm/session.ts, pero con Web
 // Crypto en vez de node:crypto para funcionar también en el runtime Edge. Esto
@@ -16,7 +21,14 @@ const COOKIE = "adoops_crm_session";
 
 // Rutas de /api/crm con autenticación propia: las llama un cron o WaSender, no
 // un navegador con sesión.
-const API_PUBLICA = ["/api/crm/whatsapp/webhook", "/api/crm/cron"];
+const API_PUBLICA = [
+  "/api/crm/whatsapp/webhook",
+  "/api/crm/cron",
+  // Los webhooks de respuestas entrantes los llama Unipile, no un navegador, y
+  // el cron del motor lo llama Vercel con CRON_SECRET. Ninguno trae cookie.
+  "/api/leads/webhook",
+  "/api/leads/cron",
+];
 
 // El tipo lleva `<ArrayBuffer>` explícito: sin eso, TypeScript infiere
 // ArrayBufferLike (que incluye SharedArrayBuffer) y crypto.subtle no lo acepta.
@@ -94,5 +106,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/crm/:path*", "/api/crm/:path*"],
+  matcher: ["/crm/:path*", "/api/crm/:path*", "/leads/:path*", "/api/leads/:path*"],
 };

@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Motor de nurturing · flujo completo</title>
+<style>
+  :root{
+    --bg:#15171b; --surface:#1e2126; --surface2:#252931; --line:#31363f;
+    --tx:#e9ecf1; --tx2:#a8b0bb; --tx3:#727b88;
+    --free:#5ecfa0; --scarce:#e8b05c; --risk:#e88585; --info:#7aa9ee; --gold:#c9a86a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--tx);
+    font-family:ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.5; padding:32px 20px 64px; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1180px;margin:0 auto}
+  h1{font-size:26px;font-weight:600;letter-spacing:-.02em;margin-bottom:6px}
+  .sub{color:var(--tx3);font-size:13px;margin-bottom:34px}
+
+  .layer{margin-bottom:10px}
+  .lhead{display:flex;align-items:baseline;gap:12px;margin-bottom:12px}
+  .lnum{
+    font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--tx3);
+    border:1px solid var(--line);border-radius:4px;padding:3px 7px;flex:none
+  }
+  .ltitle{font-size:15px;font-weight:600;letter-spacing:-.01em}
+  .lnote{font-size:12px;color:var(--tx3)}
+
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px}
+
+  .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .card{background:var(--surface2);border:1px solid var(--line);border-radius:8px;padding:12px}
+  .card h4{font-size:13px;font-weight:600;margin-bottom:5px}
+  .card p{font-size:11.5px;color:var(--tx2);line-height:1.45}
+
+  .tag{
+    display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:.06em;
+    padding:2px 6px;border-radius:3px;text-transform:uppercase;margin-top:7px
+  }
+  .t-free{background:rgba(94,207,160,.14);color:var(--free)}
+  .t-scarce{background:rgba(232,176,92,.14);color:var(--scarce)}
+  .t-pay{background:rgba(122,169,238,.14);color:var(--info)}
+  .t-risk{background:rgba(232,133,133,.14);color:var(--risk)}
+
+  .arrow{text-align:center;color:var(--tx3);font-size:15px;line-height:1;padding:9px 0}
+
+  /* gate */
+  .gate{
+    background:linear-gradient(90deg,rgba(201,168,106,.09),transparent);
+    border:1px solid rgba(201,168,106,.3);border-left:3px solid var(--gold);
+    border-radius:8px;padding:14px 16px;display:flex;gap:18px;align-items:center;flex-wrap:wrap
+  }
+  .gate .g1{flex:1;min-width:260px}
+  .gate h4{font-size:13.5px;color:var(--gold);margin-bottom:4px}
+  .gate p{font-size:12px;color:var(--tx2)}
+  .sig{display:flex;gap:6px;flex-wrap:wrap}
+  .sig span{
+    font-size:10.5px;background:var(--surface2);border:1px solid var(--line);
+    border-radius:20px;padding:4px 9px;color:var(--tx2);white-space:nowrap
+  }
+
+  /* escalera */
+  .lane{
+    display:grid;grid-template-columns:26px 1fr 118px 128px;gap:12px;align-items:center;
+    background:var(--surface2);border:1px solid var(--line);border-radius:8px;
+    padding:11px 13px;margin-bottom:7px
+  }
+  .lane.hero{border-color:rgba(94,207,160,.4);background:rgba(94,207,160,.06)}
+  .lane.bottleneck{border-color:rgba(232,176,92,.4);background:rgba(232,176,92,.06)}
+  .ln{
+    width:24px;height:24px;border-radius:50%;display:grid;place-items:center;
+    font-size:11px;font-weight:700;background:var(--bg);border:1px solid var(--line);color:var(--tx2)
+  }
+  .lane.hero .ln{border-color:var(--free);color:var(--free)}
+  .lane.bottleneck .ln{border-color:var(--scarce);color:var(--scarce)}
+  .lname{font-size:13px;font-weight:600}
+  .lcond{font-size:11px;color:var(--tx3);margin-top:2px}
+  .lcost{font-size:12px;font-weight:600;text-align:right}
+  .lcupo{font-size:11px;color:var(--tx2);text-align:right}
+  .c-free{color:var(--free)} .c-scarce{color:var(--scarce)} .c-pay{color:var(--info)}
+
+  .fallback{
+    margin-top:7px;font-size:11.5px;color:var(--tx2);background:var(--surface2);
+    border:1px dashed var(--line);border-radius:8px;padding:10px 13px
+  }
+  .fallback b{color:var(--scarce);font-weight:600}
+
+  /* secuencia */
+  .seq{display:flex;gap:6px;align-items:stretch;flex-wrap:wrap}
+  .step{
+    flex:1;min-width:98px;background:var(--surface2);border:1px solid var(--line);
+    border-radius:7px;padding:10px;position:relative
+  }
+  .sday{font-size:10px;font-weight:700;color:var(--info);letter-spacing:.04em}
+  .stxt{font-size:11.5px;margin-top:4px;color:var(--tx)}
+  .ssub{font-size:10.5px;color:var(--tx3);margin-top:3px}
+
+  .rules{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin-top:12px}
+  .rule{font-size:11.5px;color:var(--tx2);background:var(--surface2);border-radius:6px;padding:8px 11px;border-left:2px solid var(--line)}
+  .rule b{color:var(--tx);font-weight:600}
+
+  /* candados */
+  .locks{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .lock{background:var(--surface2);border:1px solid var(--line);border-radius:8px;padding:12px;position:relative}
+  .lock .n{font-size:10px;color:var(--risk);font-weight:700}
+  .lock h4{font-size:12.5px;margin:3px 0 4px}
+  .lock p{font-size:11px;color:var(--tx2)}
+  .lockbar{display:flex;align-items:center;gap:8px;margin-bottom:11px;font-size:11.5px;color:var(--tx3)}
+  .lockbar b{color:var(--risk)}
+
+  /* sidepanels */
+  .cols{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:10px}
+  .mini{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px}
+  .mini h4{font-size:12px;font-weight:600;margin-bottom:9px;color:var(--tx2);letter-spacing:.02em}
+  .row{display:flex;justify-content:space-between;gap:10px;font-size:11.5px;padding:4px 0;border-bottom:1px solid rgba(49,54,63,.55)}
+  .row:last-child{border:0}
+  .row span:first-child{color:var(--tx3)}
+  .row span:last-child{color:var(--tx);font-weight:500;text-align:right;white-space:nowrap}
+
+  .snbox{
+    background:linear-gradient(90deg,rgba(122,169,238,.09),transparent);
+    border:1px solid rgba(122,169,238,.28);border-left:3px solid var(--info);
+    border-radius:8px;padding:13px 16px;margin-top:10px
+  }
+  .snbox h4{font-size:13px;color:var(--info);margin-bottom:5px}
+  .snbox p{font-size:12px;color:var(--tx2);margin-bottom:4px}
+  .snbox p:last-child{margin:0}
+  .snbox code{background:var(--bg);padding:1px 5px;border-radius:3px;font-size:11px;color:var(--free)}
+
+  .foot{margin-top:26px;padding-top:16px;border-top:1px solid var(--line);font-size:11px;color:var(--tx3)}
+  @media(max-width:860px){
+    .grid4,.grid3,.locks,.cols{grid-template-columns:1fr 1fr}
+    .lane{grid-template-columns:24px 1fr;gap:8px}
+    .lcost,.lcupo{text-align:left;grid-column:2}
+    .rules{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Motor de nurturing multicanal</h1>
+  <div class="sub">adoOps · flujo completo del MVP · agosto 2026</div>
+
+  <!-- 0 -->
+  <div class="layer">
+    <div class="lhead"><span class="lnum">00</span><span class="ltitle">Fuentes</span><span class="lnote">el universo de empresas — casi todo gratis, y nadie más lo usa</span></div>
+    <div class="grid4">
+      <div class="card"><h4>SII · nóminas</h4><p>RUT, razón social, rubro, región, tramo de ventas, N° de trabajadores.</p><span class="tag t-free">gratis</span></div>
+      <div class="card"><h4>ChileCompra</h4><p>Bulk OCDS (CC0) + API con 10.000 requests/día para deltas diarios.</p><span class="tag t-free">gratis</span></div>
+      <div class="card"><h4>Registro de Empresas</h4><p>Constituciones recientes. Empresas nuevas antes que ningún proveedor global.</p><span class="tag t-free">gratis</span></div>
+      <div class="card"><h4>Google Maps</h4><p>PyME y servicios sin presencia formal: teléfono, web, categoría.</p><span class="tag t-pay">$1–3 / 1.000</span></div>
+    </div>
+  </div>
+
+  <div class="arrow">▼</div>
+
+  <!-- 1 -->
+  <div class="layer">
+    <div class="lhead"><span class="lnum">01</span><span class="ltitle">La señal</span><span class="lnote">el permiso para escribir — y el filtro que deja pasar poco</span></div>
+    <div class="gate">
+      <div class="g1">
+        <h4>Sin señal verificable, el prospecto no entra a la campaña</h4>
+        <p>Sube la aceptación, sostiene el interés legítimo ante la Ley 21.719, y es lo único que nadie puede copiar.</p>
+      </div>
+      <div class="sig">
+        <span>Se adjudicó licitación · 30 d</span>
+        <span>Publicó licitación · 15 d</span>
+        <span>Empresa nueva · 90 d</span>
+        <span>Cambió de tramo</span>
+        <span>Abrió sucursal · 180 d</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow">▼</div>
+
+  <!-- 2 -->
+  <div class="layer">
+    <div class="lhead"><span class="lnum">02</span><span class="ltitle">La persona</span><span class="lnote">de la empresa al decisor</span></div>
+    <div class="grid3">
+      <div class="card"><h4>Sales Navigator Core</h4><p>Filtros del ICP, 2.500 resultados por búsqueda, 50 créditos de InMail — y el flag <code style="color:var(--free)">open_profile</code>.</p><span class="tag t-pay">~$120/mes</span></div>
+      <div class="card"><h4>FullEnrich / Prospeo</h4><p>Waterfall de email y teléfono. El criterio decisivo es <b style="color:var(--free)">no match, no charge</b>.</p><span class="tag t-pay">$39–55/mes</span></div>
+      <div class="card"><h4>MillionVerifier</h4><p>Verificar el 100% antes de enviar. Cuesta tan poco que no verificar no tiene defensa.</p><span class="tag t-pay">~$3,70 / 1.000</span></div>
+    </div>
+    <div class="snbox">
+      <h4>Qué hace Sales Navigator acá, en realidad</h4>
+      <p>No es un sistema con el que te integras — <b>no tiene API</b>. Es una propiedad de la cuenta: si la suscripción está activa, la misma cuenta ve más y devuelve más.</p>
+      <p>Lo que de verdad compra es el campo <code>open_profile</code> en cada resultado de búsqueda. <b>LinkedIn quitó ese badge de la interfaz en 2025–26</b>, así que a mano hay que abrir perfil por perfil; vía Unipile viene en la respuesta. Ese campo es el que alimenta el ruteo de abajo.</p>
+      <p><b style="color:var(--scarce)">No sube el límite de invitaciones.</b> No te deja mandar más — te deja elegir mejor a quién.</p>
+    </div>
+  </div>
+
+  <div class="arrow">▼</div>
+
+  <!-- 3 -->
+  <div class="layer">
+    <div class="lhead"><span class="lnum">03</span><span class="ltitle">La escalera de canales</span><span class="lnote">el corazón del motor — se toma el primer carril disponible</span></div>
+    <div class="panel">
+      <div class="lane hero">
+        <div class="ln">1</div>
+        <div><div class="lname">Mensaje directo</div><div class="lcond">Ya es conexión de 1<sup>er</sup> grado</div></div>
+        <div class="lcost c-free">Gratis</div><div class="lcupo">~150 / día</div>
+      </div>
+      <div class="lane hero">
+        <div class="ln">2</div>
+        <div><div class="lname">InMail a Open Profile <span style="color:var(--free);font-size:10.5px;font-weight:700">← el carril abundante</span></div><div class="lcond">El perfil tiene Open Profile activo · no consume crédito</div></div>
+        <div class="lcost c-free">Gratis</div><div class="lcupo">~800 / mes</div>
+      </div>
+      <div class="lane hero">
+        <div class="ln">3</div>
+        <div><div class="lname">Mensaje por grupo o evento</div><div class="lcond">Comparte grupo o evento con la cuenta emisora</div></div>
+        <div class="lcost c-free">Gratis</div><div class="lcupo">Sin cupo de crédito</div>
+      </div>
+      <div class="lane">
+        <div class="ln">4</div>
+        <div><div class="lname">InMail con crédito</div><div class="lcond">Solo para prioritarios · se recupera si responde en 90 días</div></div>
+        <div class="lcost c-pay">1 crédito</div><div class="lcupo">50 / mes</div>
+      </div>
+      <div class="lane bottleneck">
+        <div class="ln">5</div>
+        <div><div class="lname">Invitación con nota <span style="color:var(--scarce);font-size:10.5px;font-weight:700">← el cuello de botella</span></div><div class="lcond">300 caracteres · nada de lo anterior aplica</div></div>
+        <div class="lcost c-scarce">Gratis, pero escaso</div><div class="lcupo">20–25 / día</div>
+      </div>
+      <div class="fallback">
+        <b>↳ Si no acepta en 14 días:</b> se <b>retira</b> la invitación —libera cupo semanal y evita que las pendientes degraden la cuenta— y el prospecto baja al carril de email. Un callejón sin salida se convierte en un segundo intento.
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow">▼</div>
+
+  <!-- 4 -->
+  <div class="layer">
+    <div class="lhead"><span class="lnum">04</span><span class="ltitle">La secuencia</span><span class="lnote">cinco toques como máximo, sumando todos los canales</span></div>
+    <div class="panel">
+      <div class="seq">
+        <div class="step"><div class="sday">D 0</div><div class="stxt">Primer toque</div><div class="ssub">Menciona la señal. Nada de pitch</div></div>
+        <div class="step"><div class="sday">D + 2</div><div class="stxt">Mensaje 1</div><div class="ssub">Agradece y da contexto</div></div>
+        <div class="step"><div class="sday">D + 6</div><div class="stxt">Mensaje 2</div><div class="ssub">Algo útil, sin pedir nada</div></div>
+        <div class="step"><div class="sday">D + 13</div><div class="stxt">Mensaje 3</div><div class="ssub">Una sola pregunta directa</div></div>
+        <div class="step"><div class="sday">D + 21</div><div class="stxt">Mensaje 4</div><div class="ssub">Cierre amable y supresión</div></div>
+      </div>
+      <div class="rules">
+        <div class="rule"><b>Una respuesta detiene todo</b> y abre hilo humano. Es la diferencia entre nurturing y una máquina de spam.</div>
+        <div class="rule"><b>Nunca dos canales el mismo día.</b> Perseguir por tres frentes se lee como acoso.</div>
+        <div class="rule"><b>Los D+N son días hábiles con jitter.</b> Una acción cada 90 segundos exactos es lo que delata a un bot.</div>
+        <div class="rule"><b>Se pausa si el prospecto mira tu perfil.</b> Está mirando: eso es momento de mensaje humano, no del paso 3.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow">▼</div>
+
+  <!-- 5 -->
+  <div class="layer">
+    <div class="lhead"><span class="lnum">05</span><span class="ltitle">Dispatch</span><span class="lnote">punto único de salida — generaliza el whatsapp-dispatch del CRM</span></div>
+    <div class="panel">
+      <div class="lockbar">Nada sale sin cruzar los cuatro candados, y <b>el orden importa</b>. Un solo módulo importa los clientes de red: esa es la propiedad que hace auditable la promesa.</div>
+      <div class="locks">
+        <div class="lock"><div class="n">CANDADO 1</div><h4>Aprobación humana</h4><p>Por lote, no por mensaje. De a uno no escala y nadie lo usa.</p></div>
+        <div class="lock"><div class="n">CANDADO 2</div><h4>Sin BAJA ni oposición</h4><p>Opt-out, rebote duro, oposición registrada, y quien ya respondió.</p></div>
+        <div class="lock"><div class="n">CANDADO 3</div><h4>Interruptor y simulación</h4><p>El modo simulado corta antes de tocar la red.</p></div>
+        <div class="lock"><div class="n">CANDADO 4</div><h4>Cuota y ventana</h4><p>Cupo diario, horario laboral chileno, y freno si la aceptación cae bajo 25%.</p></div>
+      </div>
+      <div class="grid3" style="margin-top:9px">
+        <div class="card"><h4 style="color:var(--info)">LinkedIn</h4><p>vía Unipile · ~$55/mes hasta 10 cuentas</p></div>
+        <div class="card"><h4 style="color:var(--info)">Email</h4><p>vía Brevo · ya está en el stack</p></div>
+        <div class="card"><h4 style="color:var(--tx3)">WhatsApp</h4><p>ya construido en el CRM · entra en fase 2</p></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow">▼</div>
+
+  <!-- 6 -->
+  <div class="layer">
+    <div class="lhead"><span class="lnum">06</span><span class="ltitle">Salida</span><span class="lnote">donde termina la automatización y empieza la persona</span></div>
+    <div class="grid2">
+      <div class="card"><h4>Bandeja unificada</h4><p>Los tres canales en un hilo por persona. Quien responde sale de la automatización de inmediato.</p><span class="tag t-free">respuesta = humano</span></div>
+      <div class="card"><h4>CRM · /crm/oportunidades</h4><p>El prospecto calificado entra al pipeline existente, con su atribución de campaña y su origen.</p><span class="tag t-pay">ya construido</span></div>
+    </div>
+  </div>
+
+  <!-- ref -->
+  <div class="cols">
+    <div class="mini">
+      <h4>WARM-UP · no negociable</h4>
+      <div class="row"><span>Semana 1</span><span>5 invit. / día</span></div>
+      <div class="row"><span>Semana 2</span><span>8 / día</span></div>
+      <div class="row"><span>Semana 3</span><span>12 / día</span></div>
+      <div class="row"><span>Semana 4</span><span>16 / día</span></div>
+      <div class="row"><span>Semana 5 y siguientes</span><span style="color:var(--scarce)">20–25 / día · techo</span></div>
+    </div>
+    <div class="mini">
+      <h4>MÉTRICAS · seis, no más</h4>
+      <div class="row"><span>Aceptación de invitaciones</span><span style="color:var(--scarce)">piso 25%</span></div>
+      <div class="row"><span>Respuesta al nurturing</span><span>piso 10%</span></div>
+      <div class="row"><span>Opt-outs y quejas</span><span style="color:var(--risk)">bajo 0,5%</span></div>
+      <div class="row"><span>Respuestas por canal</span><span>dónde invertir</span></div>
+      <div class="row"><span>Toques hasta responder</span><span>si sobra secuencia</span></div>
+      <div class="row"><span>Costo por conversación</span><span>vs. pauta</span></div>
+    </div>
+    <div class="mini">
+      <h4>COSTO MENSUAL</h4>
+      <div class="row"><span>Sales Navigator Core</span><span>~$120</span></div>
+      <div class="row"><span>Unipile</span><span>~$55</span></div>
+      <div class="row"><span>FullEnrich</span><span>$55</span></div>
+      <div class="row"><span>Verificación + IP + LLM</span><span>~$33</span></div>
+      <div class="row"><span>Neon · Vercel · Brevo</span><span style="color:var(--free)">$0 marginal</span></div>
+      <div class="row" style="border-top:1px solid var(--line);margin-top:4px;padding-top:7px"><span style="color:var(--tx)">Total</span><span style="color:var(--free)">≈ $250–265</span></div>
+    </div>
+  </div>
+
+  <div class="foot">
+    La invitación es tu recurso más caro, no el más barato — 20–25 al día contra ~800 InMails gratis al mes. Toda la escalera existe para no quemarla.<br>
+    Cifras de Unipile y de benchmarks de vendors, medidas mayoritariamente sobre poblaciones de EE.UU. La primera campaña real existe para reemplazarlas por números chilenos.
+  </div>
+
+</div>
+</body>
+</html>

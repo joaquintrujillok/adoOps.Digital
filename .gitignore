@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# fase 0 · datos del SII (3 GB, se re-descargan)
+/scripts/datos_sii/
+/scripts/salida/

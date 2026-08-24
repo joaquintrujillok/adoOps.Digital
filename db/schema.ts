@@ -329,3 +329,10 @@ export type NewMixRoom = typeof mixRooms.$inferInsert;
 // =============================================================================
 
 export * from "./crm";
+
+// =============================================================================
+// Motor de nurturing (/leads) — las tablas viven en db/leads.ts y se reexportan
+// acá para que drizzle-kit las vea. Ojo: la tabla `leads` de arriba es el
+// formulario de la web corporativa y no tiene relación con `lead_*`.
+// =============================================================================
+export * from "./leads";
