@@ -5,11 +5,15 @@
 // conexión de Neon está disponible.
 //
 // Uso:
-//   D360_SETUP_SECRET=... node scripts/d360-importar-csv.mjs <url-base> <archivo.csv> [customer-id]
+//   D360_SETUP_SECRET=... node scripts/d360-importar-csv.mjs <url-base> <archivo.csv> [customer-id] [--reemplazar-todo]
+//
+// --reemplazar-todo borra todo lo previo de Google Ads antes de insertar, no solo
+// el rango del archivo. Es lo que hay que usar al pasar de sembrado a real.
 
 import { readFileSync } from "node:fs";
 
-const [base, archivo, cuenta] = process.argv.slice(2);
+const [base, archivo, cuenta] = process.argv.slice(2).filter((a) => a !== "--reemplazar-todo");
+const reemplazarTodo = process.argv.includes("--reemplazar-todo");
 const secreto = process.env.D360_SETUP_SECRET;
 
 if (!base || !archivo) {
@@ -24,6 +28,7 @@ if (!secreto) {
 const csv = readFileSync(archivo, "utf8");
 const url = new URL("/api/dashboard360/cron/importar-csv", base);
 if (cuenta) url.searchParams.set("cuenta", cuenta);
+if (reemplazarTodo) url.searchParams.set("reemplazarTodo", "1");
 
 const res = await fetch(url, {
   method: "POST",

@@ -96,6 +96,16 @@ export interface ResultadoImportacion {
 export async function importarCsvGoogleAds(
   contenido: string,
   cuenta?: string,
+  /**
+   * Borra **todo** lo que haya de esta fuente antes de insertar, no solo el
+   * rango del archivo.
+   *
+   * Existe porque la primera importación sobre datos sembrados dejó un híbrido:
+   * el CSV reemplazó sus once días y los días sembrados de antes sobrevivieron,
+   * así que el panel mostró una inversión que no era ni la real ni la del demo.
+   * Un número a medias es peor que cualquiera de los dos puros.
+   */
+  reemplazarTodo = false,
 ): Promise<ResultadoImportacion> {
   const filas = parseCsv(contenido).filter((f) => f.some((c) => c.trim() !== ""));
 
@@ -149,11 +159,13 @@ export async function importarCsvGoogleAds(
   await db
     .delete(d360Metricas)
     .where(
-      and(
-        eq(d360Metricas.fuenteSlug, SLUG),
-        gte(d360Metricas.fecha, desde),
-        lte(d360Metricas.fecha, hasta),
-      ),
+      reemplazarTodo
+        ? eq(d360Metricas.fuenteSlug, SLUG)
+        : and(
+            eq(d360Metricas.fuenteSlug, SLUG),
+            gte(d360Metricas.fecha, desde),
+            lte(d360Metricas.fecha, hasta),
+          ),
     );
 
   const LOTE = 200;

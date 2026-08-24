@@ -24,14 +24,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  const cuenta = new URL(request.url).searchParams.get("cuenta") ?? undefined;
+  const params = new URL(request.url).searchParams;
+  const cuenta = params.get("cuenta") ?? undefined;
+  // `reemplazarTodo=1` borra todo lo previo de la fuente, no solo el rango del
+  // archivo. Es lo que hay que usar al pasar de datos sembrados a datos reales.
+  const reemplazarTodo = params.get("reemplazarTodo") === "1";
 
   try {
     const contenido = await request.text();
     if (!contenido.trim()) {
       return NextResponse.json({ ok: false, error: "El cuerpo viene vacío" }, { status: 400 });
     }
-    const r = await importarCsvGoogleAds(contenido, cuenta);
+    const r = await importarCsvGoogleAds(contenido, cuenta, reemplazarTodo);
     return NextResponse.json({ ok: true, ...r });
   } catch (e) {
     return NextResponse.json(
