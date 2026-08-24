@@ -40,6 +40,15 @@ export default async function Dashboard360AppLayout({
       ],
     },
     {
+      // El mercado va antes que el informe: es el dato que enmarca todo lo
+      // demás. Un costo por lead no significa nada sin saber de qué universo
+      // salieron esos leads.
+      titulo: "Mercado",
+      items: [
+        { href: "/dashboard360/prospeccion", etiqueta: "Prospección", icono: "◎" },
+      ],
+    },
+    {
       titulo: "Dirección",
       items: [
         {

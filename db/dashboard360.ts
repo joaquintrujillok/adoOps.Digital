@@ -23,6 +23,7 @@ import {
   integer,
   pgTable,
   serial,
+  smallint,
   text,
   timestamp,
   uniqueIndex,
@@ -231,3 +232,54 @@ export const d360Informes = pgTable(
 );
 
 export type D360Informe = typeof d360Informes.$inferSelect;
+
+// ─── Mercado direccionable ───────────────────────────────────────────────────
+
+/**
+ * El universo de empresas de Chile, agregado desde la nómina del SII.
+ *
+ * **Por qué agregado y no crudo.** La nómina son 378 MB y 994.476 empresas por
+ * año comercial. Traerla entera a Neon para contar filas sería pagar
+ * almacenamiento por un dato que solo se consulta sumado. Acá vive el conteo
+ * por rubro, región y tramo; el detalle vive en los archivos y en
+ * `lead_empresas` cuando una empresa entra a una campaña.
+ *
+ * **Las tres cifras son distintas y ninguna sobra.** `empresas` es lo que
+ * cualquiera contaría. `operativas` descuenta los cascarones —el 78% del rubro
+ * financiero son fondos y sociedades de inversión sin un solo trabajador— y es
+ * la única que sirve para dimensionar una campaña. `inversion` deja a la vista
+ * cuánto se descontó, porque un número corregido sin mostrar la corrección es
+ * indistinguible de un número inventado.
+ *
+ * Se repuebla entero cuando el SII publica la nómina nueva. Ver
+ * `scripts/d360-mercado.mjs` y `docs/layout-sii.md`.
+ */
+export const d360Mercado = pgTable(
+  "d360_mercado",
+  {
+    id: serial("id").primaryKey(),
+    /** El SII publica por año comercial; el más reciente es 2024. */
+    anoComercial: smallint("ano_comercial").notNull(),
+    /** Glosa del SII: "ACTIVIDADES FINANCIERAS Y DE SEGUROS". */
+    rubro: varchar("rubro", { length: 120 }).notNull(),
+    /** Código 1–16. El SII entrega romanos; se normaliza al poblar. */
+    region: smallint("region"),
+    /** Tramo de ventas del SII, 1 a 13. */
+    tramo: smallint("tramo"),
+
+    empresas: integer("empresas").notNull(),
+    /** Con 10+ trabajadores y sin ser vehículo de inversión. */
+    operativas: integer("operativas").notNull(),
+    /** Fondos, sociedades de inversión y sociedades de cartera. */
+    inversion: integer("inversion").notNull(),
+
+    fuente: varchar("fuente", { length: 20 }).notNull().default("sii"),
+    obtenidoEn: timestamp("obtenido_en").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("d360_mercado_celda_idx").on(t.anoComercial, t.rubro, t.region, t.tramo),
+    index("d360_mercado_rubro_idx").on(t.rubro),
+  ],
+);
+
+export type D360Mercado = typeof d360Mercado.$inferSelect;
