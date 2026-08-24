@@ -3,8 +3,52 @@
 Runbook para reemplazar los datos sembrados de Google Ads por los de una cuenta
 real. Verificado contra la documentación de Google el 2026-08-24.
 
-Al final tienes que quedar con **seis valores**. Todos van a variables de
-entorno en Vercel; ninguno se guarda en el repositorio.
+## Antes de empezar: son dos permisos distintos, no uno
+
+Se confunden todo el tiempo y conviene tenerlos separados desde el principio:
+
+| | Quién lo controla | Qué habilita |
+|---|---|---|
+| **Developer token** | **Tú.** Sale de *tu* cuenta de administrador | Identifica a la aplicación ante Google. **Por sí solo no da acceso a ningún dato** |
+| **Acceso a la cuenta** | **El cliente** | Determina qué cuentas puede leer el usuario autenticado |
+
+El cliente **no** necesita developer token, ni cuenta de administrador, ni
+proyecto en Google Cloud. Todo eso es tuyo y se hace una sola vez, sirve para
+todos los clientes que vengan después.
+
+Lo único que el cliente hace es darte acceso a su cuenta — y hay dos formas,
+con costo político muy distinto:
+
+### Camino A · Invitación de usuario (recomendado)
+
+El administrador de la cuenta del cliente agrega tu correo como usuario, con
+nivel **Solo lectura**. En Google Ads: **Administración → Acceso y seguridad →
+`+` → correo + nivel de acceso**.
+
+«Solo lectura» permite ver campañas y correr informes de rendimiento, que es
+exactamente lo que necesita la API — el Google Ads API no tiene su propio modelo
+de permisos: hereda los roles de usuario de la interfaz. No permite editar nada.
+
+Es el permiso mínimo, se concede en dos minutos y se revoca en un clic.
+
+**Con este camino no se usa `login-customer-id`**, porque el acceso no pasa por
+una cuenta de administrador.
+
+### Camino B · Vincular la cuenta a tu MCC
+
+Tu MCC envía una solicitud de vinculación al customer ID del cliente y el
+cliente la acepta: **Cuentas → Subcuentas → `+` → Vincular cuenta existente**.
+
+Es un permiso bastante más fuerte —toca facturación y gestión— y por lo mismo
+más difícil de conseguir. Se justifica cuando administras la inversión, no
+cuando solo la reportas.
+
+**Con este camino sí se envía `login-customer-id`**, con el ID de tu MCC.
+
+---
+
+Al final tienes que quedar con **cinco valores** (seis si tomas el camino B).
+Todos van a variables de entorno en Vercel; ninguno se guarda en el repositorio.
 
 | Variable | De dónde sale |
 |---|---|
@@ -13,26 +57,25 @@ entorno en Vercel; ninguno se guarda en el repositorio.
 | `GOOGLE_ADS_CLIENT_SECRET` | Paso 3 |
 | `GOOGLE_ADS_REFRESH_TOKEN` | Paso 4 |
 | `GOOGLE_ADS_CUSTOMER_ID` | Paso 5 |
-| `GOOGLE_ADS_LOGIN_CUSTOMER_ID` | Paso 5 |
+| `GOOGLE_ADS_LOGIN_CUSTOMER_ID` | Paso 5 — **solo en el camino B** |
 
 ---
 
-## Paso 1 · Cuenta de administrador (MCC)
+## Paso 1 · Tu cuenta de administrador (MCC)
 
-El developer token **solo se pide desde una cuenta de administrador**. Desde una
-cuenta normal de Google Ads el API Center ni siquiera aparece: sale el mensaje
-*«The API Center is only available to manager accounts»*.
+Sirve **solo para poder pedir el developer token**: desde una cuenta normal de
+Google Ads el API Center ni siquiera aparece, sale *«The API Center is only
+available to manager accounts»*.
 
-1. Entra a <https://ads.google.com/home/tools/manager-accounts/>
-2. **Crear una cuenta de administrador**. Es gratis y no requiere medio de pago.
-3. Dentro del MCC, vincula la cuenta de Google Ads que vas a leer:
-   **Cuentas → Subcuentas → botón `+` → Vincular cuenta existente**, con el
-   customer ID de 10 dígitos.
-4. Desde la cuenta vinculada hay que **aceptar la invitación**.
+No necesita tener ninguna cuenta vinculada ni gastar un peso. Es un trámite
+tuyo, de una sola vez.
 
-> Si la cuenta es de un cliente, el paso 3 lo tiene que aprobar el cliente. No
-> es un trámite técnico: le estás pidiendo acceso administrativo a su inversión
-> publicitaria.
+1. Entra a <https://ads.google.com/home/tools/manager-accounts/> con el correo
+   que vas a usar siempre para esto.
+2. **Crear una cuenta de administrador**. Es gratis y no pide medio de pago.
+
+Si tomaste el camino B, acá además vinculas la cuenta del cliente. En el camino
+A no hay nada más que hacer en este paso.
 
 ---
 
@@ -98,7 +141,9 @@ Abre el navegador, pide autorización con el scope
 `https://www.googleapis.com/auth/adwords`, recibe el código en `localhost:8765`
 y lo canjea. **Imprime el refresh token en la terminal y no lo guarda en disco.**
 
-Autoriza con la cuenta de Google que tiene acceso al MCC, no con otra.
+Autoriza con **el mismo correo al que el cliente le dio acceso** a su cuenta de
+Google Ads. Ese correo es el que define qué cuentas se pueden leer; el developer
+token no aporta acceso, solo identifica a la aplicación.
 
 > Si el script dice que Google devolvió tokens **sin** refresh token, es porque
 > esa cuenta ya había autorizado la aplicación antes. Revoca el acceso en
@@ -106,18 +151,15 @@ Autoriza con la cuenta de Google que tiene acceso al MCC, no con otra.
 
 ---
 
-## Paso 5 · Los dos customer IDs
+## Paso 5 · Customer ID
 
-Son dos y se confunden seguido:
+**`GOOGLE_ADS_CUSTOMER_ID`** — la cuenta cuyos datos quieres leer. Aparece
+arriba a la derecha en la interfaz de Google Ads con el formato `123-456-7890`.
+**Se guarda sin guiones**: `1234567890`. Con guiones la API lo rechaza.
 
-- **`GOOGLE_ADS_CUSTOMER_ID`** — la cuenta cuyos datos quieres leer.
-- **`GOOGLE_ADS_LOGIN_CUSTOMER_ID`** — el MCC desde el que entras. **Es
-  obligatorio** cuando el acceso pasa por una cuenta de administrador, que es
-  nuestro caso.
-
-Se encuentran arriba a la derecha en la interfaz de Google Ads, con el formato
-`123-456-7890`. **Se guardan sin guiones**: `1234567890`. La API los rechaza con
-guiones.
+**`GOOGLE_ADS_LOGIN_CUSTOMER_ID`** — solo si tomaste el camino B. Es el ID de tu
+MCC, también sin guiones. Es obligatorio cuando el acceso pasa por una cuenta de
+administrador; en el camino A no se envía.
 
 ---
 
@@ -125,8 +167,9 @@ guiones.
 
 ```bash
 cd ~/Proyectos/adoOps.Digital
+# Agrega GOOGLE_ADS_LOGIN_CUSTOMER_ID a la lista solo si tomaste el camino B.
 for v in GOOGLE_ADS_DEVELOPER_TOKEN GOOGLE_ADS_CLIENT_ID GOOGLE_ADS_CLIENT_SECRET \
-         GOOGLE_ADS_REFRESH_TOKEN GOOGLE_ADS_CUSTOMER_ID GOOGLE_ADS_LOGIN_CUSTOMER_ID; do
+         GOOGLE_ADS_REFRESH_TOKEN GOOGLE_ADS_CUSTOMER_ID; do
   read -r "valor?$v: "
   vercel env add "$v" production --value "$valor" --yes
 done
@@ -136,7 +179,7 @@ done
 
 ## Lo que hay que construir después
 
-Con los seis valores, falta la ingesta: **un cliente directo de la API en el
+Con esos valores, falta la ingesta: **un cliente directo de la API en el
 mismo repositorio, disparado por un cron de Vercel**, que escriba en
 `d360_metricas_diarias` con `fuente_slug = 'google_ads'`.
 
