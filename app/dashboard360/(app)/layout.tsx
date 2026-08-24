@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
@@ -68,15 +67,18 @@ export default async function Dashboard360AppLayout({
     <div className="flex min-h-screen">
       <aside className="d360-no-print sticky top-0 hidden h-screen w-60 shrink-0 flex-col justify-between bg-[var(--d360-sidebar)] px-3 py-5 lg:flex">
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <Link href="/dashboard360" className="mb-6 flex items-center gap-2 px-3">
-            <Image
-              src="/logo.png"
-              alt="adoOps"
-              width={240}
-              height={60}
-              priority
-              className="h-[24px] w-auto"
-            />
+          {/* Wordmark tipográfico y no el PNG de la marca, por una razón que se
+              vio en pantalla: el logo de adoOps es navy oscuro sobre
+              transparente —hecho para el fondo claro de la home— y sobre esta
+              barra navy desaparece. Solo se distinguía el símbolo verde.
+              El texto se controla y contrasta. */}
+          <Link
+            href="/dashboard360"
+            className="mb-6 flex items-baseline gap-2 px-3 text-[19px] font-semibold lowercase tracking-[-0.02em] text-white"
+          >
+            <span>
+              ado<span className="text-[var(--d360-accent)]">Ops</span>
+            </span>
             <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#7be9ae]">
               360
             </span>
@@ -105,8 +107,11 @@ export default async function Dashboard360AppLayout({
       {/* Navegación de pantalla chica: barra superior con los módulos en scroll. */}
       <div className="min-w-0 flex-1">
         <div className="d360-no-print sticky top-0 z-20 flex items-center gap-3 overflow-x-auto border-b border-[var(--d360-grid)] bg-[var(--d360-sidebar)] px-4 py-2.5 lg:hidden">
-          <Link href="/dashboard360" className="shrink-0">
-            <Image src="/logo.png" alt="adoOps" width={240} height={60} className="h-[18px] w-auto" />
+          <Link
+            href="/dashboard360"
+            className="shrink-0 text-[15px] font-semibold lowercase tracking-[-0.02em] text-white"
+          >
+            ado<span className="text-[var(--d360-accent)]">Ops</span>
           </Link>
           {grupos
             .flatMap((g) => g.items)

@@ -304,32 +304,50 @@ export async function sembrarDemo(opciones: {
 
   // Leads deduplicados: ~1,36 atribuciones por persona, que es lo que se
   // observa cuando tres canales se cuelgan del mismo contacto.
+  //
+  // **Se derivan día a día de las atribuciones de ese mismo día, y eso no es un
+  // detalle.** La primera versión repartía las personas sobre el período con su
+  // propia curva, independiente de las métricas de plataforma. El resultado fue
+  // que las dos tablas contaban historias distintas: las atribuciones bajaban en
+  // el período reciente y las personas subían, así que el panel mostraba
+  // «leads +24,8%» mientras el gasto crecía y el informe concluía que todo iba
+  // bien. Justo lo contrario de lo que el demo tiene que mostrar.
+  //
+  // Derivarlas del mismo origen hace imposible esa contradicción — que además
+  // sería fatal en un producto cuya promesa es que sus números cuadran.
   const atribuciones = filas.reduce((s, f) => s + (f.leads ?? 0), 0);
-  const personas = Math.round(atribuciones / 1.36);
   const conLeads = CAMPANIAS.filter((c) => c.leadsBase > 0);
 
-  const leads: (typeof d360Leads.$inferInsert)[] = [];
-  for (let i = 0; i < personas; i++) {
-    const idx = Math.min(Math.floor(Math.pow(rnd(), 0.85) * DIAS), DIAS - 1);
-    const primero = conLeads[Math.floor(rnd() * conLeads.length)];
-    const ultimo = rnd() < 0.72 ? primero : conLeads[Math.floor(rnd() * conLeads.length)];
-    const r = rnd();
-    const estado =
-      r < 0.34 ? "nuevo" : r < 0.58 ? "contactado" : r < 0.78 ? "calificado" : r < 0.88 ? "oportunidad" : "descartado";
+  const porFecha = new Map<string, number>();
+  for (const f of filas) {
+    if (!f.leads) continue;
+    porFecha.set(f.fecha, (porFecha.get(f.fecha) ?? 0) + f.leads);
+  }
 
-    leads.push({
-      fecha: fechas[idx],
-      nombre: NOMBRES[Math.floor(rnd() * NOMBRES.length)],
-      empresa: EMPRESAS[Math.floor(rnd() * EMPRESAS.length)],
-      fuentePrimerToque: primero.slug,
-      fuenteUltimoToque: ultimo.slug,
-      campania: primero.nombre,
-      estado: estado as never,
-      valorClp: estado === "oportunidad" ? entero((3_500_000 + rnd() * 22_000_000) / 100_000) * 100_000 : null,
-      // Ni todos ni pocos: la brecha con el CRM es parte de lo que el informe
-      // explica, y si fuera cero no habría nada que explicar.
-      enCrm: rnd() < 0.72,
-    });
+  const leads: (typeof d360Leads.$inferInsert)[] = [];
+  for (const fecha of fechas) {
+    const personasDelDia = Math.round((porFecha.get(fecha) ?? 0) / 1.36);
+    for (let i = 0; i < personasDelDia; i++) {
+      const primero = conLeads[Math.floor(rnd() * conLeads.length)];
+      const ultimo = rnd() < 0.72 ? primero : conLeads[Math.floor(rnd() * conLeads.length)];
+      const r = rnd();
+      const estado =
+        r < 0.34 ? "nuevo" : r < 0.58 ? "contactado" : r < 0.78 ? "calificado" : r < 0.88 ? "oportunidad" : "descartado";
+
+      leads.push({
+        fecha,
+        nombre: NOMBRES[Math.floor(rnd() * NOMBRES.length)],
+        empresa: EMPRESAS[Math.floor(rnd() * EMPRESAS.length)],
+        fuentePrimerToque: primero.slug,
+        fuenteUltimoToque: ultimo.slug,
+        campania: primero.nombre,
+        estado: estado as never,
+        valorClp: estado === "oportunidad" ? entero((3_500_000 + rnd() * 22_000_000) / 100_000) * 100_000 : null,
+        // Ni todos ni pocos: la brecha con el CRM es parte de lo que el informe
+        // explica, y si fuera cero no habría nada que explicar.
+        enCrm: rnd() < 0.72,
+      });
+    }
   }
   for (let i = 0; i < leads.length; i += LOTE) {
     await db.insert(d360Leads).values(leads.slice(i, i + LOTE));

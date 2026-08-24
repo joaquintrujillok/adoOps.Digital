@@ -26,6 +26,17 @@ export default async function CanalesPage() {
   const ads = fuentes.filter((f) => f.tipo === "ads");
   const nombrePorSlug = new Map(fuentes.map((f) => [f.slug, f.nombre]));
 
+  // Umbral para marcar una campaña como cara: 1,5 veces la mediana del período,
+  // no un número fijo. Lo que es caro en una industria es barato en otra, y un
+  // umbral fijo termina marcando todas las filas o ninguna — que es lo mismo
+  // que no marcar nada.
+  const cpls = campanias
+    .filter((c) => c.leads > 0)
+    .map((c) => c.inversionClp / c.leads)
+    .sort((a, b) => a - b);
+  const mediana = cpls.length ? cpls[Math.floor(cpls.length / 2)] : 0;
+  const umbralCaro = mediana * 1.5;
+
   const tasaApertura = r.envios ? (r.aperturas / r.envios) * 100 : 0;
 
   return (
@@ -134,7 +145,11 @@ export default async function CanalesPage() {
 
       <Card
         titulo="Campañas"
-        descripcion="Las doce con mayor inversión en el período"
+        descripcion={
+          umbralCaro > 0
+            ? `Las doce con mayor inversión. Se marcan las que superan ${clp(umbralCaro)} por lead — 1,5 veces la mediana del período`
+            : "Las doce con mayor inversión en el período"
+        }
       >
         {campanias.length === 0 ? (
           <Vacio
@@ -156,9 +171,7 @@ export default async function CanalesPage() {
             <tbody>
               {campanias.map((c) => {
                 const cpl = c.leads ? c.inversionClp / c.leads : null;
-                // Se marca lo caro respecto de la mediana del período, no contra
-                // un umbral fijo: lo que es caro en una industria es barato en otra.
-                const caro = cpl !== null && cpl > 60_000;
+                const caro = cpl !== null && umbralCaro > 0 && cpl > umbralCaro;
                 return (
                   <tr key={`${c.slug}-${c.campania}`}>
                     <td className="max-w-[320px] truncate font-medium" title={c.campania}>
