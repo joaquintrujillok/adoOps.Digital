@@ -16,6 +16,20 @@ El cliente **no** necesita developer token, ni cuenta de administrador, ni
 proyecto en Google Cloud. Todo eso es tuyo y se hace una sola vez, sirve para
 todos los clientes que vengan después.
 
+> **El token no tiene que salir del MCC que administra las cuentas.** El
+> developer token solo acredita que eres un desarrollador registrado; el control
+> de acceso real está en los permisos del usuario OAuth. Un token emitido desde
+> un MCC propio y vacío sirve para leer cualquier cuenta a la que ese usuario
+> tenga acceso, aunque no esté vinculada a ese MCC.
+>
+> Por eso no vale la pena pedir acceso de administrador al MCC de un cliente o
+> de otra agencia para sacar el token de ahí. Funcionaría —un administrador del
+> MCC entra al API Center y lo saca solo, sin que nadie le pase nada— pero deja
+> tres dependencias que no necesitas: si te quitan el acceso pierdes el token y
+> la ingesta se cae; compartes el límite diario de operaciones con cualquier otra
+> herramienta que use ese MCC; y si Google suspende el token por el uso que le da
+> un tercero, se cae la tuya con él.
+
 Lo único que el cliente hace es darte acceso a su cuenta — y hay dos formas,
 con costo político muy distinto:
 
