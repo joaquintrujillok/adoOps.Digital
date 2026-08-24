@@ -329,3 +329,11 @@ export type NewMixRoom = typeof mixRooms.$inferInsert;
 // =============================================================================
 
 export * from "./crm";
+
+// =============================================================================
+// Dashboard360 (/dashboard360) — las tablas viven en db/dashboard360.ts y se
+// reexportan acá por el mismo motivo que el CRM: drizzle-kit solo mira el
+// `schema` declarado en drizzle.config.ts.
+// =============================================================================
+
+export * from "./dashboard360";
