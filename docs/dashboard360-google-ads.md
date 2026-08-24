@@ -220,6 +220,31 @@ done
 
 ---
 
+## Verificado en terreno el 2026-08-24
+
+La cadena completa se probó contra la API real, no en teoría:
+
+| Paso | Resultado |
+|---|---|
+| refresh token → access token | ✅ 200, expira en 3599 s |
+| `customers:listAccessibleCustomers` | ✅ 200 · devuelve el MCC `8269783458` y la cuenta `3964539601` |
+| Consulta GAQL sobre `campaign` | ❌ `DEVELOPER_TOKEN_NOT_APPROVED` |
+
+**La versión de la API que responde hoy es `v22`.** `v21` devuelve 404.
+
+Dos errores que conviene reconocer porque significan cosas muy distintas:
+
+- **`USER_PERMISSION_DENIED`** — sale al enviar `login-customer-id` de un MCC que
+  *no administra* esa cuenta. Es el error del camino B mal armado. En el camino A
+  la cabecera simplemente no se envía.
+- **`DEVELOPER_TOKEN_NOT_APPROVED`** — *«The developer token is only approved for
+  use with test accounts»*. Este es el bueno: significa que credenciales,
+  permisos y consulta están bien, y lo único que falta es el acceso básico.
+
+Llegar al segundo error es la señal de que todo lo demás quedó correcto.
+
+---
+
 ## Lo que hay que construir después
 
 Con esos valores, falta la ingesta: **un cliente directo de la API en el
