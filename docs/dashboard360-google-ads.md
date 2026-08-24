@@ -143,6 +143,35 @@ API Center.
 
 ---
 
+## Paso 3.5 · Llave de acceso (passkey) — **hay que hacerlo con días de antelación**
+
+Esto no es opcional y tiene plazos que arruinan una planificación si se descubren
+tarde.
+
+- Desde el **21 de abril de 2026**, la Google Ads API exige verificación en dos
+  pasos para **generar refresh tokens nuevos**.
+- Desde el **5 de agosto de 2026**, exige **llave de acceso** para parte de sus
+  usuarios. Contraseña sola, TOTP y códigos por SMS quedan **descartados** como
+  forma de autenticación para emitir tokens nuevos.
+- Los refresh tokens **ya existentes no se ven afectados** y siguen funcionando.
+
+Como el paso 4 genera un token nuevo, esto aplica de lleno.
+
+**Los tiempos son el problema:** una llave de acceso recién creada tarda entre
+**uno y dos días en vincularse con Google Ads**, y puede quedar sujeta a un
+**retraso de seguridad de siete días** para acciones sensibles si Google no logra
+verificar la identidad de inmediato.
+
+Se crea en **Administrador → Acceso y seguridad → Tareas de seguridad → Crear una
+llave de acceso**, con el mismo correo que vaya a autorizar la API.
+
+> **Los correos de dominio gratuito quedan fuera.** Las cuentas `@gmail.com` y
+> similares están bloqueadas para acciones sensibles y hay que migrarlas a un
+> dominio corporativo. `@adoops.digital` y `@jtk.app` sirven; una cuenta personal
+> de Gmail, no.
+
+---
+
 ## Paso 4 · Refresh token
 
 No hace falta el OAuth Playground. El repositorio trae la herramienta:
