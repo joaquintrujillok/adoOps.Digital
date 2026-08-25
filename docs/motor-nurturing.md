@@ -253,6 +253,18 @@ prospectos entran solo por CSV.
 Para apagar el endpoint: borrar `LEADS_SETUP_SECRET`. Sin esa variable responde
 503. Falla cerrado.
 
+> ⚠️ **Agregar o borrar una variable no afecta al deployment que ya está
+> corriendo.** Vercel las congela al empezar el build, así que hace falta
+> redesplegar para que el runtime la vea — o para que deje de verla.
+>
+> Y para ese redespliegue **no** se usa `vercel --prod`: ese comando sube la
+> carpeta local, no el commit de `main`. Corrido desde un clon sin `git pull`
+> despliega código viejo y reapunta el dominio a él. Pasó el 25-08-2026 y sacó el
+> motor de producción minutos después de haberlo verificado funcionando; el
+> síntoma es que las rutas empiezan a devolver 404. Lo correcto es **Redeploy**
+> sobre el último deployment de Git en el dashboard, o empujar un commit a
+> `main`.
+
 ## Qué falta
 
 1. **Conectar Unipile** en `enviarPorLaRed()`, y verificar en el trial de 7 días

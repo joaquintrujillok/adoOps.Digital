@@ -10,3 +10,12 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - The `origin` remote is already configured for this repository.
 - Do not ask the user to configure or identify the GitHub repository again.
 - Production deployments are triggered by pushing the intended release changes to `main`.
+- **Never tell anyone to run `vercel --prod` to pick up a changed environment
+  variable.** That command deploys the *local working directory*, not the commit
+  on `main`. Run from a clone that has not been pulled, it silently ships stale
+  code and re-aliases the domain to it — production rolls back, and the only
+  symptom is routes returning 404. It happened on 25-08-2026: the motor
+  disappeared from production minutes after it had been verified working.
+  To pick up an env-var change, use **Redeploy** on the latest *Git* deployment
+  in the Vercel dashboard, or push a commit to `main`. Both redeploy the commit,
+  not the folder.
