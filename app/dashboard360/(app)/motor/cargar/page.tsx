@@ -1,4 +1,4 @@
-import { PageHeader } from "@/components/crm/ui";
+import { PageHeader } from "@/components/dashboard360/ui";
 import FormularioCarga from "@/components/leads/FormularioCarga";
 
 export const dynamic = "force-dynamic";

@@ -156,7 +156,7 @@ export default async function Prospeccion({
         acciones={
           m.disponible ? (
             <a
-              href="/leads"
+              href="/dashboard360/motor"
               className="text-[13px] text-[var(--d360-brand)] hover:underline"
             >
               Abrir el motor →

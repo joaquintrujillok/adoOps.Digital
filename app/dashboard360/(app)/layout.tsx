@@ -4,13 +4,14 @@ import { db } from "@/db";
 import { d360Fuentes, d360Informes } from "@/db/dashboard360";
 import Nav, { type GrupoNav } from "@/components/dashboard360/Nav";
 import { logoutAction, requireSession } from "@/lib/dashboard360/auth.actions";
+import { disponible, emisoresConProblema, sinResponder } from "@/lib/dashboard360/motor";
 
 // Cada request revalida la sesión y los contadores del menú. Un tablero que
 // dice "todo al día" cuando hay dos fuentes caídas es peor que no decir nada.
 export const dynamic = "force-dynamic";
 
 async function contadores() {
-  const [problemas, borradores] = await Promise.all([
+  const [problemas, borradores, hayMotor, responder, emisores] = await Promise.all([
     db
       .select({ id: d360Fuentes.id })
       .from(d360Fuentes)
@@ -19,8 +20,17 @@ async function contadores() {
       .select({ id: d360Informes.id })
       .from(d360Informes)
       .where(eq(d360Informes.estado, "borrador")),
+    disponible(),
+    sinResponder(),
+    emisoresConProblema(),
   ]);
-  return { fuentes: problemas.length, informes: borradores.length };
+  return {
+    fuentes: problemas.length,
+    informes: borradores.length,
+    hayMotor,
+    responder,
+    emisores,
+  };
 }
 
 export default async function Dashboard360AppLayout({
@@ -29,7 +39,7 @@ export default async function Dashboard360AppLayout({
   children: React.ReactNode;
 }) {
   const sesion = await requireSession();
-  const { fuentes, informes } = await contadores();
+  const { fuentes, informes, hayMotor, responder, emisores } = await contadores();
 
   const grupos: GrupoNav[] = [
     {
@@ -43,9 +53,31 @@ export default async function Dashboard360AppLayout({
       // El mercado va antes que el informe: es el dato que enmarca todo lo
       // demás. Un costo por lead no significa nada sin saber de qué universo
       // salieron esos leads.
-      titulo: "Mercado",
+      //
+      // El motor cuelga del mismo grupo porque es la continuación del mismo
+      // recorrido —universo, señal, persona, conversación— y separarlo obligaba
+      // a salir del tablero para operarlo.
+      titulo: "Prospección",
       items: [
-        { href: "/dashboard360/prospeccion", etiqueta: "Prospección", icono: "◎" },
+        { href: "/dashboard360/prospeccion", etiqueta: "Mercado", icono: "◎" },
+        // El motor es un módulo aparte y puede no estar desplegado. Cuando no
+        // está, estas entradas no se pintan: un menú con pestañas muertas es
+        // peor que un menú corto, y el tablero se vende sin el motor.
+        ...(hayMotor
+          ? [
+              { href: "/dashboard360/motor", etiqueta: "Despacho", icono: "▷" },
+              {
+                href: "/dashboard360/motor/senales",
+                etiqueta: "Señales",
+                icono: "◈",
+              },
+              {
+                href: "/dashboard360/motor/prospectos",
+                etiqueta: "Prospectos",
+                icono: "⛁",
+              },
+            ]
+          : []),
       ],
     },
     {
@@ -60,6 +92,9 @@ export default async function Dashboard360AppLayout({
       ],
     },
     {
+      // Emisores va acá y no en Prospección: es la misma pregunta que Fuentes
+      // conectadas —¿está entrando y saliendo lo que debería, o hay algo
+      // caído?—, y los dos badges son el mismo tipo de aviso.
       titulo: "Datos",
       items: [
         {
@@ -68,9 +103,29 @@ export default async function Dashboard360AppLayout({
           icono: "⇄",
           badge: fuentes,
         },
+        ...(hayMotor
+          ? [
+              {
+                href: "/dashboard360/motor/emisores",
+                etiqueta: "Emisores",
+                icono: "◉",
+                badge: emisores,
+              },
+            ]
+          : []),
       ],
     },
   ];
+
+  // El badge de la conversación que espera respuesta va en Despacho: es la
+  // única cifra del menú que representa a una persona esperando, y por eso pesa
+  // más que cualquier otra.
+  if (responder > 0) {
+    const despacho = grupos
+      .flatMap((g) => g.items)
+      .find((i) => i.href === "/dashboard360/motor");
+    if (despacho) despacho.badge = responder;
+  }
 
   return (
     <div className="flex min-h-screen">

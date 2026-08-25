@@ -8,13 +8,13 @@
 // semanas después, cuando la campaña tiene menos gente de la que debía.
 
 import { useActionState } from "react";
-import BotonEnvio from "@/components/crm/BotonEnvio";
-import { Badge, Card, StatTile, btnPrimario } from "@/components/crm/ui";
+import BotonEnvio from "@/components/leads/BotonEnvio";
+import { Badge, Card, StatTile, btnPrimario } from "@/components/dashboard360/ui";
 import { cargarCsvAction, type EstadoCarga } from "@/lib/leads/carga.actions";
 
 const campo =
-  "w-full rounded-lg border border-[var(--crm-border)] bg-white px-2.5 py-1.5 text-[13px] outline-none focus:border-[var(--crm-brand)]";
-const etiqueta = "text-[11px] font-medium uppercase tracking-wide text-[var(--crm-muted)]";
+  "w-full rounded-lg border border-[var(--d360-border)] bg-white px-2.5 py-1.5 text-[13px] outline-none focus:border-[var(--d360-brand)]";
+const etiqueta = "text-[11px] font-medium uppercase tracking-wide text-[var(--d360-muted)]";
 
 const ORIGENES = [
   { id: "sii", nombre: "Nómina del SII" },
@@ -54,7 +54,7 @@ export default function FormularioCarga() {
             </select>
             {/* Esto no es un campo administrativo: es la mitad de la promesa de
                 poder decir de dónde salió cada dato. */}
-            <p className="text-[12px] text-[var(--crm-muted)]">
+            <p className="text-[12px] text-[var(--d360-muted)]">
               Queda guardado por campo, junto con la fecha. Es lo que permite contestar
               después de dónde salió cada contacto.
             </p>
@@ -73,16 +73,16 @@ export default function FormularioCarga() {
       <div className="grid gap-4">
         {!r ? (
           <Card titulo="Qué espera el archivo">
-            <p className="text-[13px] text-[var(--crm-ink-2)]">
+            <p className="text-[13px] text-[var(--d360-ink-2)]">
               Una fila por empresa, con al menos <code>rut</code> y <code>razon_social</code>. Los
               nombres de columna se reconocen con o sin tildes y en cualquier mayúscula.
             </p>
-            <p className="mt-2 text-[13px] text-[var(--crm-ink-2)]">
+            <p className="mt-2 text-[13px] text-[var(--d360-ink-2)]">
               Opcionales: <code>acteco</code>, <code>region</code>, <code>comuna</code>,{" "}
               <code>tramo_ventas</code>, <code>dominio</code>, <code>prospeo_email</code>,{" "}
               <code>fullenrich_email</code>, <code>linkedin_url</code>, <code>cargo</code>.
             </p>
-            <p className="mt-2 text-[13px] text-[var(--crm-muted)]">
+            <p className="mt-2 text-[13px] text-[var(--d360-muted)]">
               El RUT se normaliza a <code>12345678-9</code> y se le recalcula el dígito
               verificador. Si no cuadra, la fila se rechaza y aparece listada — un RUT que no
               cuadra no cruza contra el SII ni contra ChileCompra.
@@ -92,12 +92,12 @@ export default function FormularioCarga() {
           <>
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <StatTile etiqueta="Filas leídas" valor={String(r.filas)} />
-              <StatTile etiqueta="Empresas nuevas" valor={String(r.empresasNuevas)} contexto={`${r.empresasActualizadas} ya existían`} />
+              <StatTile etiqueta="Empresas nuevas" valor={String(r.empresasNuevas)} nota={`${r.empresasActualizadas} ya existían`} />
               <StatTile etiqueta="Contactos nuevos" valor={String(r.personasNuevas)} />
               <StatTile
                 etiqueta="Rechazadas"
                 valor={String(r.rechazadas.length)}
-                contexto={r.rechazadas.length ? "revisa el detalle" : "ninguna"}
+                nota={r.rechazadas.length ? "revisa el detalle" : "ninguna"}
               />
             </div>
 
@@ -118,15 +118,15 @@ export default function FormularioCarga() {
 
             {r.rechazadas.length > 0 && (
               <Card titulo={`Filas rechazadas (${r.rechazadas.length})`}>
-                <ul className="grid gap-1 text-[13px] text-[var(--crm-ink-2)]">
+                <ul className="grid gap-1 text-[13px] text-[var(--d360-ink-2)]">
                   {r.rechazadas.slice(0, 50).map((x, i) => (
                     <li key={i}>
-                      <span className="text-[var(--crm-muted)]">línea {x.fila}:</span> {x.motivo}
+                      <span className="text-[var(--d360-muted)]">línea {x.fila}:</span> {x.motivo}
                     </li>
                   ))}
                 </ul>
                 {r.rechazadas.length > 50 && (
-                  <p className="mt-2 text-[12px] text-[var(--crm-muted)]">
+                  <p className="mt-2 text-[12px] text-[var(--d360-muted)]">
                     …y {r.rechazadas.length - 50} más. Se muestran las primeras 50 para que la
                     página siga siendo legible; el resto está en el mismo patrón.
                   </p>

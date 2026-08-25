@@ -2,7 +2,7 @@
 // Motor de nurturing adoOps — esquema (/leads)
 // =============================================================================
 //
-// Nueve tablas con prefijo `lead_`. Ojo: la web corporativa ya tiene una tabla
+// Diez tablas con prefijo `lead_`. Ojo: la web corporativa ya tiene una tabla
 // `leads` (el formulario de contacto) en db/schema.ts. Son cosas distintas y no
 // se tocan — por eso acá nada se llama `leads` a secas, ni la tabla ni el tipo.
 //
@@ -34,8 +34,10 @@
 // cada suma. Las tasas se guardan como porcentaje entero (0–100), no como
 // fracción. Una sola organización, sin `org_id`.
 
+import { sql } from "drizzle-orm";
 import {
   boolean,
+  date,
   index,
   integer,
   jsonb,
@@ -325,14 +327,46 @@ export const leadAcciones = pgTable(
   {
     id: serial("id").primaryKey(),
     inscripcionId: integer("inscripcion_id").notNull(),
+
+    /**
+     * Denormalizado desde la inscripción, y no es redundancia: es lo que
+     * convierte "nunca dos canales el mismo día" en un índice único de la base
+     * en vez de una consulta que alguien puede olvidar escribir. Una regla de
+     * negocio que vive solo en código tiene dos versiones al primer mes.
+     */
+    personaId: integer("persona_id").notNull(),
+
     /** invitacion | mensaje | inmail | email | retiro_invitacion */
     tipo: varchar("tipo", { length: 30 }).notNull(),
     canal: varchar("canal", { length: 20 }).$type<LeadCanal>().notNull(),
     emisorId: integer("emisor_id"),
     /** Ya con jitter aplicado y dentro de la ventana horaria. */
     programadaEn: timestamp("programada_en").notNull(),
-    /** pendiente | aprobada | enviada | fallida | cancelada */
+
+    /**
+     * El día en Chile de `programadaEn`, calculado en la app al agendar.
+     *
+     * No se deriva en el índice porque no se puede: `at time zone` es STABLE y
+     * Postgres solo indexa expresiones IMMUTABLE. Y no se usa la fecha UTC
+     * porque Vercel corre en UTC — el "hoy" del panel cambiaría a media tarde.
+     * Ojo con la diferencia respecto del CRM de CDC: Chile tiene horario de
+     * verano, así que el desfase alterna entre −3 y −4 dos veces al año.
+     */
+    fechaChile: date("fecha_chile").notNull(),
+
+    /** pendiente | aprobada | frenada | enviada | fallida | cancelada */
     estado: varchar("estado", { length: 20 }).notNull().default("pendiente"),
+
+    /**
+     * POR QUÉ NO SALIÓ. Es lo contrario de `resultado`: `motivo` se escribe
+     * ANTES de tocar la red, `resultado` después.
+     *
+     * Sin este campo una acción frenada por cuota queda indistinguible de una a
+     * la que todavía no le toca, y el panel no puede explicar su propio
+     * silencio. Lo escribe únicamente lib/leads/motivo.ts.
+     */
+    motivo: varchar("motivo", { length: 60 }),
+
     intentos: smallint("intentos").notNull().default(0),
     /** El cuerpo ya renderizado, para poder aprobarlo antes de que salga. */
     cuerpo: text("cuerpo"),
@@ -346,6 +380,18 @@ export const leadAcciones = pgTable(
   (t) => [
     index("lead_acciones_cola_idx").on(t.estado, t.programadaEn),
     index("lead_acciones_inscripcion_idx").on(t.inscripcionId),
+    index("lead_acciones_dia_idx").on(t.fechaChile, t.estado),
+
+    /**
+     * Un solo toque por persona y por día, sumando todos los canales.
+     *
+     * Va como índice parcial y no como constraint porque una acción frenada o
+     * cancelada no debe ocupar el cupo del día: si contara, un descarte por
+     * cuota dejaría a esa persona sin poder recibir nada más esa jornada.
+     */
+    uniqueIndex("lead_acciones_un_toque_dia_idx")
+      .on(t.personaId, t.fechaChile)
+      .where(sql`estado in ('pendiente', 'aprobada', 'enviada')`),
   ],
 );
 
@@ -431,6 +477,23 @@ export const leadEmisores = pgTable(
   (t) => [index("lead_emisores_estado_idx").on(t.estado)],
 );
 
+// ─── Configuración operativa ─────────────────────────────────────────────────
+
+/**
+ * Interruptores del motor, en la base y no en variables de entorno.
+ *
+ * Cambiar una variable en Vercel exige redesplegar, y el momento en que se
+ * necesita apagar un motor de envíos es exactamente el momento en que no se
+ * quiere esperar un despliegue. Hoy la única clave es `motor.encendido`, y
+ * **nace en `false`**: el estado por defecto de un sistema que le escribe a
+ * desconocidos es no mandar nada.
+ */
+export const leadConfig = pgTable("lead_config", {
+  clave: varchar("clave", { length: 60 }).primaryKey(),
+  valor: text("valor").notNull(),
+  actualizadoEn: timestamp("actualizado_en").defaultNow().notNull(),
+});
+
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
 export type LeadEmpresa = typeof leadEmpresas.$inferSelect;
@@ -442,6 +505,7 @@ export type LeadInscripcion = typeof leadInscripciones.$inferSelect;
 export type LeadAccion = typeof leadAcciones.$inferSelect;
 export type LeadMensaje = typeof leadMensajes.$inferSelect;
 export type LeadEmisor = typeof leadEmisores.$inferSelect;
+export type LeadConfig = typeof leadConfig.$inferSelect;
 
 export type NuevaLeadEmpresa = typeof leadEmpresas.$inferInsert;
 export type NuevaLeadPersona = typeof leadPersonas.$inferInsert;

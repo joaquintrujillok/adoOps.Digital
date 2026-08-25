@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireSession } from "@/lib/crm/auth.actions";
+import { requireSesionMotor } from "./sesion";
 import { importarEmpresas, type ResultadoImportacion } from "./ingesta";
 import type { LeadOrigen } from "@/db/leads";
 
@@ -21,7 +21,7 @@ export async function cargarCsvAction(
   _prev: EstadoCarga,
   formData: FormData,
 ): Promise<EstadoCarga> {
-  await requireSession();
+  await requireSesionMotor();
 
   const archivo = formData.get("archivo") as File | null;
   if (!archivo || archivo.size === 0) return { error: "Elige un archivo CSV" };
@@ -41,8 +41,8 @@ export async function cargarCsvAction(
 
   try {
     const resultado = await importarEmpresas(texto, { origen });
-    revalidatePath("/leads");
-    revalidatePath("/leads/prospectos");
+    revalidatePath("/dashboard360/motor");
+    revalidatePath("/dashboard360/motor/prospectos");
     return { resultado };
   } catch (e) {
     // El mensaje real va al log; al usuario se le dice qué pasó sin filtrar la

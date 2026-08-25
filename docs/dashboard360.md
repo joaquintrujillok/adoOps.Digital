@@ -31,6 +31,24 @@ hoy una persona a mano cada mes en PowerPoint.
 | Canales | `/dashboard360/canales` | Detalle por plataforma y campaña, con las campañas caras marcadas |
 | Informe al directorio | `/dashboard360/informe` | Genera la lectura del período en Markdown, imprimible, con flujo borrador → publicado |
 | Fuentes conectadas | `/dashboard360/fuentes` | Estado y atraso de cada conector. Existe porque la falla común no es un número malo: es un número viejo |
+| Prospección · Mercado | `/dashboard360/prospeccion` | El universo del SII y el ICP direccionable |
+| Prospección · Motor | `/dashboard360/motor` | El motor de nurturing, mudado desde `/leads`. Ver `docs/motor-nurturing.md` |
+
+## El motor de nurturing vive acá adentro, pero no viene incluido
+
+Desde agosto de 2026 las pantallas del motor cuelgan de `/dashboard360/motor`.
+Todo el recorrido —universo, señal, persona, conversación— es uno solo y estaba
+partido en dos aplicaciones con cascarones distintos.
+
+**Lo que se centralizó es la pantalla, no el producto.** Toda lectura de `lead_*`
+pasa por `lib/dashboard360/motor.ts`, que degrada a vacío igual que `mercado.ts`.
+Si esas tablas no existen en un despliegue, `disponible()` responde `false` y el
+grupo «Prospección» del menú **no se pinta**: el tablero se sigue vendiendo solo.
+
+La sesión es la excepción, y está documentada en `lib/leads/sesion.ts`: la zona
+del motor acepta la cookie del tablero **o** la del CRM. Mudarlo sin más le habría
+quitado el acceso a quien entra por `/crm`, y `proxy.ts` ya explicaba por qué eso
+importa. Una sesión del CRM sigue sin abrir el Panel 360, ni al revés.
 
 ## La decisión de producto que sostiene todo
 

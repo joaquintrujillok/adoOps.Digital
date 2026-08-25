@@ -110,7 +110,7 @@ export async function bloqueos(): Promise<Bloqueo[]> {
       detalle: total === 0 ? "Ninguna cargada todavía" : `${total} cargadas`,
       listo: total > 0,
       accion: "Cargar un CSV",
-      href: "/leads/cargar",
+      href: "/dashboard360/motor/cargar",
     },
     {
       titulo: "Con dominio web",
@@ -120,7 +120,7 @@ export async function bloqueos(): Promise<Bloqueo[]> {
           : `${conDominio} de ${total}. Sin dominio, ningún proveedor de enriquecimiento encuentra nada`,
       listo: total > 0 && conDominio / total >= 0.6,
       accion: "Completar dominios y volver a cargar el CSV",
-      href: "/leads/prospectos?sin=dominio",
+      href: "/dashboard360/motor/prospectos?sin=dominio",
     },
     {
       titulo: "Personas alcanzables",
@@ -130,7 +130,7 @@ export async function bloqueos(): Promise<Bloqueo[]> {
           : `${alcanzables[0].n} con email o perfil`,
       listo: alcanzables[0].n > 0,
       accion: "Enriquecer con Prospeo o FullEnrich y cargar el resultado",
-      href: "/leads/cargar",
+      href: "/dashboard360/motor/cargar",
     },
     {
       titulo: "Señales de compra",

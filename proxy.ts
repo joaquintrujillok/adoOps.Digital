@@ -1,7 +1,7 @@
 // Proxy (lo que en Next ≤15 se llamaba middleware).
 //
 // Custodia las áreas con sesión: el CRM (/crm), Dashboard360 (/dashboard360) y
-// el motor de nurturing (/leads).
+// el motor de nurturing (/dashboard360/motor, más los redirects de /leads).
 // El `matcher` lo limita a esas rutas, así que la web corporativa, TV Mix y las
 // demás demos siguen sirviéndose sin pasar por acá.
 //
@@ -14,19 +14,31 @@
 // Cada área trae su cookie y su secreto. Son productos que se venden por
 // separado: una sesión del CRM no debe abrir el tablero, ni al revés.
 //
-// /leads es la excepción deliberada: comparte cookie y secreto con /crm porque
-// no es otro producto, es la misma gente operando dos partes del mismo sistema.
-// Un segundo login sería una segunda contraseña que alguien apunta en un papel.
+// El motor de nurturing es la excepción deliberada: **acepta cualquiera de las
+// dos sesiones**. No es otro producto, es la misma gente operando dos partes del
+// mismo sistema, y un segundo login sería una segunda contraseña que alguien
+// apunta en un papel. Su pantalla vive dentro del tablero (/dashboard360/motor)
+// para que el flujo completo se vea en una consola, pero quien entra por /crm no
+// pierde el acceso.
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-interface Area {
-  /** Prefijos de ruta que esta área protege. */
-  prefijos: string[];
+interface Credencial {
   cookie: string;
   /** Nombre de la variable de entorno con el secreto de firma. */
   env: string;
+}
+
+interface Area {
+  /** Prefijos de ruta que esta área protege. */
+  prefijos: string[];
+  /**
+   * Cualquiera de estas abre el área. Casi todas tienen una sola: dos
+   * credenciales solo se justifican cuando la misma gente llega desde dos
+   * productos, que es el caso del motor.
+   */
+  credenciales: Credencial[];
   login: string;
   /**
    * Rutas de API con autenticación propia: las llama un cron o un webhook, no
@@ -35,31 +47,34 @@ interface Area {
   apiPublica: string[];
 }
 
+const CRM: Credencial = { cookie: "adoops_crm_session", env: "CRM_SESSION_SECRET" };
+const D360: Credencial = { cookie: "adoops_d360_session", env: "D360_SESSION_SECRET" };
+
+// El orden importa: `find` toma la PRIMERA que calce, y /dashboard360/motor
+// también empieza por /dashboard360. La zona del motor va antes o quedaría
+// tapada por la del tablero y perdería la doble credencial.
 const AREAS: Area[] = [
   {
+    prefijos: ["/dashboard360/motor", "/leads", "/api/leads"],
+    credenciales: [D360, CRM],
+    login: "/dashboard360/login",
+    // Los webhooks de respuestas entrantes los llama Unipile; el cron del motor
+    // y el setup los llama Vercel con su propio secreto. Ninguno trae cookie.
+    apiPublica: ["/api/leads/webhook", "/api/leads/cron"],
+  },
+  {
     prefijos: ["/crm", "/api/crm"],
-    cookie: "adoops_crm_session",
-    env: "CRM_SESSION_SECRET",
+    credenciales: [CRM],
     login: "/crm/login",
     apiPublica: ["/api/crm/whatsapp/webhook", "/api/crm/cron"],
   },
   {
     prefijos: ["/dashboard360", "/api/dashboard360"],
-    cookie: "adoops_d360_session",
-    env: "D360_SESSION_SECRET",
+    credenciales: [D360],
     login: "/dashboard360/login",
     // El endpoint que dispara la sincronía de Airbyte se autentica con
     // CRON_SECRET, igual que las alertas del CRM.
     apiPublica: ["/api/dashboard360/cron"],
-  },
-  {
-    prefijos: ["/leads", "/api/leads"],
-    cookie: "adoops_crm_session",
-    env: "CRM_SESSION_SECRET",
-    login: "/crm/login",
-    // Los webhooks de respuestas entrantes los llama Unipile y el cron del
-    // motor lo llama Vercel con CRON_SECRET. Ninguno de los dos trae cookie.
-    apiPublica: ["/api/leads/webhook", "/api/leads/cron"],
   },
 ];
 
@@ -123,15 +138,28 @@ export async function proxy(request: NextRequest) {
   if (pathname === area.login) return NextResponse.next();
   if (area.apiPublica.some((p) => pathname.startsWith(p))) return NextResponse.next();
 
-  const secreto = process.env[area.env];
-  // Sin secreto no se puede validar nada: se cierra el paso en vez de dejar
-  // entrar con un fallback conocido.
-  if (!secreto || secreto.length < 32) {
-    return new NextResponse(`${area.env} no configurada`, { status: 500 });
+  // Una credencial sin secreto no se puede validar: se descarta esa vía en vez
+  // de dejar entrar con un fallback conocido. Si NINGUNA es configurable, se
+  // cierra el paso entero.
+  const utilizables = area.credenciales.filter((c) => {
+    const s = process.env[c.env];
+    return Boolean(s) && s!.length >= 32;
+  });
+  if (utilizables.length === 0) {
+    const faltan = area.credenciales.map((c) => c.env).join(" ni ");
+    return new NextResponse(`${faltan} configurada`, { status: 500 });
   }
 
-  const token = request.cookies.get(area.cookie)?.value;
-  if (!token || !(await tokenValido(token, secreto))) {
+  let autorizado = false;
+  for (const c of utilizables) {
+    const t = request.cookies.get(c.cookie)?.value;
+    if (t && (await tokenValido(t, process.env[c.env]!))) {
+      autorizado = true;
+      break;
+    }
+  }
+
+  if (!autorizado) {
     if (pathname.startsWith("/api")) {
       return NextResponse.json({ error: "No autenticado" }, { status: 401 });
     }

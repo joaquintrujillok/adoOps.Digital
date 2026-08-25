@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { Badge, PageHeader, StatTile, Tabla, Vacio, btnPrimario } from "@/components/crm/ui";
-import { fecha, numero } from "@/lib/crm/formato";
+import { Badge, PageHeader, StatTile, Tabla, Vacio, btnPrimario } from "@/components/dashboard360/ui";
+import { fecha, numero } from "@/lib/leads/formato";
 import { listarEmpresas, regionesEnUso, NOMBRE_REGION } from "@/lib/leads/empresas";
 import { contarEmpresas } from "@/lib/leads/ingesta";
 
@@ -35,38 +35,38 @@ export default async function Prospectos({
         titulo="Prospectos"
         bajada="Las empresas cargadas y sus contactos. Mientras el motor no esté en marcha, lo único que hay que mirar acá es la cobertura de dominio y de email: es lo que decide si el canal frío es viable en este ICP."
         acciones={
-          <Link href="/leads/cargar" className={btnPrimario}>
+          <Link href="/dashboard360/motor/cargar" className={btnPrimario}>
             Cargar CSV
           </Link>
         }
       />
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile etiqueta="Empresas" valor={numero(totales.empresas)} contexto={`${numero(empresas.length)} en la vista actual`} />
+        <StatTile etiqueta="Empresas" valor={numero(totales.empresas)} nota={`${numero(empresas.length)} en la vista actual`} />
         <StatTile
           etiqueta="Con dominio"
           valor={numero(totales.conDominio)}
-          contexto={`${cobertura}% del total · sin dominio no hay enriquecimiento`}
+          nota={`${cobertura}% del total · sin dominio no hay enriquecimiento`}
         />
-        <StatTile etiqueta="Contactos" valor={numero(totales.personas)} contexto="personas identificadas" />
+        <StatTile etiqueta="Contactos" valor={numero(totales.personas)} nota="personas identificadas" />
         <StatTile
           etiqueta="Con email"
           valor={numero(totales.conEmail)}
-          contexto="el número que decide el proyecto"
+          nota="el número que decide el proyecto"
         />
       </div>
 
-      <form className="mb-4 flex flex-wrap items-center gap-2" action="/leads/prospectos">
+      <form className="mb-4 flex flex-wrap items-center gap-2" action="/dashboard360/motor/prospectos">
         <input
           name="q"
           defaultValue={q ?? ""}
           placeholder="RUT, razón social o dominio"
-          className="w-72 rounded-md border border-[var(--crm-border)] bg-white px-3 py-1.5 text-sm"
+          className="w-72 rounded-md border border-[var(--d360-border)] bg-white px-3 py-1.5 text-sm"
         />
         <select
           name="region"
           defaultValue={region ?? ""}
-          className="rounded-md border border-[var(--crm-border)] bg-white px-3 py-1.5 text-sm"
+          className="rounded-md border border-[var(--d360-border)] bg-white px-3 py-1.5 text-sm"
         >
           <option value="">Todas las regiones</option>
           {regiones.map((r) => (
@@ -75,7 +75,7 @@ export default async function Prospectos({
             </option>
           ))}
         </select>
-        <label className="flex items-center gap-1.5 text-[13px] text-[var(--crm-ink-2)]">
+        <label className="flex items-center gap-1.5 text-[13px] text-[var(--d360-ink-2)]">
           <input type="checkbox" name="sin" value="dominio" defaultChecked={sin === "dominio"} />
           Solo sin dominio
         </label>
@@ -90,27 +90,29 @@ export default async function Prospectos({
           sugerencia="Genera la muestra con scripts/fase0_sii.py y súbela en Cargar CSV."
         />
       ) : (
-        <Tabla
-          columnas={[
-            "Empresa",
-            "RUT",
-            "Rubro",
-            "Ubicación",
-            { titulo: "Tramo", alinear: "centro" },
-            "Dominio",
-            { titulo: "Contactos", alinear: "centro" },
-            "Origen",
-          ]}
-        >
+        <Tabla>
+          <thead>
+            <tr>
+              <th>Empresa</th>
+              <th>RUT</th>
+              <th>Rubro</th>
+              <th>Ubicación</th>
+              <th className="text-center">Tramo</th>
+              <th>Dominio</th>
+              <th className="text-center">Contactos</th>
+              <th>Origen</th>
+            </tr>
+          </thead>
+          <tbody>
           {empresas.map((e) => (
             <tr key={e.id}>
-              <td className="font-medium text-[var(--crm-ink)]">{e.razonSocial}</td>
+              <td className="font-medium text-[var(--d360-ink)]">{e.razonSocial}</td>
               <td className="tabular-nums">{e.rut ?? "—"}</td>
               <td>{e.acteco ?? "—"}</td>
               <td>
                 {e.comuna ?? "—"}
                 {e.region !== null && (
-                  <span className="text-[var(--crm-muted)]"> · {NOMBRE_REGION[e.region] ?? e.region}</span>
+                  <span className="text-[var(--d360-muted)]"> · {NOMBRE_REGION[e.region] ?? e.region}</span>
                 )}
               </td>
               <td className="text-center tabular-nums">{e.tramoVentas ?? "—"}</td>
@@ -124,11 +126,12 @@ export default async function Prospectos({
               <td className="text-center tabular-nums">
                 {e.personas === 0 ? "—" : `${e.conEmail}/${e.personas}`}
               </td>
-              <td className="text-[13px] text-[var(--crm-muted)]">
+              <td className="text-[13px] text-[var(--d360-muted)]">
                 {e.origen} · {fecha(e.obtenidoEn)}
               </td>
             </tr>
           ))}
+          </tbody>
         </Tabla>
       )}
     </>
