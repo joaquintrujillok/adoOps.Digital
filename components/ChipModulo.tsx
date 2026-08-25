@@ -5,9 +5,13 @@ import { llevaChip, moduloDe, moduloPorId, type Modulo } from "@/lib/modulos";
 // **Por qué fijo en la esquina y no en el encabezado.** Un encabezado se
 // desplaza al hacer scroll, y la confusión no ocurre en la primera pantalla:
 // ocurre tres clics adentro, cuando alguien ya se olvidó de por dónde entró.
-// Fijo abajo a la izquierda queda siempre a la vista sin taparle nada al
-// contenido —esa esquina está vacía en todos los tableros del repo— y no
-// compite con los botones de acción, que viven arriba y a la derecha.
+// Fijo abajo queda siempre a la vista sin taparle nada al contenido —esa franja
+// está vacía en todos los tableros del repo— y no compite con los botones de
+// acción, que viven arriba.
+//
+// A la derecha y no a la izquierda porque el indicador de desarrollo de Next se
+// para en la esquina izquierda y le tapa la mitad. En producción ese indicador
+// no existe, pero el chip también se mira en `npm run dev`.
 //
 // **Por qué discreto y no una franja roja.** Estas pantallas se muestran en
 // reuniones de venta. Una advertencia agresiva sugiere que algo anda mal, y no
@@ -69,7 +73,7 @@ export default function ChipModulo({ id, ruta }: { id?: string; ruta?: string })
 
   return (
     <div
-      className={`fixed bottom-4 left-4 z-50 rounded-full border px-3.5 py-1.5 shadow-sm backdrop-blur ${estilo.fondo} ${estilo.borde}`}
+      className={`fixed bottom-4 right-4 z-50 rounded-full border px-3.5 py-1.5 shadow-sm backdrop-blur ${estilo.fondo} ${estilo.borde}`}
       title={modulo.nota}
     >
       <span className={`text-[11px] font-semibold uppercase tracking-wider ${estilo.texto}`}>

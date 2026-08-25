@@ -47,7 +47,7 @@ export type OrigenDatos =
   | "sembrados"
   /** Sembrado de base, pero acepta entradas reales en vivo. */
   | "mixtos"
-  /** No persiste nada. */
+  /** No guarda nada sobre las personas que lo usan. */
   | "ninguno";
 
 export interface Modulo {
@@ -126,20 +126,20 @@ export const MODULOS: Modulo[] = [
     nombre: "TV Mix",
     ruta: "/mix",
     estado: "demo",
-    datos: "mixtos",
+    datos: "ninguno",
     audiencia: "quien tenga el código de la sala",
     tablas: ["mix_rooms"],
-    nota: "Salas efímeras con videos de YouTube. No guarda nada de quien las usa.",
+    nota: "`mix_rooms` guarda el código de la sala y la cola de videos. Nada sobre quien la abre.",
   },
   {
     id: "tv",
     nombre: "TV Mix · pantalla",
     ruta: "/tv",
     estado: "demo",
-    datos: "mixtos",
+    datos: "ninguno",
     audiencia: "el televisor de la sala",
     tablas: ["mix_rooms"],
-    nota: "La otra mitad de TV Mix: lo que se proyecta.",
+    nota: "La otra mitad de TV Mix: lo que se proyecta. Lee la misma sala, no escribe nada nuevo.",
   },
   {
     id: "web",
@@ -178,10 +178,17 @@ export function moduloPorId(id: string): Modulo | undefined {
 /**
  * Si el módulo se marca a sí mismo en pantalla.
  *
- * Producción no lleva chip **a propósito**: si todo lleva etiqueta, ninguna se
- * lee, y la ausencia de chip pasa a significar "esto es de verdad". Esa es la
- * señal que interesa.
+ * Dos exclusiones, y las dos son deliberadas.
+ *
+ * **Producción no lleva chip.** Si todo lleva etiqueta, ninguna se lee, y la
+ * ausencia pasa a significar "esto es de verdad". Esa es la señal que interesa.
+ *
+ * **Un módulo que no guarda datos de personas tampoco.** La confusión que este
+ * registro existe para evitar es una sola: mirar una ficha y no saber si detrás
+ * hay alguien de verdad. TV Mix guarda el código de una sala y una cola de
+ * videos; no hay ficha que confundir, y un aviso sobre un video proyectado en
+ * un televisor es una marca de agua, no una advertencia.
  */
 export function llevaChip(m: Modulo): boolean {
-  return m.estado !== "produccion";
+  return m.estado !== "produccion" && m.datos !== "ninguno";
 }

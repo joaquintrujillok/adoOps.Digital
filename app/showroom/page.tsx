@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import FormularioShowroom from "@/components/crm/FormularioShowroom";
 import { interesesDisponibles } from "@/lib/crm/showroom";
 import { CLAVES, leer } from "@/lib/crm/settings";
+import ChipModulo from "@/components/ChipModulo";
 import "../crm/crm.css";
 
 // Página PÚBLICA: la abre el visitante escaneando el QR del mostrador. Vive
@@ -63,6 +64,7 @@ export default async function Showroom({
           {empresa ?? "la boutique"}. No se comparten con terceros.
         </p>
       </div>
+      <ChipModulo id="showroom" />
     </div>
   );
 }

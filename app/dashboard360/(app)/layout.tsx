@@ -5,6 +5,7 @@ import { d360Fuentes, d360Informes } from "@/db/dashboard360";
 import Nav, { type GrupoNav } from "@/components/dashboard360/Nav";
 import { logoutAction, requireSession } from "@/lib/dashboard360/auth.actions";
 import { disponible, emisoresConProblema, sinResponder } from "@/lib/dashboard360/motor";
+import ChipModuloAuto from "@/components/ChipModuloAuto";
 
 // Cada request revalida la sesión y los contadores del menú. Un tablero que
 // dice "todo al día" cuando hay dos fuentes caídas es peor que no decir nada.
@@ -199,6 +200,7 @@ export default async function Dashboard360AppLayout({
 
         <main className="mx-auto max-w-[1400px] px-5 py-7 lg:px-8">{children}</main>
       </div>
+      <ChipModuloAuto />
     </div>
   );
 }

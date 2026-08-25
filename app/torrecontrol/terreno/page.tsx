@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { fieldReports, workSheets, type FieldReport, type WorkSheet } from "@/db/schema";
 import AutoRefresh from "./AutoRefresh";
 import { completeTask, validateReport } from "./actions";
+import ChipModulo from "@/components/ChipModulo";
 
 export const dynamic = "force-dynamic";
 
@@ -261,6 +262,7 @@ export default async function TerrenoDashboard() {
           </section>
         </div>
       </div>
+      <ChipModulo id="torrecontrol" />
     </main>
   );
 }

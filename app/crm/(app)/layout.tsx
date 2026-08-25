@@ -6,6 +6,7 @@ import { crmAlerts, crmSenales, crmWaMessages } from "@/db/crm";
 import Nav, { type GrupoNav } from "@/components/crm/Nav";
 import { logoutAction, requireSession } from "@/lib/crm/auth.actions";
 import { leer, CLAVES } from "@/lib/crm/settings";
+import ChipModulo from "@/components/ChipModulo";
 
 // Cada request revalida la sesión y los contadores del menú; un CRM que muestra
 // "3 alertas" cuando hay 11 es peor que no mostrar el número.
@@ -158,6 +159,7 @@ export default async function CrmAppLayout({
         <main className="mx-auto max-w-[1400px] px-5 py-7 lg:px-8">{children}</main>
       </div>
       {modal}
+      <ChipModulo id="crm" />
     </div>
   );
 }

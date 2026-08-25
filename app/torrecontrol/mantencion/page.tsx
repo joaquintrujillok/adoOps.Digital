@@ -8,6 +8,7 @@ import {
 } from "@/db/schema";
 import AutoRefresh from "./AutoRefresh";
 import { completeOrden, validateIncidencia } from "./actions";
+import ChipModulo from "@/components/ChipModulo";
 
 export const dynamic = "force-dynamic";
 
@@ -312,6 +313,7 @@ export default async function MantencionDashboard() {
           </section>
         </div>
       </div>
+      <ChipModulo id="torrecontrol" />
     </main>
   );
 }

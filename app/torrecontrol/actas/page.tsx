@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { actaReports, compromisos, type ActaReport, type Compromiso } from "@/db/schema";
 import AutoRefresh from "./AutoRefresh";
 import { completeCompromiso, validateActa } from "./actions";
+import ChipModulo from "@/components/ChipModulo";
 
 export const dynamic = "force-dynamic";
 
@@ -272,6 +273,7 @@ export default async function ActasDashboard() {
           </section>
         </div>
       </div>
+      <ChipModulo id="torrecontrol" />
     </main>
   );
 }
