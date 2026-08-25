@@ -142,6 +142,16 @@ export const MODULOS: Modulo[] = [
     nota: "La otra mitad de TV Mix: lo que se proyecta. Lee la misma sala, no escribe nada nuevo.",
   },
   {
+    id: "framework",
+    nombre: "AI Adoption Framework",
+    ruta: "/framework",
+    estado: "produccion",
+    datos: "ninguno",
+    audiencia: "cualquier visitante",
+    tablas: [],
+    nota: "La otra página de la web corporativa. Es contenido: no guarda nada ni pide nada.",
+  },
+  {
     id: "web",
     nombre: "Web corporativa",
     ruta: "/",
@@ -149,6 +159,9 @@ export const MODULOS: Modulo[] = [
     datos: "reales",
     audiencia: "cualquier visitante",
     tablas: ["leads"],
+    // La única fila que calza por igualdad exacta: si "/" calzara por prefijo se
+    // tragaría todas las rutas no registradas y les pondría la cara de la web
+    // corporativa. Por eso /framework necesita su propia fila.
     nota: "El formulario de contacto guarda nombre, email y empresa de personas reales, y manda un correo.",
   },
 ];
