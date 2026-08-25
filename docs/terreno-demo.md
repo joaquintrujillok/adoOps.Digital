@@ -7,7 +7,7 @@ WhatsApp (WaSender) ─▶ /api/whatsapp/webhook ─▶ decrypt + Whisper (audio
                                               └▶ Claude (extracción estructurada)
                                                   └▶ Neon (field_reports + work_sheets)
                                                       └▶ responde por WhatsApp (validación)
-                                                          └▶ Dashboard /terreno
+                                                          └▶ Dashboard /torrecontrol/terreno
 ```
 
 ## Piezas
@@ -19,7 +19,7 @@ WhatsApp (WaSender) ─▶ /api/whatsapp/webhook ─▶ decrypt + Whisper (audio
 | `lib/stt.ts` | Transcripción con OpenAI Whisper |
 | `lib/extract.ts` | Extracción estructurada con OpenAI (function calling) |
 | `lib/reports.ts` | Orquestación + persistencia + validación |
-| `app/terreno/page.tsx` | Dashboard (KPIs, reportes, hojas de trabajo) |
+| `app/torrecontrol/terreno/page.tsx` | Dashboard (KPIs, reportes, hojas de trabajo) |
 | `db/schema.ts` | Tablas `field_reports` y `work_sheets` |
 
 ## Setup
@@ -30,7 +30,7 @@ WhatsApp (WaSender) ─▶ /api/whatsapp/webhook ─▶ decrypt + Whisper (audio
 2. **Tablas en Neon**: `node scripts/create-terreno-tables.mjs`
 3. **(Opcional) datos demo**: `node scripts/seed-demo.mjs`
 4. **Probar extracción**: `node scripts/test-extract.mjs`
-5. **Dev**: `npm run dev` → http://localhost:3000/terreno
+5. **Dev**: `npm run dev` → http://localhost:3000/torrecontrol/terreno
 
 ## Conectar WaSender
 
@@ -47,4 +47,4 @@ Para probar local, expón el puerto con un túnel (cloudflared/ngrok) y usa esa 
 1. Mandas un **audio** de terreno al número (ej. el guion de Santa Elvira).
 2. El bot responde el **reporte estructurado + hoja de trabajo** y pide validar.
 3. Respondes **OK** → queda `validado` y la hoja de trabajo se activa.
-4. Todo aparece en vivo en `/terreno`.
+4. Todo aparece en vivo en `/torrecontrol/terreno`.

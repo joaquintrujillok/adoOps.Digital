@@ -1,4 +1,4 @@
-// Inserta un acta de ejemplo para poblar el dashboard /actas sin necesitar API keys.
+// Inserta un acta de ejemplo para poblar el dashboard /torrecontrol/actas sin necesitar API keys.
 // Uso: node scripts/seed-actas.mjs
 import { readFileSync } from "node:fs";
 import { neon } from "@neondatabase/serverless";

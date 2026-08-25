@@ -1,5 +1,5 @@
 // Inserta el reporte de ejemplo del documento de campo (Santa Elvira) para
-// poblar el dashboard /terreno sin necesitar API keys.
+// poblar el dashboard /torrecontrol/terreno sin necesitar API keys.
 // Uso: node scripts/seed-demo.mjs
 import { readFileSync } from "node:fs";
 import { neon } from "@neondatabase/serverless";

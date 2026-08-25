@@ -1,4 +1,4 @@
-// Inserta una incidencia de ejemplo para poblar el dashboard /mantencion sin API keys.
+// Inserta una incidencia de ejemplo para poblar el dashboard /torrecontrol/mantencion sin API keys.
 // Uso: node scripts/seed-mantencion.mjs
 import { readFileSync } from "node:fs";
 import { neon } from "@neondatabase/serverless";
