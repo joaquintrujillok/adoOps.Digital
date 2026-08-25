@@ -12,11 +12,11 @@ export async function validateActa(id: number): Promise<void> {
     .set({ status: "validado", validatedAt: new Date() })
     .where(eq(actaReports.id, id));
   await db.update(compromisos).set({ estado: "activa" }).where(eq(compromisos.actaId, id));
-  revalidatePath("/actas");
+  revalidatePath("/torrecontrol/actas");
 }
 
 /** Marca un compromiso como completado. */
 export async function completeCompromiso(id: number): Promise<void> {
   await db.update(compromisos).set({ estado: "completada" }).where(eq(compromisos.id, id));
-  revalidatePath("/actas");
+  revalidatePath("/torrecontrol/actas");
 }

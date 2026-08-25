@@ -1,8 +1,9 @@
 // Proxy (lo que en Next ≤15 se llamaba middleware).
 //
-// Custodia las áreas con sesión: el CRM (/crm), Dashboard360 (/dashboard360) y
-// el motor de nurturing (/dashboard360/motor, más los redirects de /leads).
-// El `matcher` lo limita a esas rutas, así que la web corporativa, TV Mix y las
+// Custodia las áreas con sesión: el CRM (/crm), Dashboard360 (/dashboard360),
+// el motor de nurturing (/dashboard360/motor, más los redirects de /leads) y la
+// consola de TorreControl (/torrecontrol/consola). El `matcher` lo limita a esas
+// rutas, así que la web corporativa, TV Mix, los tableros de TorreControl y las
 // demás demos siguen sirviéndose sin pasar por acá.
 //
 // Verifica el mismo HMAC-SHA256 que emiten lib/crm/session.ts y
@@ -67,6 +68,20 @@ const AREAS: Area[] = [
     credenciales: [CRM],
     login: "/crm/login",
     apiPublica: ["/api/crm/whatsapp/webhook", "/api/crm/cron"],
+  },
+  // TorreControl es un demo y sus tres tableros se abren sin sesión: es lo que
+  // se muestra en una reunión. La consola no, porque no muestra nada: decide a
+  // qué tablero entran los mensajes de WhatsApp. Hasta ahora vivía en /admin,
+  // fuera de este matcher y sin pedir sesión en la página — cualquiera con la
+  // URL redirigía la tubería entera.
+  //
+  // Usa la credencial del tablero en vez de una propia. Es la misma gente, y una
+  // cuarta contraseña sería una cuarta contraseña anotada en un papel.
+  {
+    prefijos: ["/torrecontrol/consola"],
+    credenciales: [D360],
+    login: "/dashboard360/login",
+    apiPublica: [],
   },
   {
     prefijos: ["/dashboard360", "/api/dashboard360"],
@@ -179,5 +194,8 @@ export const config = {
     "/api/dashboard360/:path*",
     "/leads/:path*",
     "/api/leads/:path*",
+    // Solo la consola. Los tableros de TorreControl son parte del demo y se
+    // abren por link, sin sesión.
+    "/torrecontrol/consola/:path*",
   ],
 };

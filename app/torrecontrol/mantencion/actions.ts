@@ -15,11 +15,11 @@ export async function validateIncidencia(id: number): Promise<void> {
     .update(ordenesTrabajo)
     .set({ estado: "activa" })
     .where(eq(ordenesTrabajo.incidenciaId, id));
-  revalidatePath("/mantencion");
+  revalidatePath("/torrecontrol/mantencion");
 }
 
 /** Marca una orden de trabajo como completada. */
 export async function completeOrden(id: number): Promise<void> {
   await db.update(ordenesTrabajo).set({ estado: "completada" }).where(eq(ordenesTrabajo.id, id));
-  revalidatePath("/mantencion");
+  revalidatePath("/torrecontrol/mantencion");
 }

@@ -219,7 +219,7 @@ export async function routeMessage(msg: WaIncomingMessage): Promise<void> {
       return;
     }
 
-    // Vertical activo según el selector de /admin (ignora clasificación automática).
+    // Vertical activo según la consola de TorreControl (ignora clasificación automática).
     const vertical = await getActiveDemoSetting();
 
     // 2) Audio → desencriptar → transcribir → procesar en el vertical activo.
