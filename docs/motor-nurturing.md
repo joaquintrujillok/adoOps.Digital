@@ -264,6 +264,10 @@ Para apagar el endpoint: borrar `LEADS_SETUP_SECRET`. Sin esa variable responde
 > síntoma es que las rutas empiezan a devolver 404. Lo correcto es **Redeploy**
 > sobre el último deployment de Git en el dashboard, o empujar un commit a
 > `main`.
+>
+> Si de todos modos hace falta desplegar desde el terminal, `npm run desplegar`
+> verifica antes las cuatro formas en que `vercel --prod` sube algo distinto de
+> lo que dice `main`, y se niega en vez de avisar después.
 
 ## Qué falta
 

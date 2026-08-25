@@ -19,3 +19,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
   To pick up an env-var change, use **Redeploy** on the latest *Git* deployment
   in the Vercel dashboard, or push a commit to `main`. Both redeploy the commit,
   not the folder.
+- When a CLI deploy really is the right tool, run `npm run desplegar`. It refuses
+  to deploy from a stale clone, a dirty tree, a non-`main` branch, or commits
+  that are not on GitHub yet — the four ways `vercel --prod` ships something
+  other than what `main` says. `npm run al-dia` just pulls.
