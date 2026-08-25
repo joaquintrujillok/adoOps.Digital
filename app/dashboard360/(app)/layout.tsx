@@ -11,7 +11,7 @@ import { disponible, emisoresConProblema, sinResponder } from "@/lib/dashboard36
 export const dynamic = "force-dynamic";
 
 async function contadores() {
-  const [problemas, borradores, hayMotor, responder, emisores] = await Promise.all([
+  const [problemas, borradores, hayMotor] = await Promise.all([
     db
       .select({ id: d360Fuentes.id })
       .from(d360Fuentes)
@@ -21,9 +21,16 @@ async function contadores() {
       .from(d360Informes)
       .where(eq(d360Informes.estado, "borrador")),
     disponible(),
-    sinResponder(),
-    emisoresConProblema(),
   ]);
+
+  // Los contadores del motor solo se piden si el motor existe. Encadenarlos en
+  // el Promise.all de arriba costaba dos consultas fallidas por cada carga de
+  // CUALQUIER pantalla del tablero mientras las tablas `lead_*` no estuvieran
+  // creadas — y el tablero se despliega sin ellas a propósito.
+  const [responder, emisores] = hayMotor
+    ? await Promise.all([sinResponder(), emisoresConProblema()])
+    : [0, 0];
+
   return {
     fuentes: problemas.length,
     informes: borradores.length,
