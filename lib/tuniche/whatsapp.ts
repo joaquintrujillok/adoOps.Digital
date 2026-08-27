@@ -35,6 +35,7 @@ import {
   crearVisita,
   guardarFoto,
   lotesCandidatos,
+  descartar,
   ultimaPendiente,
   ultimaVisita,
   validar,
@@ -75,6 +76,24 @@ export async function enviarWhatsApp(telefono: string, texto: string): Promise<v
 const MODELO_STT = process.env.TUNICHE_STT_MODEL || "gpt-transcribe";
 
 const CONFIRMACIONES = ["ok", "okay", "oka", "listo", "validar", "validado", "confirmo", "confirmar", "si", "sí", "👍", "✅"];
+
+/**
+ * Descartar SÍ se puede desde WhatsApp, y corregir no. No es una omisión.
+ *
+ * El audio equivocado —cortado, el micrófono apretado sin querer— se manda desde
+ * el teléfono y se nota segundos después. Obligar a entrar al sistema para eso es
+ * fricción justo donde duele, y el resultado sería una bandeja llena de basura
+ * que nadie limpia.
+ *
+ * Corregir es otra cosa. Hacerlo por audio obligaría a adivinar qué campo se está
+ * corrigiendo, manejar correcciones parciales y mantener estado de conversación
+ * — tres formas de que el sistema entienda mal una corrección, que es peor que el
+ * error original porque nadie vuelve a revisarla.
+ */
+const DESCARTES = ["no", "descartar", "descarta", "descártala", "borrar", "eliminar", "anular", "❌"];
+
+/** La URL a la que se manda a la gente a corregir. */
+const URL_SISTEMA = process.env.TUNICHE_URL || "https://www.adoops.digital/tuniche/visitas";
 
 /** El área contra la que se estructura un audio de esta persona. */
 function areaDe(u: TunicheUsuario): AreaId | null {
@@ -142,8 +161,14 @@ function borrador(params: {
   if (params.nota != null) L.push(`• Nota agronómica: ${params.nota}%`);
 
   L.push("");
-  L.push("Responde *OK* para guardarla en el historial del agricultor.");
-  L.push("Si algo está mal, corrígelo en el sistema antes de validar.");
+  // Las dos únicas cosas que se pueden hacer desde acá, arriba y explícitas.
+  // La versión anterior cerraba con "corrígelo en el sistema" en la última
+  // línea, donde nadie la lee, y dejaba la duda de si se podía corregir por
+  // WhatsApp respondiendo cualquier cosa.
+  L.push("Responde *OK* para guardarla, o *NO* para descartarla.");
+  L.push("");
+  L.push(`Desde WhatsApp solo puedo guardar o descartar. Para *corregir* algo, entra al sistema:`);
+  L.push(URL_SISTEMA);
   return L.join("\n");
 }
 
@@ -257,6 +282,22 @@ export async function procesarMensajeTuniche(msg: WaIncomingMessage): Promise<bo
         pendiente.loteId
           ? "✅ Visita validada. Ya está en el historial del agricultor."
           : "✅ Visita validada, pero quedó *sin lote asignado*. Asígnaselo en el sistema o no va a aparecer en el historial de nadie.",
+      );
+      return true;
+    }
+
+    // 1b) "NO" — descarta la pendiente más reciente.
+    if (texto && DESCARTES.includes(texto.toLowerCase())) {
+      const pendiente = await ultimaPendiente(u.id);
+      if (!pendiente) {
+        await enviarWhatsApp(u.telefono, "No tienes ninguna visita esperando validación, así que no hay nada que descartar.");
+        return true;
+      }
+      await descartar(pendiente.id);
+      await enviarWhatsApp(
+        u.telefono,
+        "🗑️ Visita descartada. No entra al historial de nadie.\n\n" +
+          `Si fue un error, la puedes recuperar en el sistema: ${URL_SISTEMA}`,
       );
       return true;
     }

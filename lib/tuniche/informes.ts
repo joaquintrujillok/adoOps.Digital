@@ -104,6 +104,9 @@ export async function generarDeVisita(
   if (fila.visita.estado === "pendiente") {
     throw new Error("El zonal todavía no valida esta visita. No hay qué informar.");
   }
+  if (fila.visita.estado === "descartada") {
+    throw new Error("Esta visita está descartada. Recupérala antes de generar su informe.");
+  }
 
   const fotos = await db
     .select({ url: tunicheFotos.url, tipo: tunicheFotos.tipo })

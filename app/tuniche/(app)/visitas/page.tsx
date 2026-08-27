@@ -2,7 +2,15 @@ import Link from "next/link";
 import { VISITA } from "@/lib/tuniche/plantillas";
 import { alcanceActual, requireSesion } from "@/lib/tuniche/auth.actions";
 import { lotesCandidatos, visitasRecientes, type VisitaConContexto } from "@/lib/tuniche/visitas";
-import { asignarLoteAction, validarVisitaAction } from "@/lib/tuniche/visitas.actions";
+import {
+  asignarLoteAction,
+  descartarVisitaAction,
+  recuperarVisitaAction,
+  validarVisitaAction,
+} from "@/lib/tuniche/visitas.actions";
+import EditarVisita from "@/components/tuniche/EditarVisita";
+import { valoresDeEtapa } from "@/lib/tuniche/plantillas";
+import type { AreaId } from "@/lib/tuniche/areas";
 import { generarInformeAction } from "@/lib/tuniche/informes.actions";
 import Demo from "@/components/tuniche/Demo";
 
@@ -19,6 +27,7 @@ function fecha(d: Date): string {
 
 const ESTADO: Record<string, { texto: string; fondo: string; color: string }> = {
   pendiente: { texto: "Por validar", fondo: "var(--tun-alerta-soft)", color: "var(--tun-alerta)" },
+  descartada: { texto: "Descartada", fondo: "var(--tun-plane)", color: "var(--tun-muted)" },
   validada: { texto: "Validada", fondo: "var(--tun-ok-soft)", color: "var(--tun-ok)" },
   corregida: { texto: "Corregida", fondo: "var(--tun-ok-soft)", color: "var(--tun-ok)" },
 };
@@ -199,13 +208,51 @@ function Tarjeta({
         </form>
       )}
 
-      {v.estado === "pendiente" && (
-        <form action={validarVisitaAction} className="mt-4">
+      {v.estado === "descartada" ? (
+        <form action={recuperarVisitaAction} className="mt-4">
           <input type="hidden" name="id" value={v.id} />
-          <button type="submit" className="tun-boton">
-            Validar visita
+          <button type="submit" className="tun-boton-suave">
+            Recuperar
           </button>
         </form>
+      ) : (
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          {v.estado === "pendiente" && (
+            <form action={validarVisitaAction}>
+              <input type="hidden" name="id" value={v.id} />
+              <button type="submit" className="tun-boton">
+                Validar visita
+              </button>
+            </form>
+          )}
+          {/* Descartar está al lado de validar y no escondido: el caso que
+              resuelve —un audio mandado por error— aparece justo acá, y si
+              obliga a buscarlo, la bandeja se llena de basura que nadie limpia. */}
+          <form action={descartarVisitaAction}>
+            <input type="hidden" name="id" value={v.id} />
+            <button type="submit" className="tun-boton-suave">
+              Descartar
+            </button>
+          </form>
+        </div>
+      )}
+
+      {v.estado !== "descartada" && (
+        <details className="mt-3">
+          <summary className="cursor-pointer text-[13px] font-medium" style={{ color: "var(--tun-brand)" }}>
+            Corregir lo que entendió la IA
+          </summary>
+          <div className="mt-4 border-t pt-4" style={{ borderColor: "var(--tun-border)" }}>
+            <EditarVisita
+              visitaId={v.id}
+              etapa={v.etapa}
+              etapas={valoresDeEtapa(v.area as AreaId)}
+              datos={datos}
+              nota={v.notaAgronomica}
+              resumen={v.resumen ?? ""}
+            />
+          </div>
+        </details>
       )}
 
       <BloqueInforme v={v} />
@@ -233,7 +280,8 @@ export default async function Visitas() {
   const [todas, lotes] = await Promise.all([visitasRecientes(alcance), lotesCandidatos(alcance)]);
 
   const pendientes = todas.filter((v) => v.estado === "pendiente");
-  const resto = todas.filter((v) => v.estado !== "pendiente");
+  const resto = todas.filter((v) => v.estado === "validada" || v.estado === "corregida");
+  const descartadas = todas.filter((v) => v.estado === "descartada");
   const sinInforme = resto.filter((v) => v.loteId && !v.informeId).length;
 
   return (
@@ -294,6 +342,23 @@ export default async function Visitas() {
             ))}
           </div>
         </section>
+      )}
+
+      {/* Plegadas: son las que alguien decidió que no cuentan, y ocupar la
+          pantalla con ellas es al revés de para qué se descartaron. Pero siguen
+          ahí: descartar por error el audio de una visita que sí ocurrió no
+          puede ser irreversible — el audio en WhatsApp también expira. */}
+      {descartadas.length > 0 && (
+        <details>
+          <summary className="cursor-pointer text-[15px] font-semibold" style={{ color: "var(--tun-muted)" }}>
+            Descartadas ({descartadas.length})
+          </summary>
+          <div className="mt-3 space-y-3">
+            {descartadas.map((v) => (
+              <Tarjeta key={v.id} v={v} lotes={lotes} />
+            ))}
+          </div>
+        </details>
       )}
     </div>
   );

@@ -317,6 +317,14 @@ export async function ultimaVisita(usuarioId: number): Promise<TunicheVisita | n
   return v ?? null;
 }
 
+/** Descarta desde WhatsApp. La fila sobrevive: ver `descartarVisitaAction`. */
+export async function descartar(visitaId: number): Promise<void> {
+  await db
+    .update(tunicheVisitas)
+    .set({ estado: "descartada" })
+    .where(eq(tunicheVisitas.id, visitaId));
+}
+
 export async function validar(visitaId: number): Promise<void> {
   await db
     .update(tunicheVisitas)

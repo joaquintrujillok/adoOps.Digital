@@ -319,6 +319,47 @@ Tres defensas, y ninguna es un README:
 
 Por eso la fila de `lib/modulos.ts` declara `datos: "mixtos"` y no `reales`.
 
+### Descartar y corregir
+
+**Descartar, no borrar.** Un audio mandado por error —cortado, el micrófono
+apretado sin querer— pasa a estado `descartada`: sale de la bandeja y del
+historial, pero la fila sobrevive con su transcripción. Si alguien descarta por
+equivocación el audio de una visita que sí ocurrió, borrarla de verdad
+significaría perderla para siempre: el audio original en WhatsApp también expira.
+Por eso hay botón de recuperar.
+
+**Corregir es indispensable, no un lujo.** Todo el diseño se apoya en "la IA
+propone, la persona confirma"; si al confirmar lo único posible fuera aceptar o
+rechazar en bloque, quien encuentre un campo mal puesto validaría igual —porque
+el resto está bien— y el error entraría al historial. El formulario se arma
+recorriendo `VISITA`, así que un campo nuevo en la plantilla aparece solo.
+
+La **transcripción no se edita nunca**. Es la constancia de lo que dijo la
+persona, y es contra ella que se contrasta lo que entendió la IA. Una visita
+corregida queda como `corregida` y no como `validada`: el historial tiene que
+poder distinguir lo que salió tal cual del audio de lo que alguien ajustó.
+
+Editar o descartar **borra el borrador del informe** si existía. Un informe es un
+snapshot congelado; si el contenido cambia, ese snapshot pasa a decir algo que ya
+no es cierto, y hay que regenerarlo. Si el informe ya salió, ninguna de las dos
+cosas se permite: el destinatario lo tiene.
+
+### Qué se puede hacer desde WhatsApp
+
+Dos verbos, y el mensaje de vuelta lo dice arriba y explícito:
+
+| Respuesta | Qué hace |
+|---|---|
+| `OK` (o `listo`, `confirmo`, `👍`) | Valida: entra al historial |
+| `NO` (o `descartar`, `❌`) | Descarta |
+
+**Corregir no.** Descartar sí está en WhatsApp porque el audio equivocado se manda
+desde el teléfono y se nota segundos después; obligar a entrar al sistema para eso
+es fricción justo donde duele. Corregir por audio, en cambio, obligaría a adivinar
+qué campo se corrige, manejar correcciones parciales y mantener estado de
+conversación — tres formas de que el sistema entienda mal una corrección, que es
+peor que el error original porque nadie vuelve a revisarla.
+
 ## Las dos compuertas
 
 No hay una sola confirmación, hay dos, y las hace gente distinta:
