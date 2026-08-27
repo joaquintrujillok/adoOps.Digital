@@ -344,6 +344,25 @@ ni programado. Cada informe lo decide una persona, y ese nombre queda en
 `tuniche_visitas.aprobada_por`. El visto bueno se puede retirar mientras el
 informe no haya salido; después no, porque el agricultor ya lo tiene.
 
+### El número del sistema
+
+Los audios se le mandan a **+56 9 2257 6899**, que es el número conectado en
+WaSender. El sistema no lo necesita en ninguna variable —responde por la cuenta,
+no por el número— pero es lo primero que alguien pregunta y hasta ahora no
+estaba escrito en ningún lado.
+
+Es el número **receptor**. El que va en la ficha de cada usuario
+(`tuniche_usuarios.telefono`) es el del **emisor**: desde qué teléfono manda sus
+audios esa persona. Son dos cosas distintas y confundirlas cuesta una tarde.
+
+El número del sistema **no debe registrarse nunca como usuario**. Hoy no lo está;
+si alguna vez lo estuviera, el webhook lo salva igual —descarta los mensajes con
+`key.fromMe`— pero es una defensa que no conviene tener que usar.
+
+El webhook entrante es `/api/whatsapp/webhook`, compartido con las demos de
+TorreControl. Adentro, el discriminador es el número de quien escribe: si está en
+`tuniche_usuarios`, el mensaje es de Tuniche. **Tuniche no tiene webhook propio.**
+
 `TUNICHE_WHATSAPP_SIMULADO=1` corre todo el flujo sin mandar ningún mensaje. En
 producción esa variable no va.
 
