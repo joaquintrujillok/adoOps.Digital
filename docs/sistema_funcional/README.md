@@ -263,7 +263,37 @@ La transcripción del audio **no entra al snapshot**. Es material interno para
 contrastar lo que la IA entendió; al agricultor se le manda el informe, no la
 grabación de alguien hablando desde una camioneta.
 
-### Datos de demostración
+### La sábana como pantalla
+
+`/tuniche/sabana` es la planilla con los datos adentro: una fila por lote.
+Existe aparte del historial porque responden preguntas distintas — el historial
+dice *"¿qué pasó en este campo?"* y la sábana dice *"¿cómo va la temporada?"*.
+René y Francisco piensan en filas, no en fichas, y darles solo fichas es pedirles
+que abandonen la forma en que miran su trabajo.
+
+**Las columnas dependen del área y eso no se unifica.** Una tabla con las
+columnas de las dos tendría, en cualquier fila, treinta celdas vacías que no
+significan "falta el dato" sino "no aplica" — y en una planilla esas dos cosas se
+ven igual.
+
+Dos vistas: `resumen` (identificación + estado) y `completa`, que suma los hitos
+—24 columnas en Altué, 31 en MN—. Quien abre la sábana para ver cómo va la
+temporada no necesita los hitos; quien va a llenar una etapa, sí.
+
+**Lo que aporta el sistema va sobre fondo verde**: etapa actual, número de
+visitas, fecha de la última, nota agronómica, riego, malezas, sanidad e informes.
+Ninguna de esas columnas estaba en la planilla original, y se actualizan solas
+cuando entra un audio. Ese es el argumento entero de la pantalla.
+
+`/api/tuniche/sabana?area=…` la baja en CSV, siempre en vista completa. Separador
+`;` y BOM, que es lo que Excel en español abre sin preguntar. **No es una
+concesión**: nadie deja una planilla de un día para otro, y exigirlo sería la
+forma más rápida de que no usen esto. Lo que se borra es la transcripción a mano.
+La ruta comprueba la sesión y el alcance por su cuenta: el proxy es un control
+optimista, y si mañana alguien la agrega a `apiPublica` para desatascar otra
+cosa, la sábana entera quedaría descargable sin sesión.
+
+## Datos de demostración
 
 `node scripts/tuniche-demo.mjs` siembra 4 agricultores inventados, 5 lotes, 8
 visitas con transcripciones escritas como habla un zonal por audio, fotos, y 9
