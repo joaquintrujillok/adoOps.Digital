@@ -95,11 +95,16 @@ const AREAS: Area[] = [
     prefijos: ["/tuniche", "/api/tuniche"],
     credenciales: [TUNICHE],
     login: "/tuniche/login",
-    // El webhook de WhatsApp lo llama WaSender y no trae cookie: se autentica
-    // con su propia firma. Su autorización es otra —el número tiene que estar
-    // registrado en `tuniche_usuarios`, ver lib/tuniche/usuarios.ts—, pero esa
-    // decisión es del endpoint, no del proxy.
-    apiPublica: ["/api/tuniche/whatsapp"],
+    // Vacía, y conviene decir por qué: **Tuniche no tiene webhook propio**. Su
+    // entrada de WhatsApp es `/api/whatsapp/webhook`, el mismo que alimenta las
+    // demos de TorreControl, que vive fuera de este matcher y se autentica con
+    // la firma de WaSender. Ahí dentro el discriminador es el número de quien
+    // escribe: si está en `tuniche_usuarios`, el mensaje es de Tuniche.
+    //
+    // Acá había declarada una excepción para `/api/tuniche/whatsapp`, una ruta
+    // que nunca existió. Una excepción de seguridad que apunta a la nada no hace
+    // daño hoy, pero le enseña al siguiente lector un mapa que no es el real.
+    apiPublica: [],
   },
   {
     prefijos: ["/dashboard360", "/api/dashboard360"],
