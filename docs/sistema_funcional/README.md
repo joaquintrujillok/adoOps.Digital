@@ -344,6 +344,37 @@ ni programado. Cada informe lo decide una persona, y ese nombre queda en
 `tuniche_visitas.aprobada_por`. El visto bueno se puede retirar mientras el
 informe no haya salido; después no, porque el agricultor ya lo tiene.
 
+### Los modelos
+
+| Paso | Modelo | Variable |
+|---|---|---|
+| Transcripción | `gpt-transcribe` | `TUNICHE_STT_MODEL` |
+| Extracción | `gpt-5.6-sol` | `TUNICHE_EXTRACT_MODEL` |
+
+**Tuniche no hereda de `EXTRACT_MODEL` ni de `STT_MODEL`**, que son las de las
+demos de TorreControl. Abaratar una demo no debe abaratar el sistema de un
+cliente, y en una demo una palabra mal transcrita es una anécdota mientras que
+acá es el nombre de un agricultor que después no calza con ningún lote.
+
+En extracción va el modelo grande a propósito. La llamada no solo llena campos:
+**elige un lote entre los del zonal o declara que no supo**, y ahí un modelo
+chico prefiere elegir algo plausible antes que admitir incertidumbre. El costo de
+equivocarse no es un campo vacío, es una visita colgada del historial de un
+agricultor que no la tuvo. Una visita son ~1.350 tokens de entrada y ~250 de
+salida: alrededor de un centavo de dólar, contra una milésima con la variante más
+económica. No hay volumen que justifique ahorrar ahí.
+
+Se fija la variante explícita (`gpt-5.6-sol`) y no el alias `gpt-5.6`: un alias
+lo puede reapuntar OpenAI, y el comportamiento de producción cambiaría sin que
+exista un commit que lo explique. Es la misma lección que dejó
+`LINKEDIN_API_VERSION`.
+
+La llamada sigue siendo `chat.completions` con `tools` y `tool_choice` forzado —
+verificado contra la documentación: la familia GPT-5.6 la soporta. OpenAI
+recomienda la Responses API para proyectos nuevos, pero no hay deprecación
+anunciada y migrar sin necesidad sería cambiar lo único de este flujo que
+todavía no se ha probado contra la API real.
+
 ### El número del sistema
 
 Los audios se le mandan a **+56 9 2257 6899**, que es el número conectado en

@@ -17,10 +17,19 @@ function client(): OpenAI {
   return _client;
 }
 
-/** Descarga un audio desde una URL y lo transcribe a texto (español). */
+/**
+ * Descarga un audio desde una URL y lo transcribe a texto (español).
+ *
+ * `modelo` permite que un módulo use uno distinto del default sin arrastrar a
+ * los demás. Existe porque esta función la comparten las demos de TorreControl y
+ * el Sistema Tuniche, que tienen exigencias distintas: en una demo una palabra
+ * mal transcrita es una anécdota, y en Tuniche es el nombre de un agricultor que
+ * después no calza con ningún lote.
+ */
 export async function transcribeFromUrl(
   audioUrl: string,
-  fileName = "voice.ogg"
+  fileName = "voice.ogg",
+  modelo?: string
 ): Promise<string> {
   const res = await fetch(audioUrl);
   if (!res.ok) {
@@ -35,7 +44,7 @@ export async function transcribeFromUrl(
 
   const out = await client().audio.transcriptions.create({
     file,
-    model: STT_MODEL,
+    model: modelo || STT_MODEL,
     language: "es",
   });
 

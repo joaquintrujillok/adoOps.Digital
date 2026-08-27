@@ -60,6 +60,20 @@ export async function enviarWhatsApp(telefono: string, texto: string): Promise<v
   await sendText(telefono, texto);
 }
 
+/**
+ * El modelo de transcripción de Tuniche.
+ *
+ * `gpt-transcribe` es el que OpenAI recomienda hoy para transcribir habla
+ * grabada en su idioma original, que es exactamente el caso: un zonal hablando
+ * español de Chile desde una camioneta.
+ *
+ * **Pesa más que el modelo de extracción, y es contraintuitivo.** Si acá
+ * "Agrícola La Martina" se transcribe como "agrícola la martilla", ninguna
+ * mejora aguas abajo lo recupera: el error ya se cometió. Se deja en una
+ * variable para poder volver atrás sin desplegar.
+ */
+const MODELO_STT = process.env.TUNICHE_STT_MODEL || "gpt-transcribe";
+
 const CONFIRMACIONES = ["ok", "okay", "oka", "listo", "validar", "validado", "confirmo", "confirmar", "si", "sí", "👍", "✅"];
 
 /** El área contra la que se estructura un audio de esta persona. */
@@ -282,7 +296,7 @@ export async function procesarMensajeTuniche(msg: WaIncomingMessage): Promise<bo
         await enviarWhatsApp(u.telefono, "⚠️ No pude descargar el audio. ¿Lo reenvías?");
         return true;
       }
-      const transcripcion = await transcribeFromUrl(publica, `${msg.key.id}.ogg`);
+      const transcripcion = await transcribeFromUrl(publica, `${msg.key.id}.ogg`, MODELO_STT);
       if (!transcripcion) {
         await enviarWhatsApp(u.telefono, "⚠️ No pude entender el audio. ¿Lo reenvías?");
         return true;

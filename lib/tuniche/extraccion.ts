@@ -19,7 +19,29 @@ import OpenAI from "openai";
 import type { AreaId } from "./areas";
 import { VISITA, etapasDe, type Campo } from "./plantillas";
 
-const MODEL = process.env.TUNICHE_EXTRACT_MODEL || process.env.EXTRACT_MODEL || "gpt-4o-mini";
+/**
+ * El modelo de extracción.
+ *
+ * **Por qué el grande y no el barato.** Esta llamada no solo llena campos:
+ * elige un lote entre los del zonal, o declara que no supo. Esa segunda parte es
+ * la que importa, y es justo donde un modelo chico prefiere elegir algo
+ * plausible antes que admitir incertidumbre. El costo de equivocarse no es un
+ * campo vacío: es una visita colgada del historial de un agricultor que no la
+ * tuvo, que es el peor error que este sistema puede cometer.
+ *
+ * El volumen no justifica ahorrar acá. Una visita son ~1.350 tokens de entrada
+ * y ~250 de salida: alrededor de un centavo de dólar. La diferencia contra el
+ * modelo más económico es de una milésima de dólar por visita.
+ *
+ * Se fija `gpt-5.6-sol` y no el alias `gpt-5.6`: un alias lo puede reapuntar
+ * OpenAI, y entonces el comportamiento de producción cambiaría sin que exista un
+ * commit que lo explique.
+ *
+ * `TUNICHE_EXTRACT_MODEL` es la vuelta atrás sin desplegar. No hereda de
+ * `EXTRACT_MODEL` a propósito: esa la usan las demos de TorreControl, y
+ * abaratarlas allá no debe abaratar el sistema de un cliente.
+ */
+const MODEL = process.env.TUNICHE_EXTRACT_MODEL || "gpt-5.6-sol";
 
 let _client: OpenAI | null = null;
 function client(): OpenAI {
