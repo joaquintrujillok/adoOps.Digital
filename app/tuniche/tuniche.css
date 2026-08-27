@@ -1,0 +1,129 @@
+/* =============================================================================
+   Sistema Tuniche — tokens
+   =============================================================================
+
+   **Por qué no usa la paleta de adoOps.** Esto no es una pantalla de adoOps: es
+   el sistema de Semillas Tuniche, y quien lo abre todos los días es un zonal en
+   una camioneta, no un cliente en una reunión de venta. Que se parezca al
+   tablero de adoOps sería confundir la herramienta con quien la construyó.
+
+   El verde es del cultivo y no de la marca: sirve de acento y de estado "todo
+   en orden", que es el estado normal de un campo. Los avisos son ámbar y rojo
+   por la razón de siempre —una plaga o un riego cortado se ven de lejos—.
+
+   Interfaz clara y no oscura por una razón concreta del uso: parte de estas
+   pantallas se miran en un teléfono, a pleno sol, en marzo. El fondo oscuro
+   pierde contra el sol; el claro no.
+   ============================================================================= */
+
+.tuniche-root {
+  color-scheme: light;
+
+  /* Superficies e ink */
+  --tun-plane: #f6f7f4;
+  --tun-surface: #ffffff;
+  --tun-ink: #16211a;
+  --tun-ink-2: #47584d;
+  --tun-muted: #7d8c82;
+  --tun-border: #dfe5de;
+  --tun-border-fuerte: #c4cfc6;
+
+  /* Verde de cultivo — interfaz y estado normal */
+  --tun-brand: #2f6f4e;
+  --tun-brand-dark: #24583e;
+  --tun-brand-soft: #e8f1eb;
+  --tun-sidebar: #1c2e24;
+
+  /* Estados */
+  --tun-alerta: #b45309;
+  --tun-alerta-soft: #fdf3e3;
+  --tun-critico: #a4262c;
+  --tun-critico-soft: #fbeaea;
+  --tun-ok: #2f6f4e;
+  --tun-ok-soft: #e8f1eb;
+
+  background: var(--tun-plane);
+  color: var(--tun-ink);
+  min-height: 100vh;
+}
+
+/* Enlaces del menú lateral. Están acá y no en clases sueltas porque se repiten
+   en la barra de escritorio y en la de teléfono, y dos copias de un estado
+   activo se desincronizan. */
+.tun-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 13.5px;
+  color: #b9c8bf;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.tun-nav-link:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: #ffffff;
+}
+.tun-nav-link[data-activo="true"] {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.tun-campo {
+  width: 100%;
+  border-radius: 0.5rem;
+  border: 1px solid var(--tun-border-fuerte);
+  background: #ffffff;
+  padding: 0.55rem 0.85rem;
+  font-size: 14px;
+  outline: none;
+}
+.tun-campo:focus {
+  border-color: var(--tun-brand);
+  box-shadow: 0 0 0 3px rgba(47, 111, 78, 0.16);
+}
+
+.tun-etiqueta {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--tun-ink-2);
+}
+
+.tun-boton {
+  border-radius: 0.5rem;
+  background: var(--tun-brand);
+  padding: 0.6rem 1.1rem;
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  transition: background 0.12s ease;
+}
+.tun-boton:hover:not(:disabled) {
+  background: var(--tun-brand-dark);
+}
+.tun-boton:disabled {
+  opacity: 0.6;
+}
+
+.tun-boton-suave {
+  border-radius: 0.5rem;
+  border: 1px solid var(--tun-border-fuerte);
+  background: #ffffff;
+  padding: 0.45rem 0.85rem;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--tun-ink-2);
+}
+.tun-boton-suave:hover {
+  background: var(--tun-plane);
+}
+
+.tun-tarjeta {
+  border-radius: 0.75rem;
+  border: 1px solid var(--tun-border);
+  background: var(--tun-surface);
+  box-shadow: 0 1px 2px rgba(22, 33, 26, 0.05);
+}

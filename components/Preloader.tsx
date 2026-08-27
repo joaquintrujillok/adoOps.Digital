@@ -13,7 +13,11 @@ import styles from "./Preloader.module.css";
 // La regla general: si es una herramienta que alguien abre todos los días o un
 // formulario que hay que completar, la animación de marca es un peaje. Se
 // reserva para la web corporativa, que es donde cumple una función.
-const SKIP_PREFIXES = ["/mix", "/tv", "/crm", "/dashboard360", "/showroom"];
+// /tuniche es el caso extremo de esa regla: no es una herramienta de adoOps,
+// es el sistema interno de otra empresa. La animación de nuestra marca sobre su
+// pantalla de login no es un peaje, es una confusión sobre de quién es el
+// sistema.
+const SKIP_PREFIXES = ["/mix", "/tv", "/crm", "/dashboard360", "/showroom", "/tuniche"];
 
 const TRACE_PATH =
   "M 845 160 C 792 56 636 56 636 160 C 636 264 792 264 845 160 C 898 56 1058 56 1058 160 C 1058 264 898 264 845 160 Z";

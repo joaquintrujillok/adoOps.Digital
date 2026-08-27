@@ -112,6 +112,21 @@ export const MODULOS: Modulo[] = [
     nota: "156 ventas y 76 clientes inventados a la medida del negocio real. Ningún cliente de Highend adentro.",
   },
   {
+    id: "tuniche",
+    nombre: "Sistema Tuniche",
+    ruta: "/tuniche",
+    estado: "produccion",
+    datos: "reales",
+    audiencia: "un zonal de Semillas Tuniche en terreno",
+    tablas: ["tuniche_"],
+    // Se firmó como prueba de concepto y aun así entra como `produccion`. La
+    // pregunta que decide el estado es "¿puede haber adentro datos de una
+    // persona real?", y la respuesta es sí desde el primer día: agricultores
+    // con nombre y teléfono, y trabajadores de Tuniche con contraseña. La etapa
+    // comercial no cambia lo que hay en la base.
+    nota: "Sistema interno de otra empresa alojado acá: agricultores reales y cuentas con contraseña desde el día uno.",
+  },
+  {
     id: "showroom",
     nombre: "Captura de showroom",
     ruta: "/showroom",

@@ -54,6 +54,18 @@ export type WaIncomingMessage = {
       fileLength?: string | number;
       fileName?: string;
     };
+    // Las fotos las agregó el Sistema Tuniche (/tuniche): en una visita a campo
+    // la foto no es un adjunto opcional, es parte del reporte —Altué pide una
+    // general, una de hembra y una de macho en cada visita—. Es aditivo: la
+    // demo de TorreControl no las mira y sigue funcionando igual.
+    imageMessage?: {
+      url: string;
+      mediaKey: string;
+      mimetype: string;
+      caption?: string;
+      fileSha256?: string;
+      fileLength?: string | number;
+    };
   };
 };
 
@@ -89,6 +101,41 @@ export async function decryptAudio(msg: WaIncomingMessage): Promise<string | nul
     return json.publicUrl ?? null;
   } catch (err) {
     console.error("WaSender decrypt-media exception:", err);
+    return null;
+  }
+}
+
+/**
+ * La versión desencriptada de una imagen entrante. Misma mecánica que
+ * `decryptAudio` contra el mismo endpoint, cambiando el sobre del mensaje.
+ *
+ * La URL que devuelve WaSender es **temporal** (~1h). Quien la guarde tiene que
+ * copiarse el archivo: guardar la URL sola produce un historial que se ve bien
+ * hoy y muestra fotos rotas el mes que viene.
+ */
+export async function decryptImage(msg: WaIncomingMessage): Promise<string | null> {
+  const image = msg.message?.imageMessage;
+  if (!image) return null;
+
+  try {
+    const resp = await fetch(`${BASE}/decrypt-media`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey()}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        data: { messages: { key: { id: msg.key.id }, message: { imageMessage: image } } },
+      }),
+    });
+    if (!resp.ok) {
+      console.error("WaSender decrypt-media (imagen) error:", resp.status, await resp.text());
+      return null;
+    }
+    const json = (await resp.json()) as { success?: boolean; publicUrl?: string };
+    return json.publicUrl ?? null;
+  } catch (err) {
+    console.error("WaSender decrypt-media (imagen) exception:", err);
     return null;
   }
 }

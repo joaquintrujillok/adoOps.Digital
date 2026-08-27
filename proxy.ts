@@ -15,6 +15,10 @@
 // Cada área trae su cookie y su secreto. Son productos que se venden por
 // separado: una sesión del CRM no debe abrir el tablero, ni al revés.
 //
+// El Sistema Tuniche (/tuniche) es el caso más estricto: no es un producto de
+// adoOps sino el sistema interno de un cliente, alojado en esta infraestructura.
+// Ninguna sesión de adoOps lo abre.
+//
 // El motor de nurturing es la excepción deliberada: **acepta cualquiera de las
 // dos sesiones**. No es otro producto, es la misma gente operando dos partes del
 // mismo sistema, y un segundo login sería una segunda contraseña que alguien
@@ -50,6 +54,10 @@ interface Area {
 
 const CRM: Credencial = { cookie: "adoops_crm_session", env: "CRM_SESSION_SECRET" };
 const D360: Credencial = { cookie: "adoops_d360_session", env: "D360_SESSION_SECRET" };
+// El Sistema Tuniche no es un producto de adoOps: es el sistema interno de otra
+// empresa, alojado acá. Cookie y secreto propios, sin excepción de doble
+// credencial: una sesión de adoOps no abre nada de Tuniche.
+const TUNICHE: Credencial = { cookie: "tuniche_session", env: "TUNICHE_SESSION_SECRET" };
 
 // El orden importa: `find` toma la PRIMERA que calce, y /dashboard360/motor
 // también empieza por /dashboard360. La zona del motor va antes o quedaría
@@ -82,6 +90,16 @@ const AREAS: Area[] = [
     credenciales: [D360],
     login: "/dashboard360/login",
     apiPublica: [],
+  },
+  {
+    prefijos: ["/tuniche", "/api/tuniche"],
+    credenciales: [TUNICHE],
+    login: "/tuniche/login",
+    // El webhook de WhatsApp lo llama WaSender y no trae cookie: se autentica
+    // con su propia firma. Su autorización es otra —el número tiene que estar
+    // registrado en `tuniche_usuarios`, ver lib/tuniche/usuarios.ts—, pero esa
+    // decisión es del endpoint, no del proxy.
+    apiPublica: ["/api/tuniche/whatsapp"],
   },
   {
     prefijos: ["/dashboard360", "/api/dashboard360"],
@@ -197,5 +215,8 @@ export const config = {
     // Solo la consola. Los tableros de TorreControl son parte del demo y se
     // abren por link, sin sesión.
     "/torrecontrol/consola/:path*",
+    // Sistema Tuniche: todo bajo sesión. No hay pantalla pública.
+    "/tuniche/:path*",
+    "/api/tuniche/:path*",
   ],
 };

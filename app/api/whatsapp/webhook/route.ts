@@ -1,5 +1,6 @@
 import { NextResponse, after } from "next/server";
 import { routeMessage } from "@/lib/whatsapp-router";
+import { procesarMensajeTuniche } from "@/lib/tuniche/whatsapp";
 import type { WaIncomingMessage } from "@/lib/wasender";
 
 export const runtime = "nodejs";
@@ -50,7 +51,20 @@ export async function POST(req: Request) {
     processed.add(id);
     if (processed.size > MAX_DEDUP) processed.clear();
 
-    after(() => routeMessage(msg));
+    // Un solo número de WhatsApp alimenta dos cosas distintas: el Sistema
+    // Tuniche —que es de un cliente y tiene datos reales— y las demos de
+    // TorreControl. El discriminador es **el número de quien escribe**, no una
+    // palabra clave: si el teléfono está registrado en `tuniche_usuarios`, el
+    // mensaje es de Tuniche y no hay ambigüedad posible.
+    //
+    // Tuniche va primero a propósito. Al revés, un audio de un zonal que dijera
+    // "cosecha" o "campo" lo capturaría el clasificador de la demo —esas
+    // palabras están en su diccionario— y una visita real terminaría dentro de
+    // un tablero de venta.
+    after(async () => {
+      if (await procesarMensajeTuniche(msg)) return;
+      await routeMessage(msg);
+    });
   }
 
   return NextResponse.json({ status: "ok" });
