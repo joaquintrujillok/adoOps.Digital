@@ -97,7 +97,7 @@ function Tarjeta({
   lotes,
 }: {
   v: VisitaConContexto;
-  lotes: { id: number; area: string; codigo: string; agricultor: string }[];
+  lotes: { id: number; area: string; agricultorId: number; codigo: string; agricultor: string }[];
 }) {
   const e = ESTADO[v.estado] ?? ESTADO.pendiente;
   const datos = (v.datos ?? {}) as Record<string, unknown>;
@@ -186,6 +186,15 @@ function Tarjeta({
                 <span style={{ color: "var(--tun-muted)" }}> — el zonal dijo «{mencionado}»</span>
               )}
             </label>
+            {/* Cuando se identificó al agricultor pero no el lote, el desplegable
+                se acota a los suyos. Ofrecer los catorce del área obligaría a
+                buscar de nuevo lo que el sistema ya sabía. */}
+            {v.agricultorId && (
+              <p className="mb-1.5 text-[12.5px]" style={{ color: "var(--tun-ink-2)" }}>
+                Se identificó a <b>{v.agricultorNombre ?? "el agricultor"}</b>, pero tiene
+                más de un lote. Elige cuál.
+              </p>
+            )}
             <select name="loteId" className="tun-campo" required defaultValue="">
               <option value="" disabled>
                 Elige el lote…
@@ -194,7 +203,11 @@ function Tarjeta({
                   y el lote tiene que pertenecer a la misma. La acción lo vuelve
                   a comprobar en el servidor. */}
               {lotes
-                .filter((l) => l.area === v.area)
+                .filter(
+                  (l) =>
+                    l.area === v.area &&
+                    (v.agricultorId ? l.agricultorId === v.agricultorId : true),
+                )
                 .map((l) => (
                   <option key={l.id} value={l.id}>
                     {l.codigo} — {l.agricultor}

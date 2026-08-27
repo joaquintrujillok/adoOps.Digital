@@ -132,11 +132,21 @@ function borrador(params: {
   etapa: string | null;
   datos: Record<string, unknown>;
   nota: number | null;
+  candidatos: { codigo: string; variedad: string | null }[];
 }): string {
   const L: string[] = ["📋 *Visita registrada*"];
 
   if (params.lote) {
     L.push(`• Lote: ${params.lote}${params.agricultor ? ` — ${params.agricultor}` : ""}`);
+  } else if (params.candidatos.length > 1) {
+    // Se identificó al agricultor pero tiene varios lotes. Decir "no encontré
+    // nada" cuando sí se supo de quién es el campo hace parecer inútil un
+    // sistema que entendió casi todo — y deja al zonal sin saber qué falta.
+    L.push(`• ⚠️ ${params.agricultor} tiene ${params.candidatos.length} lotes y no dijiste cuál:`);
+    for (const c of params.candidatos) {
+      L.push(`     ${c.codigo}${c.variedad ? ` · ${c.variedad}` : ""}`);
+    }
+    L.push("     Elígelo en el sistema antes de validar.");
   } else {
     L.push(
       params.loteMencionado
@@ -188,11 +198,25 @@ async function procesarTranscripcion(
     lotes,
   });
 
-  const elegido = lotes.find((l) => l.id === extraida.loteId) ?? null;
-  const agricultorId = extraida.loteId ? await agricultorDeLote(extraida.loteId) : null;
+  // **Si el agricultor tiene un solo lote, la ambigüedad no existe.** El modelo
+  // devuelve null cuando no puede elegir entre varios, y eso está bien; pero
+  // cuando hay uno solo no había nada que elegir, y dejar la visita huérfana
+  // sería tirar información que sí estaba completa.
+  let loteId = extraida.loteId;
+  if (!loteId && extraida.agricultorId) {
+    const suyos = lotes.filter((l) => l.agricultorId === extraida.agricultorId);
+    if (suyos.length === 1) loteId = suyos[0].id;
+  }
+
+  const elegido = lotes.find((l) => l.id === loteId) ?? null;
+  const agricultorId = loteId ? await agricultorDeLote(loteId) : extraida.agricultorId;
+  // Los lotes del agricultor que sí se identificó, para poder preguntar cuál.
+  const candidatos = agricultorId
+    ? lotes.filter((l) => l.agricultorId === agricultorId)
+    : [];
 
   await crearVisita({
-    loteId: extraida.loteId,
+    loteId,
     agricultorId,
     area,
     usuarioId: u.id,
@@ -212,8 +236,9 @@ async function procesarTranscripcion(
     u.telefono!,
     borrador({
       lote: elegido?.codigo ?? null,
-      agricultor: elegido?.agricultor ?? null,
+      agricultor: elegido?.agricultor ?? candidatos[0]?.agricultor ?? null,
       loteMencionado: extraida.loteMencionado,
+      candidatos,
       etapa: extraida.etapa,
       datos: extraida.datos,
       nota: extraida.notaAgronomica,

@@ -111,6 +111,7 @@ export async function lotesCandidatos(a: Alcance, area?: AreaId): Promise<LoteCa
       id: tunicheLotes.id,
       area: tunicheLotes.area,
       codigo: tunicheLotes.codigo,
+      agricultorId: tunicheAgricultores.id,
       agricultor: tunicheAgricultores.razonSocial,
       localidad: tunicheAgricultores.localidad,
       cultivo: tunicheLotes.cultivo,
@@ -189,13 +190,28 @@ async function conContexto(visitas: TunicheVisita[]): Promise<VisitaConContexto[
       ),
     );
 
+  // El nombre del agricultor cuando la visita lo tiene pero no tiene lote: es
+  // justo el caso que la pantalla necesita explicar ("se supo de quién, no cuál").
+  const idsAg = [
+    ...new Set(
+      visitas.filter((v) => !v.loteId && v.agricultorId).map((v) => v.agricultorId as number),
+    ),
+  ];
+  const sueltos = idsAg.length
+    ? await db
+        .select({ id: tunicheAgricultores.id, nombre: tunicheAgricultores.razonSocial })
+        .from(tunicheAgricultores)
+        .where(inArray(tunicheAgricultores.id, idsAg))
+    : [];
+
   return visitas.map((v) => {
     const inf = informes.find((x) => x.visitaId === v.id);
     const l = lotes.find((x) => x.id === v.loteId);
     return {
       ...v,
       loteCodigo: l?.codigo ?? null,
-      agricultorNombre: l?.agricultor ?? null,
+      agricultorNombre:
+        l?.agricultor ?? sueltos.find((a) => a.id === v.agricultorId)?.nombre ?? null,
       agricultorTelefono: l?.telefono ?? null,
       informeId: inf?.id ?? null,
       informeEstado: inf?.estado ?? null,

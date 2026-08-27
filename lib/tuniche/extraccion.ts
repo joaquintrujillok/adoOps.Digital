@@ -59,6 +59,7 @@ export interface LoteCandidato {
   /** El área del lote. La usa la pantalla para no ofrecer lotes de la otra. */
   area: string;
   codigo: string;
+  agricultorId: number;
   agricultor: string;
   localidad: string | null;
   cultivo: string | null;
@@ -68,6 +69,16 @@ export interface LoteCandidato {
 export interface VisitaExtraida {
   /** `id` del lote elegido, o null si no se pudo determinar sin adivinar. */
   loteId: number | null;
+  /**
+   * El agricultor, que casi siempre se puede identificar **aunque el lote no**.
+   *
+   * Un zonal dice "estuve en La Martina", no "estuve en el lote MN26-0002". Si
+   * ese agricultor tiene un solo lote, ya está resuelto; si tiene varios, al
+   * menos se sabe de quién es la visita y quedan dos candidatos en vez de
+   * catorce. Sin esto, identificar al agricultor con certeza y devolver null
+   * igual tiraba a la basura casi toda la información útil del audio.
+   */
+  agricultorId: number | null;
   /** Lo que el zonal dijo para nombrar el campo. Sirve para corregir a mano. */
   loteMencionado: string | null;
   etapa: string | null;
@@ -107,7 +118,8 @@ Recibes la transcripción de un audio de WhatsApp que mandó un zonal desde el c
 
 Reglas, en orden de importancia:
 1. NO INVENTES. Si algo no se menciona, devuelve null o lista vacía. Un campo vacío es correcto; un campo inventado corrompe el historial de un agricultor.
-2. Para elegir el lote, usa SOLO la lista de lotes que se te entrega. Si lo que dijo el zonal no calza claramente con uno, devuelve loteId null y copia en loteMencionado lo que dijo.
+2. Para elegir el lote, usa SOLO la lista que se te entrega. Si lo que dijo el zonal no calza claramente con UN lote, devuelve loteId null y copia en loteMencionado lo que dijo.
+2b. El agricultor es otra pregunta y casi siempre se puede responder: rellena agricultorId SIEMPRE que identifiques de quién es el campo, aunque no sepas cuál de sus lotes. Solo va null si tampoco sabes el agricultor.
 3. La nota agronómica es un porcentaje de 0 a 100. Solo devuélvela si el zonal dijo un número; no la deduzcas del tono.
 4. El resumen son 2 o 3 frases en español de Chile, en el vocabulario del zonal, listo para que un agricultor lo lea.`;
 
@@ -127,6 +139,11 @@ export async function extraerVisita(params: {
       type: ["string", "null"],
       description: "Cómo nombró el zonal el campo o el lote, tal cual lo dijo.",
     },
+    agricultorId: {
+      type: ["integer", "null"],
+      description:
+        "id del agricultor de la lista. Rellénalo SIEMPRE que puedas identificar al agricultor, aunque no sepas cuál de sus lotes es. null solo si tampoco sabes el agricultor.",
+    },
     etapa: {
       type: ["string", "null"],
       enum: [...etapasDe(area).map((e) => e.nombre), null],
@@ -143,7 +160,7 @@ export async function extraerVisita(params: {
     ? lotes
         .map(
           (l) =>
-            `- id ${l.id} · ${l.codigo} · ${l.agricultor}` +
+            `- lote id ${l.id} · ${l.codigo} · agricultor id ${l.agricultorId} ${l.agricultor}` +
             `${l.localidad ? ` · ${l.localidad}` : ""}` +
             `${l.cultivo ? ` · ${l.cultivo}` : ""}${l.variedad ? ` ${l.variedad}` : ""}`,
         )
@@ -200,6 +217,15 @@ export async function extraerVisita(params: {
   const loteId =
     typeof idCrudo === "number" && lotes.some((l) => l.id === idCrudo) ? idCrudo : null;
 
+  // El id de agricultor también se verifica contra la lista: uno inventado
+  // apuntaría a otra empresa, y el modelo no tiene forma de saber que erró.
+  const agCrudo = crudo.agricultorId;
+  let agricultorId =
+    typeof agCrudo === "number" && lotes.some((l) => l.agricultorId === agCrudo) ? agCrudo : null;
+  // Si eligió lote, el agricultor sale del lote y no de lo que el modelo dijo:
+  // el dato derivado siempre le gana al declarado.
+  if (loteId) agricultorId = lotes.find((l) => l.id === loteId)?.agricultorId ?? agricultorId;
+
   const datos: Record<string, unknown> = {};
   for (const c of VISITA) {
     if (c.id === "etapa" || c.tipo === "fotos") continue;
@@ -216,6 +242,7 @@ export async function extraerVisita(params: {
 
   return {
     loteId,
+    agricultorId,
     loteMencionado: (crudo.loteMencionado as string | null) ?? null,
     etapa: (crudo.etapa as string | null) ?? null,
     datos,
