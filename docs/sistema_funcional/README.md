@@ -352,6 +352,23 @@ Dos verbos, y el mensaje de vuelta lo dice arriba y explícito:
 |---|---|
 | `OK` (o `listo`, `confirmo`, `👍`) | Valida: entra al historial |
 | `NO` (o `descartar`, `❌`) | Descarta |
+| `1`, `2775`, `MN26-0002`… | Elige el lote, cuando se supo el agricultor y no cuál de sus lotes |
+
+**La elección de lote se resuelve en código, sin volver a llamar al modelo.** Es
+una pregunta cerrada con dos o tres respuestas posibles: comparar cadenas es
+exacto, barato e instantáneo, y no puede alucinar un lote que no estaba en la
+lista. Mandarla al modelo sería reintroducir incertidumbre en el único paso donde
+ya no la hay. Acepta el número de la lista, el código completo o cualquier trozo
+distintivo de la variedad —*"el de la 2775"* resuelve TUNICHE 2775—, y devuelve
+null si calzan varios.
+
+Dos guardas para que no secuestre mensajes que no son una elección: solo se
+intenta con textos de **40 caracteres o menos** —un reporte de terreno de verdad
+no cabe ahí— y si no calza, solo se pide aclaración cuando el texto **parecía** un
+intento. Un "buenas, cómo estás" sigue de largo y se trata como una visita nueva.
+
+El orden de los candidatos es por código y es estable: el `2` de un mensaje tiene
+que significar siempre el mismo lote.
 
 **Corregir no.** Descartar sí está en WhatsApp porque el audio equivocado se manda
 desde el teléfono y se nota segundos después; obligar a entrar al sistema para eso

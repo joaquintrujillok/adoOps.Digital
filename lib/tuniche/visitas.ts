@@ -5,7 +5,7 @@
 // los agricultores de Altué. Una consulta que arme su propio `where` se salta el
 // control sin que nada avise, y el síntoma aparece meses después en una reunión.
 
-import { and, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import {
   tunicheAgricultores,
@@ -130,7 +130,11 @@ export async function lotesCandidatos(a: Alcance, area?: AreaId): Promise<LoteCa
         filtroAgricultor(a),
       ),
     )
-    .orderBy(tunicheAgricultores.razonSocial);
+    // Orden estable y por código, no solo por agricultor: cuando se le manda al
+    // zonal una lista numerada por WhatsApp, el "2" tiene que significar siempre
+    // el mismo lote. Un orden indefinido dentro de un agricultor haría que la
+    // respuesta apunte a otro campo entre un mensaje y el siguiente.
+    .orderBy(asc(tunicheAgricultores.razonSocial), asc(tunicheLotes.codigo));
   return filas;
 }
 
@@ -331,6 +335,37 @@ export async function ultimaVisita(usuarioId: number): Promise<TunicheVisita | n
     .orderBy(desc(tunicheVisitas.fecha))
     .limit(1);
   return v ?? null;
+}
+
+/**
+ * La pendiente más reciente que se quedó **sin lote pero con agricultor**: el
+ * caso en que se supo de quién es el campo y no cuál de sus lotes. Es la que
+ * puede resolver una respuesta de una palabra por WhatsApp.
+ */
+export async function ultimaPendienteSinLote(usuarioId: number): Promise<TunicheVisita | null> {
+  const [v] = await db
+    .select()
+    .from(tunicheVisitas)
+    .where(
+      and(
+        eq(tunicheVisitas.usuarioId, usuarioId),
+        eq(tunicheVisitas.estado, "pendiente"),
+        isNull(tunicheVisitas.loteId),
+        isNotNull(tunicheVisitas.agricultorId),
+      ),
+    )
+    .orderBy(desc(tunicheVisitas.fecha))
+    .limit(1);
+  return v ?? null;
+}
+
+/** Le pega el lote elegido a una visita. Desde WhatsApp o desde la pantalla. */
+export async function asignarLote(visitaId: number, loteId: number): Promise<void> {
+  const agricultorId = await agricultorDeLote(loteId);
+  await db
+    .update(tunicheVisitas)
+    .set({ loteId, agricultorId })
+    .where(eq(tunicheVisitas.id, visitaId));
 }
 
 /** Descarta desde WhatsApp. La fila sobrevive: ver `descartarVisitaAction`. */

@@ -27,16 +27,18 @@ import {
 import type { AreaId } from "./areas";
 import { nombreArea } from "./areas";
 import { VISITA } from "./plantillas";
-import { extraerVisita } from "./extraccion";
+import { extraerVisita, type LoteCandidato } from "./extraccion";
 import { usuarioPorTelefono } from "./usuarios";
 import type { TunicheUsuario } from "@/db/tuniche";
 import {
   agricultorDeLote,
+  asignarLote,
   crearVisita,
   guardarFoto,
   lotesCandidatos,
   descartar,
   ultimaPendiente,
+  ultimaPendienteSinLote,
   ultimaVisita,
   validar,
 } from "./visitas";
@@ -95,6 +97,57 @@ const DESCARTES = ["no", "descartar", "descarta", "descártala", "borrar", "elim
 /** La URL a la que se manda a la gente a corregir. */
 const URL_SISTEMA = process.env.TUNICHE_URL || "https://www.adoops.digital/tuniche/visitas";
 
+/** Normaliza para comparar: minúsculas, sin tildes y sin signos. */
+function normalizar(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Interpreta la respuesta del zonal como uno de sus lotes.
+ *
+ * Acepta el número de la lista, el código, o cualquier trozo distintivo de la
+ * variedad —"el de la 2775" resuelve TUNICHE 2775—. Devuelve null si calzan
+ * varios: entre dos lotes de la misma variedad, elegir uno sería adivinar, que
+ * es lo mismo que este flujo evita más arriba.
+ */
+function elegirLote(texto: string, lotes: LoteCandidato[]): LoteCandidato | null {
+  const t = normalizar(texto);
+  if (!t || lotes.length === 0) return null;
+
+  // "2" o "el 2" — la posición en la lista que se le mandó.
+  const soloNumero = t.match(/^(?:el |la |lote )?([1-9])\.?$/);
+  if (soloNumero) {
+    const i = Number(soloNumero[1]) - 1;
+    return lotes[i] ?? null;
+  }
+
+  const calzan = lotes.filter((l) => {
+    const codigo = normalizar(l.codigo);
+    if (codigo && t.includes(codigo)) return true;
+    // De la variedad se prueban sus piezas: "TUNICHE 2775" calza con "2775",
+    // que es como lo dice alguien hablando.
+    const piezas = normalizar(l.variedad ?? "").split(" ").filter((x) => x.length >= 3);
+    return piezas.some((x) => t.includes(x));
+  });
+  return calzan.length === 1 ? calzan[0] : null;
+}
+
+/** ¿El texto se parece a un intento de elegir, aunque no haya calzado? */
+function pareceIntentoDeElegir(texto: string, lotes: LoteCandidato[]): boolean {
+  const t = normalizar(texto);
+  if (/^\d{1,2}$/.test(t)) return true;
+  if (/(lote|el de|la de|variedad|codigo)/.test(t)) return true;
+  // Un número suelto que se parece a una variedad: probablemente quiso elegir y
+  // se equivocó de dígito.
+  return lotes.some((l) => /\d{3,}/.test(t) && /\d{3,}/.test(normalizar(l.variedad ?? "")));
+}
+
 /** El área contra la que se estructura un audio de esta persona. */
 function areaDe(u: TunicheUsuario): AreaId | null {
   // Un jefe o un zonal tienen área. Un admin no —cruza las dos— y por eso
@@ -143,10 +196,10 @@ function borrador(params: {
     // nada" cuando sí se supo de quién es el campo hace parecer inútil un
     // sistema que entendió casi todo — y deja al zonal sin saber qué falta.
     L.push(`• ⚠️ ${params.agricultor} tiene ${params.candidatos.length} lotes y no dijiste cuál:`);
-    for (const c of params.candidatos) {
-      L.push(`     ${c.codigo}${c.variedad ? ` · ${c.variedad}` : ""}`);
-    }
-    L.push("     Elígelo en el sistema antes de validar.");
+    params.candidatos.forEach((c, i) => {
+      L.push(`     *${i + 1}.* ${c.codigo}${c.variedad ? ` · ${c.variedad}` : ""}`);
+    });
+    L.push("     Responde con el número, el código o la variedad.");
   } else {
     L.push(
       params.loteMencionado
@@ -325,6 +378,49 @@ export async function procesarMensajeTuniche(msg: WaIncomingMessage): Promise<bo
           `Si fue un error, la puedes recuperar en el sistema: ${URL_SISTEMA}`,
       );
       return true;
+    }
+
+    // 1c) Elegir el lote cuando se supo el agricultor y no cuál de sus lotes.
+    //
+    // **Se resuelve en código, sin volver a llamar al modelo.** Es una pregunta
+    // cerrada con dos o tres respuestas posibles: comparar cadenas es exacto,
+    // barato e instantáneo, y no puede alucinar un lote que no estaba en la
+    // lista. Mandarla al modelo sería reintroducir incertidumbre en el único
+    // paso donde ya no la hay.
+    //
+    // El límite de largo es la guarda contra el falso positivo: un reporte de
+    // terreno de verdad no cabe en cuarenta caracteres, así que un texto largo
+    // sigue de largo y se trata como una visita nueva aunque mencione una
+    // variedad.
+    if (texto && texto.length <= 40) {
+      const huerfana = await ultimaPendienteSinLote(u.id);
+      if (huerfana?.agricultorId) {
+        const suyos = (await lotesCandidatos(alcanceDeUsuario(u), area)).filter(
+          (l) => l.agricultorId === huerfana.agricultorId,
+        );
+        const elegido = elegirLote(texto, suyos);
+
+        if (elegido) {
+          await asignarLote(huerfana.id, elegido.id);
+          await enviarWhatsApp(
+            u.telefono,
+            `✅ Lote asignado: *${elegido.codigo}*${elegido.variedad ? ` · ${elegido.variedad}` : ""} — ${elegido.agricultor}\n\n` +
+              "Responde *OK* para guardarla en el historial del agricultor.",
+          );
+          return true;
+        }
+        // Solo se avisa si el texto PARECÍA un intento de elegir. Si no se
+        // parece en nada, se deja seguir: puede ser el inicio de otro reporte, y
+        // secuestrar cualquier mensaje corto sería peor que no ayudar.
+        if (pareceIntentoDeElegir(texto, suyos)) {
+          await enviarWhatsApp(
+            u.telefono,
+            `No pude identificar cuál de los ${suyos.length} lotes es. Responde con el número, el código completo o la variedad:\n` +
+              suyos.map((l, i) => `*${i + 1}.* ${l.codigo}${l.variedad ? ` · ${l.variedad}` : ""}`).join("\n"),
+          );
+          return true;
+        }
+      }
     }
 
     // 2) Foto — se pega a la última visita de esta persona.
