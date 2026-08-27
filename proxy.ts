@@ -179,8 +179,11 @@ export async function proxy(request: NextRequest) {
     return Boolean(s) && s!.length >= 32;
   });
   if (utilizables.length === 0) {
-    const faltan = area.credenciales.map((c) => c.env).join(" ni ");
-    return new NextResponse(`${faltan} configurada`, { status: 500 });
+    // El mensaje decía `${faltan} configurada`, que con una sola credencial —el
+    // caso de todas las áreas salvo el motor— se lee como lo contrario de lo que
+    // pasa: "TUNICHE_SESSION_SECRET configurada" cuando justamente NO lo está.
+    const faltan = area.credenciales.map((c) => c.env).join(" o ");
+    return new NextResponse(`Falta configurar ${faltan}`, { status: 500 });
   }
 
   let autorizado = false;

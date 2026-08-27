@@ -2,7 +2,13 @@ import Link from "next/link";
 import { VISITA } from "@/lib/tuniche/plantillas";
 import { alcanceActual, requireSesion } from "@/lib/tuniche/auth.actions";
 import { lotesCandidatos, visitasRecientes, type VisitaConContexto } from "@/lib/tuniche/visitas";
-import { asignarLoteAction, validarVisitaAction } from "@/lib/tuniche/visitas.actions";
+import {
+  aprobarEnvioAction,
+  asignarLoteAction,
+  retirarAprobacionAction,
+  validarVisitaAction,
+} from "@/lib/tuniche/visitas.actions";
+import { puedeEnviarAlAgricultor } from "@/lib/tuniche/session";
 
 export const dynamic = "force-dynamic";
 
@@ -21,12 +27,83 @@ const ESTADO: Record<string, { texto: string; fondo: string; color: string }> = 
   corregida: { texto: "Corregida", fondo: "var(--tun-ok-soft)", color: "var(--tun-ok)" },
 };
 
+function fechaCorta(d: Date): string {
+  return new Intl.DateTimeFormat("es-CL", { day: "2-digit", month: "short" }).format(d);
+}
+
+/**
+ * El bloque del visto bueno.
+ *
+ * **Va abajo del todo y separado por una línea a propósito.** Todo lo de arriba
+ * pasa dentro de Tuniche; esto es lo único que sale hacia afuera, hacia un
+ * cliente. Mezclarlo con los otros botones invitaría a despacharlo con el mismo
+ * clic distraído, y es la única acción de esta pantalla que no se puede deshacer
+ * una vez ejecutada.
+ */
+function VistoBueno({ v, puede }: { v: VisitaConContexto; puede: boolean }) {
+  // Una visita que el zonal todavía no confirmó no tiene qué aprobar: sería dar
+  // el visto bueno a lo que entendió la IA, no a lo que vio una persona.
+  if (v.estado === "pendiente") return null;
+
+  const enviada = v.enviadaAlAgricultorEn;
+  const aprobada = v.aprobadaEn;
+
+  return (
+    <div className="mt-4 border-t pt-4" style={{ borderColor: "var(--tun-border)" }}>
+      {enviada ? (
+        <p className="text-[13px]" style={{ color: "var(--tun-ok)" }}>
+          ✓ Enviada al agricultor el {fechaCorta(enviada)}
+          {v.aprobadaPorNombre ? ` · visto bueno de ${v.aprobadaPorNombre}` : ""}
+        </p>
+      ) : aprobada ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-[13px]" style={{ color: "var(--tun-ok)" }}>
+            ✓ Visto bueno de {v.aprobadaPorNombre ?? "jefatura"} · {fechaCorta(aprobada)}
+          </span>
+          {!v.agricultorTelefono && (
+            <span className="text-[12.5px]" style={{ color: "var(--tun-alerta)" }}>
+              — pero este agricultor no tiene teléfono, así que todavía no puede salir.
+            </span>
+          )}
+          {puede && (
+            <form action={retirarAprobacionAction}>
+              <input type="hidden" name="id" value={v.id} />
+              <button type="submit" className="tun-boton-suave">
+                Retirar visto bueno
+              </button>
+            </form>
+          )}
+        </div>
+      ) : puede ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <form action={aprobarEnvioAction}>
+            <input type="hidden" name="id" value={v.id} />
+            <button type="submit" className="tun-boton-suave">
+              Dar visto bueno para enviar al agricultor
+            </button>
+          </form>
+          <span className="text-[12.5px]" style={{ color: "var(--tun-muted)" }}>
+            Nada sale de Tuniche sin esto. Nunca es automático.
+          </span>
+        </div>
+      ) : (
+        <p className="text-[12.5px]" style={{ color: "var(--tun-muted)" }}>
+          Esperando el visto bueno de la jefatura de tu área para poder enviarse al
+          agricultor.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function Tarjeta({
   v,
   lotes,
+  puedeAprobar,
 }: {
   v: VisitaConContexto;
   lotes: { id: number; codigo: string; agricultor: string }[];
+  puedeAprobar: boolean;
 }) {
   const e = ESTADO[v.estado] ?? ESTADO.pendiente;
   const datos = (v.datos ?? {}) as Record<string, unknown>;
@@ -140,6 +217,8 @@ function Tarjeta({
         </form>
       )}
 
+      <VistoBueno v={v} puede={puedeAprobar} />
+
       {v.transcripcion && (
         <details className="mt-3">
           <summary className="cursor-pointer text-[12.5px]" style={{ color: "var(--tun-brand)" }}>
@@ -162,8 +241,10 @@ export default async function Visitas() {
   const alcance = await alcanceActual();
   const [todas, lotes] = await Promise.all([visitasRecientes(alcance), lotesCandidatos(alcance)]);
 
+  const puedeAprobar = puedeEnviarAlAgricultor(s);
   const pendientes = todas.filter((v) => v.estado === "pendiente");
   const resto = todas.filter((v) => v.estado !== "pendiente");
+  const porAprobar = resto.filter((v) => !v.aprobadaEn && !v.enviadaAlAgricultorEn).length;
 
   return (
     <div className="space-y-8">
@@ -173,8 +254,18 @@ export default async function Visitas() {
         </h1>
         <p className="mt-1 text-[14px]" style={{ color: "var(--tun-ink-2)" }}>
           Manda un audio por WhatsApp desde el campo y aparece acá para que lo
-          confirmes. Nada entra al historial de un agricultor sin que alguien lo mire.
+          confirmes. Nada entra al historial sin que el zonal lo valide, y nada sale
+          al agricultor sin el visto bueno de la jefatura.
         </p>
+        {puedeAprobar && porAprobar > 0 && (
+          <p className="mt-3 text-[13.5px]" style={{ color: "var(--tun-alerta)" }}>
+            {porAprobar}{" "}
+            {porAprobar === 1
+              ? "visita validada espera tu visto bueno"
+              : "visitas validadas esperan tu visto bueno"}{" "}
+            para poder enviarse.
+          </p>
+        )}
       </header>
 
       {todas.length === 0 && (
@@ -196,7 +287,7 @@ export default async function Visitas() {
           </h2>
           <div className="space-y-3">
             {pendientes.map((v) => (
-              <Tarjeta key={v.id} v={v} lotes={lotes} />
+              <Tarjeta key={v.id} v={v} lotes={lotes} puedeAprobar={puedeAprobar} />
             ))}
           </div>
         </section>
@@ -209,7 +300,7 @@ export default async function Visitas() {
           </h2>
           <div className="space-y-3">
             {resto.map((v) => (
-              <Tarjeta key={v.id} v={v} lotes={lotes} />
+              <Tarjeta key={v.id} v={v} lotes={lotes} puedeAprobar={puedeAprobar} />
             ))}
           </div>
         </section>

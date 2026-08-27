@@ -248,6 +248,26 @@ export const tunicheVisitas = pgTable(
     /** `pendiente` | `validada` | `corregida` */
     estado: varchar("estado", { length: 20 }).notNull().default("pendiente"),
     validadaEn: timestamp("validada_en"),
+    /**
+     * El visto bueno para que esta visita salga de Tuniche.
+     *
+     * **Son dos compuertas distintas y por eso son dos columnas.** `validadaEn`
+     * la marca el zonal y afirma "esto es lo que yo vi": es la única persona que
+     * puede afirmarlo, y habilita el historial interno. `aprobadaEn` la marca la
+     * jefatura y afirma algo distinto —"esto puede salir de Tuniche"— porque el
+     * destinatario es un tercero, y una frase mal dicha en un audio pasa a ser
+     * una frase que la empresa le escribió a un cliente.
+     *
+     * Un zonal **no puede darse el visto bueno a sí mismo**: ver
+     * `puedeEnviarAlAgricultor` en lib/tuniche/session.ts.
+     */
+    aprobadaPor: integer("aprobada_por"),
+    aprobadaEn: timestamp("aprobada_en"),
+    /**
+     * Cuándo salió efectivamente. Es distinto de `aprobadaEn`: entre aprobar y
+     * que WhatsApp entregue el mensaje puede fallar la red, y una visita que se
+     * cree enviada sin haberlo sido es la peor de las dos mentiras posibles.
+     */
     enviadaAlAgricultorEn: timestamp("enviada_al_agricultor_en"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },

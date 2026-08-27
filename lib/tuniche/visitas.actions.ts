@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { tunicheVisitas } from "@/db/tuniche";
-import { requireSesion } from "./auth.actions";
+import { requireEnvioAlAgricultor, requireSesion } from "./auth.actions";
 import { alcanceDe } from "./session";
 import { agricultorDeLote, loteConAgricultor } from "./visitas";
 
@@ -67,4 +67,84 @@ export async function asignarLoteAction(fd: FormData): Promise<void> {
 
   revalidatePath("/tuniche/visitas");
   revalidatePath(`/tuniche/lotes/${loteId}`);
+}
+
+// ─── Visto bueno para enviar al agricultor ───────────────────────────────────
+
+/**
+ * Da el visto bueno para que una visita salga de Tuniche.
+ *
+ * **Es una compuerta distinta de la validación, y en eso está todo el punto.**
+ * El zonal valida y afirma "esto es lo que yo vi" — nadie más puede afirmarlo, y
+ * eso habilita el historial interno. La jefatura aprueba y afirma otra cosa:
+ * "esto puede salir de Tuniche". El destinatario es un tercero, y una frase mal
+ * dicha en un audio deja de ser una frase de un zonal para pasar a ser una frase
+ * que la empresa le escribió a un cliente.
+ *
+ * **Nunca es automático.** No se aprueba al validar, no se aprueba por lote y no
+ * hay un envío programado. Alguien con nombre y apellido decide cada uno, y ese
+ * nombre queda en `aprobadaPor`.
+ *
+ * Un jefe puede aprobar una visita que él mismo levantó: en un área con un solo
+ * jefe, lo contrario significaría que sus propias visitas no salen nunca. Lo que
+ * no puede pasar es que la apruebe un zonal, y de eso se encarga
+ * `requireEnvioAlAgricultor`.
+ */
+export async function aprobarEnvioAction(fd: FormData): Promise<void> {
+  const s = await requireEnvioAlAgricultor();
+  const id = Number(fd.get("id"));
+  if (!Number.isInteger(id) || id <= 0) return;
+
+  const [v] = await db.select().from(tunicheVisitas).where(eq(tunicheVisitas.id, id)).limit(1);
+  if (!v) return;
+
+  const a = alcanceDe(s);
+  if (!a.todo && v.area !== a.area) throw new Error("Esta visita no está en tu alcance");
+
+  // Aprobar una visita que el zonal todavía no confirmó sería dar el visto bueno
+  // a lo que entendió la IA, no a lo que vio una persona. Es justo el orden que
+  // este sistema existe para no invertir.
+  if (v.estado === "pendiente") {
+    throw new Error("El zonal todavía no valida esta visita. No hay qué aprobar.");
+  }
+  if (v.enviadaAlAgricultorEn) return; // ya salió: aprobar de nuevo no significa nada
+
+  await db
+    .update(tunicheVisitas)
+    .set({ aprobadaPor: s.userId, aprobadaEn: new Date() })
+    .where(eq(tunicheVisitas.id, id));
+
+  revalidatePath("/tuniche/visitas");
+  if (v.loteId) revalidatePath(`/tuniche/lotes/${v.loteId}`);
+}
+
+/**
+ * Retira el visto bueno, mientras la visita **no haya salido todavía**.
+ *
+ * Existe porque un visto bueno que no se puede retirar es una trampa: quien
+ * aprueba de más se queda sin salida y aprende a no aprobar. Una vez enviada ya
+ * no sirve de nada —el agricultor lo tiene en su teléfono— y por eso ahí se
+ * bloquea en vez de fingir que se deshizo.
+ */
+export async function retirarAprobacionAction(fd: FormData): Promise<void> {
+  const s = await requireEnvioAlAgricultor();
+  const id = Number(fd.get("id"));
+  if (!Number.isInteger(id) || id <= 0) return;
+
+  const [v] = await db.select().from(tunicheVisitas).where(eq(tunicheVisitas.id, id)).limit(1);
+  if (!v) return;
+
+  const a = alcanceDe(s);
+  if (!a.todo && v.area !== a.area) throw new Error("Esta visita no está en tu alcance");
+  if (v.enviadaAlAgricultorEn) {
+    throw new Error("Esta visita ya se le envió al agricultor. El visto bueno no se puede retirar.");
+  }
+
+  await db
+    .update(tunicheVisitas)
+    .set({ aprobadaPor: null, aprobadaEn: null })
+    .where(eq(tunicheVisitas.id, id));
+
+  revalidatePath("/tuniche/visitas");
+  if (v.loteId) revalidatePath(`/tuniche/lotes/${v.loteId}`);
 }

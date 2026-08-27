@@ -133,6 +133,11 @@ await sql`
 `;
 await sql`CREATE INDEX IF NOT EXISTS tuniche_fotos_visita_idx ON tuniche_fotos (visita_id)`;
 
+// El visto bueno de jefatura para que una visita salga al agricultor. Es una
+// compuerta distinta de la validación del zonal: ver db/tuniche.ts.
+await sql`ALTER TABLE tuniche_visitas ADD COLUMN IF NOT EXISTS aprobada_por INTEGER`;
+await sql`ALTER TABLE tuniche_visitas ADD COLUMN IF NOT EXISTS aprobada_en TIMESTAMP`;
+
 // El área que un admin simula cuando manda un audio. Un admin no tiene área
 // —cruza las dos— y un audio sin área no tiene plantilla. Ver lib/tuniche/session.ts.
 await sql`ALTER TABLE tuniche_usuarios ADD COLUMN IF NOT EXISTS area_audio VARCHAR(20)`;

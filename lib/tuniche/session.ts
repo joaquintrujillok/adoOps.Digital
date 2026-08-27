@@ -146,12 +146,20 @@ export function puedeGestionarUsuarios(s: SesionTuniche): boolean {
 }
 
 /**
- * Enviarle el informe al agricultor.
+ * Dar el visto bueno para que un informe salga al agricultor, y enviarlo.
  *
  * Es la única acción con destinatario **fuera** de Tuniche, y por eso no la
- * tiene el zonal: el zonal levanta la información en el campo, alguien con la
- * vista del área completa decide qué sale hacia afuera. Es la misma línea que
- * ya trazó Dashboard360 con `puedePublicar`.
+ * tiene el zonal. Son dos afirmaciones distintas y las hace gente distinta: el
+ * zonal valida —"esto es lo que yo vi", y nadie más puede afirmarlo— y la
+ * jefatura aprueba —"esto puede salir de Tuniche"—. Una frase mal dicha en un
+ * audio deja de ser una frase de un zonal y pasa a ser una frase que la empresa
+ * le escribió a un cliente.
+ *
+ * **El envío nunca es automático.** No se dispara al validar, no hay envío por
+ * lote ni programado: alguien con nombre y apellido decide cada informe, y ese
+ * nombre queda guardado en `tuniche_visitas.aprobada_por`.
+ *
+ * Es la misma línea que ya trazó Dashboard360 con `puedePublicar`.
  */
 export function puedeEnviarAlAgricultor(s: SesionTuniche): boolean {
   return s.rol === "admin" || s.rol === "jefe";

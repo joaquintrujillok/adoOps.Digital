@@ -11,6 +11,7 @@ import {
   tunicheAgricultores,
   tunicheFotos,
   tunicheLotes,
+  tunicheUsuarios,
   tunicheVisitas,
   type TunicheAgricultor,
   type TunicheLote,
@@ -118,6 +119,10 @@ export async function lotesCandidatos(a: Alcance): Promise<LoteCandidato[]> {
 export interface VisitaConContexto extends TunicheVisita {
   loteCodigo: string | null;
   agricultorNombre: string | null;
+  /** Sin esto no hay a quién enviarle el informe, y la pantalla tiene que decirlo. */
+  agricultorTelefono: string | null;
+  /** Quién dio el visto bueno. Un VB sin nombre no es un VB. */
+  aprobadaPorNombre: string | null;
   fotos: number;
 }
 
@@ -131,10 +136,21 @@ async function conContexto(visitas: TunicheVisita[]): Promise<VisitaConContexto[
           id: tunicheLotes.id,
           codigo: tunicheLotes.codigo,
           agricultor: tunicheAgricultores.razonSocial,
+          telefono: tunicheAgricultores.telefono,
         })
         .from(tunicheLotes)
         .innerJoin(tunicheAgricultores, eq(tunicheLotes.agricultorId, tunicheAgricultores.id))
         .where(inArray(tunicheLotes.id, idsLote))
+    : [];
+
+  const idsAprobador = [
+    ...new Set(visitas.map((v) => v.aprobadaPor).filter((x): x is number => x != null)),
+  ];
+  const aprobadores = idsAprobador.length
+    ? await db
+        .select({ id: tunicheUsuarios.id, nombre: tunicheUsuarios.nombre })
+        .from(tunicheUsuarios)
+        .where(inArray(tunicheUsuarios.id, idsAprobador))
     : [];
 
   const fotos = await db
@@ -154,6 +170,8 @@ async function conContexto(visitas: TunicheVisita[]): Promise<VisitaConContexto[
       ...v,
       loteCodigo: l?.codigo ?? null,
       agricultorNombre: l?.agricultor ?? null,
+      agricultorTelefono: l?.telefono ?? null,
+      aprobadaPorNombre: aprobadores.find((a) => a.id === v.aprobadaPor)?.nombre ?? null,
       fotos: fotos.find((f) => f.visitaId === v.id)?.n ?? 0,
     };
   });

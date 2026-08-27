@@ -230,9 +230,28 @@ Forzar una tabla de equivalencias daría un mapeo que ningún agrónomo de las d
    atribuido al lote equivocado contamina el historial de un agricultor que no
    tuvo esa visita.
 4. Se guarda **pendiente** y vuelve el borrador por WhatsApp.
-5. El zonal responde **OK** → entra al historial. Las fotos que mande después se
+5. El zonal responde **OK** → entra al historial **interno**. Las fotos que mande después se
    pegan a su última visita, copiadas a almacenamiento propio (la URL de WaSender
    vive una hora).
+
+### Las dos compuertas
+
+No hay una sola confirmación, hay dos, y las hace gente distinta:
+
+| | Quién | Qué afirma | Qué habilita |
+|---|---|---|---|
+| **Validación** | El zonal que estuvo en el campo | "esto es lo que yo vi" | El historial **interno** |
+| **Visto bueno** | `jefe` o `admin` del área | "esto puede salir de Tuniche" | Recién ahí se puede enviar |
+
+Un zonal valida su propia visita —es el único que puede afirmar lo que vio— pero
+**no puede darse el visto bueno a sí mismo**. Un jefe sí puede aprobar una visita
+que él mismo levantó: en un área con un solo jefe, lo contrario significaría que
+sus propias visitas no salen nunca.
+
+**El envío nunca es automático.** No se dispara al validar, no hay envío por lote
+ni programado. Cada informe lo decide una persona, y ese nombre queda en
+`tuniche_visitas.aprobada_por`. El visto bueno se puede retirar mientras el
+informe no haya salido; después no, porque el agricultor ya lo tiene.
 
 `TUNICHE_WHATSAPP_SIMULADO=1` corre todo el flujo sin mandar ningún mensaje. En
 producción esa variable no va.
