@@ -369,11 +369,22 @@ lo puede reapuntar OpenAI, y el comportamiento de producción cambiaría sin que
 exista un commit que lo explique. Es la misma lección que dejó
 `LINKEDIN_API_VERSION`.
 
-La llamada sigue siendo `chat.completions` con `tools` y `tool_choice` forzado —
-verificado contra la documentación: la familia GPT-5.6 la soporta. OpenAI
-recomienda la Responses API para proyectos nuevos, pero no hay deprecación
-anunciada y migrar sin necesidad sería cambiar lo único de este flujo que
-todavía no se ha probado contra la API real.
+La extracción va por la **Responses API** (`/v1/responses`), no por
+`chat.completions`. No es preferencia: los modelos con razonamiento **rechazan
+function tools** en chat.completions salvo que se mande `reasoning_effort: 'none'`,
+y apagar el razonamiento sería pagar el modelo insignia con su rasgo distintivo
+desactivado — justamente el que hace falta para decidir si lo que dijo el zonal
+calza con un lote o si hay que declarar que no se supo.
+
+Se descubrió con el primer audio real: la API devolvió *"Function tools with
+reasoning_effort are not supported for gpt-5.6-sol in /v1/chat/completions"*. La
+documentación decía que chat.completions soportaba la familia GPT-5.6 con
+`tools`, y es cierto — pero no con razonamiento activo, que es el matiz que solo
+apareció al llamarla de verdad.
+
+`strict` va apagado a propósito: el esquema tiene campos opcionales por diseño
+—un audio que no menciona el riego no debe inventarlo— y el modo estricto exige
+que toda propiedad esté en `required`.
 
 ### El número del sistema
 

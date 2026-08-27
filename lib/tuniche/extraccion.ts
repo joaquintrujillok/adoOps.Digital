@@ -150,39 +150,48 @@ export async function extraerVisita(params: {
         .join("\n")
     : "(este zonal no tiene lotes cargados)";
 
-  const completion = await client().chat.completions.create({
+  // **Responses API y no chat.completions.** Los modelos con razonamiento
+  // rechazan function tools en `/v1/chat/completions` salvo que se apague el
+  // razonamiento (`reasoning_effort: 'none'`), y apagarlo sería pagar el modelo
+  // insignia con su rasgo distintivo desactivado. Justamente el razonamiento es
+  // lo que hace falta acá: decidir si lo que dijo el zonal calza con un lote o
+  // si hay que declarar que no se supo.
+  //
+  // Verificado contra la API real: con chat.completions devolvía
+  // "Function tools with reasoning_effort are not supported for gpt-5.6-sol".
+  const respuesta = await client().responses.create({
     model: MODEL,
-    messages: [
-      { role: "system", content: SISTEMA },
-      {
-        role: "user",
-        content:
-          `Lotes que este zonal tiene a cargo:\n${listado}\n\n` +
-          `Transcripción del audio:\n"""${transcripcion}"""`,
-      },
-    ],
+    instructions: SISTEMA,
+    input:
+      `Lotes que este zonal tiene a cargo:\n${listado}\n\n` +
+      `Transcripción del audio:\n"""${transcripcion}"""`,
     tools: [
       {
         type: "function",
-        function: {
-          name: "registrar_visita",
-          description: "Registra de forma estructurada una visita a campo.",
-          parameters: {
-            type: "object",
-            properties: propiedades,
-            required: ["loteId", "loteMencionado", "etapa", "resumen"],
-          },
+        name: "registrar_visita",
+        description: "Registra de forma estructurada una visita a campo.",
+        parameters: {
+          type: "object",
+          properties: propiedades,
+          required: ["loteId", "loteMencionado", "etapa", "resumen"],
         },
+        // `strict` apagado a propósito. El esquema tiene campos opcionales por
+        // diseño —un audio que no menciona el riego no debe inventarlo— y el
+        // modo estricto exige que TODA propiedad esté en `required`. La ausencia
+        // de un campo ya se interpreta como "no se mencionó" más abajo, que es
+        // exactamente la semántica que se quiere.
+        strict: false,
       },
     ],
-    tool_choice: { type: "function", function: { name: "registrar_visita" } },
+    tool_choice: { type: "function", name: "registrar_visita" },
   });
 
-  const call = completion.choices[0]?.message?.tool_calls?.[0];
-  if (!call || call.type !== "function") {
+  const llamada = respuesta.output.find((i) => i.type === "function_call");
+  if (!llamada || llamada.type !== "function_call") {
     throw new Error("El modelo no devolvió la estructura esperada");
   }
-  const crudo = JSON.parse(call.function.arguments) as Record<string, unknown>;
+
+  const crudo = JSON.parse(llamada.arguments) as Record<string, unknown>;
 
   // El id que devuelve el modelo se verifica contra la lista que se le dio. Un
   // id inventado apuntaría a un lote de OTRO agricultor, y el modelo no tiene
