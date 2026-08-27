@@ -11,6 +11,7 @@ import {
 } from "@/lib/tuniche/informes.actions";
 import { puedeEnviarAlAgricultor } from "@/lib/tuniche/session";
 import type { ContenidoMensual, ContenidoVisita } from "@/db/tuniche";
+import Demo from "@/components/tuniche/Demo";
 
 export const dynamic = "force-dynamic";
 
@@ -81,6 +82,10 @@ export default async function InformeDetalle({ params }: { params: Promise<{ id:
 
       {/* ── El documento ─────────────────────────────────────────────────── */}
       <article className="tun-tarjeta tun-documento p-7">
+        {/* Fuera de `tun-no-print` a propósito: si la marca desapareciera al
+            imprimir, una hoja de demostración podría llegar a un cliente sin
+            nada que la distinga de una real. */}
+        {informe.demo && <Demo enDocumento />}
         <header
           className="mb-6 border-b pb-5"
           style={{ borderColor: "var(--tun-border)" }}

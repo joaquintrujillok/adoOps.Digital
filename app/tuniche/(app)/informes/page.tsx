@@ -3,6 +3,7 @@ import { nombreArea } from "@/lib/tuniche/areas";
 import { alcanceActual, requireSesion } from "@/lib/tuniche/auth.actions";
 import { listarInformes, type FiltrosInforme } from "@/lib/tuniche/informes";
 import { puedeEnviarAlAgricultor } from "@/lib/tuniche/session";
+import Demo from "@/components/tuniche/Demo";
 
 export const dynamic = "force-dynamic";
 
@@ -136,6 +137,7 @@ export default async function Informes({
                       >
                         {e.texto}
                       </span>
+                      {i.demo && <Demo />}
                       {i.tipo === "mensual" && (
                         <span className="text-[12px]" style={{ color: "var(--tun-muted)" }}>
                           mensual

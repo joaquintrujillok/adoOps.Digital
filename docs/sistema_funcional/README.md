@@ -263,7 +263,33 @@ La transcripción del audio **no entra al snapshot**. Es material interno para
 contrastar lo que la IA entendió; al agricultor se le manda el informe, no la
 grabación de alguien hablando desde una camioneta.
 
-### Las dos compuertas
+### Datos de demostración
+
+`node scripts/tuniche-demo.mjs` siembra 4 agricultores inventados, 5 lotes, 8
+visitas con transcripciones escritas como habla un zonal por audio, fotos, y 9
+informes repartidos entre los tres estados. `--limpiar` lo borra entero.
+
+**Agricultores inventados, nunca los reales.** Los 34 cargados son empresas que
+existen; colgarles una nota agronómica falsa sería crear un registro que dice
+cosas sobre el campo de alguien, y a los tres clics nadie distingue esa ficha de
+una de verdad. Es exactamente lo que pasó en el CRM de CDC.
+
+Tres defensas, y ninguna es un README:
+
+1. **Columna `demo` por fila** en agricultores, lotes, visitas e informes. Es la
+   copia de `pre_quotes.salucloud_env`: se marca por fila, porque hay una sola
+   base de datos y no existe un ambiente del que las fichas no puedan salir.
+2. **La pantalla lo pinta** con `<Demo />`. En el documento de un informe el
+   aviso queda **fuera de `tun-no-print`**: si desapareciera al imprimir, una
+   hoja de demostración podría llegar a un cliente sin nada que la distinga.
+3. **El despacho está bloqueado por código.** `enviarInformeAction` se niega a
+   mandar un informe `demo` aunque tenga visto bueno. Que el teléfono también
+   sea inventado no basta: un número de ocho dígitos siempre puede ser de
+   alguien.
+
+Por eso la fila de `lib/modulos.ts` declara `datos: "mixtos"` y no `reales`.
+
+## Las dos compuertas
 
 No hay una sola confirmación, hay dos, y las hace gente distinta:
 

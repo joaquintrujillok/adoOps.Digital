@@ -147,6 +147,20 @@ export const tunicheAgricultores = pgTable(
     /** Altué: ZONAL · MN: Zonal — el nombre tal cual venía, antes de calzarlo. */
     zonalNombre: varchar("zonal_nombre", { length: 120 }),
     activo: boolean("activo").notNull().default(true),
+    /**
+     * Fila de demostración.
+     *
+     * **Por qué es una columna y no una base aparte.** Hay una sola base de
+     * datos —ver `lib/modulos.ts`—, así que no existe un ambiente del que las
+     * fichas de prueba no puedan salir. La defensa que sí funcionó en un
+     * proyecto hermano fue marcar **por fila** contra qué se estaba escribiendo,
+     * y mostrarlo en la pantalla donde está la persona que se puede confundir.
+     *
+     * Lo que esta columna habilita: la pantalla puede marcar la fila, y
+     * `scripts/tuniche-demo.mjs --limpiar` la puede borrar entera sin tocar un
+     * solo dato real. Un demo que no se puede quitar es un demo permanente.
+     */
+    demo: boolean("demo").notNull().default(false),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
@@ -201,6 +215,8 @@ export const tunicheLotes = pgTable(
     /** Capa 3: respuestas de los hitos, por `id` de campo. */
     hitos: jsonb("hitos").$type<Record<string, unknown>>().default({}),
     activo: boolean("activo").notNull().default(true),
+    /** Fila de demostración. Ver `tunicheAgricultores.demo`. */
+    demo: boolean("demo").notNull().default(false),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
@@ -257,6 +273,8 @@ export const tunicheVisitas = pgTable(
      * visita en el historial sin consultar la otra tabla.
      */
     enviadaAlAgricultorEn: timestamp("enviada_al_agricultor_en"),
+    /** Fila de demostración. Ver `tunicheAgricultores.demo`. */
+    demo: boolean("demo").notNull().default(false),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
@@ -359,6 +377,8 @@ export const tunicheInformes = pgTable(
     enviadoEn: timestamp("enviado_en"),
     enviadoA: varchar("enviado_a", { length: 200 }),
 
+    /** Fila de demostración. Ver `tunicheAgricultores.demo`. */
+    demo: boolean("demo").notNull().default(false),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [

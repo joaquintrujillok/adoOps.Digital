@@ -116,7 +116,12 @@ export const MODULOS: Modulo[] = [
     nombre: "Sistema Tuniche",
     ruta: "/tuniche",
     estado: "produccion",
-    datos: "reales",
+    // `mixtos` y no `reales` desde que existe `scripts/tuniche-demo.mjs`: la
+    // maestra son 34 agricultores que existen, y junto a ellos conviven fichas
+    // inventadas para mostrar el sistema. Acá el eje no alcanza solo: la marca
+    // que evita la confusión es la columna `demo` de cada fila, que la pantalla
+    // pinta con `<Demo />`. Esta fila declara que la mezcla existe.
+    datos: "mixtos",
     audiencia: "un zonal de Semillas Tuniche en terreno",
     tablas: ["tuniche_"],
     // Se firmó como prueba de concepto y aun así entra como `produccion`. La

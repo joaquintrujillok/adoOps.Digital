@@ -2,6 +2,7 @@ import Link from "next/link";
 import { nombreArea } from "@/lib/tuniche/areas";
 import { alcanceActual } from "@/lib/tuniche/auth.actions";
 import { listarAgricultores } from "@/lib/tuniche/visitas";
+import Demo from "@/components/tuniche/Demo";
 
 export const dynamic = "force-dynamic";
 
@@ -47,8 +48,11 @@ export default async function Agricultores() {
           <div key={a.id} className="tun-tarjeta p-5">
             <div className="flex flex-wrap items-baseline justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-[15px] font-semibold" style={{ color: "var(--tun-ink)" }}>
-                  {a.razonSocial}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[15px] font-semibold" style={{ color: "var(--tun-ink)" }}>
+                    {a.razonSocial}
+                  </span>
+                  {a.demo && <Demo />}
                 </div>
                 <div
                   className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[13px]"

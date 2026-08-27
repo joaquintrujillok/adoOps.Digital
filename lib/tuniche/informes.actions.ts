@@ -151,6 +151,15 @@ export async function enviarInformeAction(fd: FormData): Promise<void> {
   if (informe.estado !== "aprobado") {
     throw new Error("Este informe no tiene visto bueno. Nada sale de Tuniche sin él.");
   }
+  // Un informe de demostración habla de un agricultor inventado. Que su teléfono
+  // también sea inventado no basta: un número de ocho dígitos siempre puede
+  // pertenecer a alguien, y el día que llegue un WhatsApp con observaciones
+  // agronómicas de un campo que no existe, la explicación va a llegar tarde.
+  if (informe.demo) {
+    throw new Error(
+      "Este es un informe de demostración y no se envía a nadie. El flujo se puede recorrer entero, pero el despacho real está bloqueado.",
+    );
+  }
 
   const [ag] = await db
     .select({ telefono: tunicheAgricultores.telefono, nombre: tunicheAgricultores.razonSocial })

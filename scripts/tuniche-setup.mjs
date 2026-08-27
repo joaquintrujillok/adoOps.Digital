@@ -180,6 +180,17 @@ await sql`CREATE UNIQUE INDEX IF NOT EXISTS tuniche_informes_visita_idx ON tunic
 await sql`ALTER TABLE tuniche_visitas DROP COLUMN IF EXISTS aprobada_por`;
 await sql`ALTER TABLE tuniche_visitas DROP COLUMN IF EXISTS aprobada_en`;
 
+// Marca de fila de demostración. Va por FILA y no por módulo: hay una sola base
+// de datos, así que no existe un ambiente del que las fichas de prueba no puedan
+// salir. Es la misma defensa que funcionó en un proyecto hermano después de que
+// unas fichas de prueba quedaran para siempre en el sistema de un cliente.
+// Las cuatro van escritas a mano: el cliente de Neon solo acepta tagged
+// templates, y un nombre de tabla no se puede parametrizar de todas formas.
+await sql`ALTER TABLE tuniche_agricultores ADD COLUMN IF NOT EXISTS demo BOOLEAN NOT NULL DEFAULT FALSE`;
+await sql`ALTER TABLE tuniche_lotes        ADD COLUMN IF NOT EXISTS demo BOOLEAN NOT NULL DEFAULT FALSE`;
+await sql`ALTER TABLE tuniche_visitas      ADD COLUMN IF NOT EXISTS demo BOOLEAN NOT NULL DEFAULT FALSE`;
+await sql`ALTER TABLE tuniche_informes     ADD COLUMN IF NOT EXISTS demo BOOLEAN NOT NULL DEFAULT FALSE`;
+
 const [{ n }] = await sql`SELECT count(*)::int AS n FROM tuniche_usuarios`;
 
 console.log("✓ tuniche_usuarios · tuniche_agricultores · tuniche_lotes · tuniche_visitas · tuniche_fotos");

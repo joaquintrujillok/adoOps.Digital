@@ -5,6 +5,7 @@ import { VISITA, etapaPorId, etapasDe } from "@/lib/tuniche/plantillas";
 import { alcanceActual } from "@/lib/tuniche/auth.actions";
 import { fotosDe, historialDeLote, loteConAgricultor } from "@/lib/tuniche/visitas";
 import type { AreaId } from "@/lib/tuniche/areas";
+import Demo from "@/components/tuniche/Demo";
 
 export const dynamic = "force-dynamic";
 
@@ -66,9 +67,12 @@ export default async function LoteDetalle({ params }: { params: Promise<{ id: st
         >
           ← Agricultores
         </Link>
-        <h1 className="mt-2 text-[22px] font-semibold" style={{ color: "var(--tun-ink)" }}>
-          {lote.codigo}
-        </h1>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <h1 className="text-[22px] font-semibold" style={{ color: "var(--tun-ink)" }}>
+            {lote.codigo}
+          </h1>
+          {lote.demo && <Demo />}
+        </div>
         <p className="mt-1 text-[14px]" style={{ color: "var(--tun-ink-2)" }}>
           {agricultor.razonSocial}
           {agricultor.localidad ? ` · ${agricultor.localidad}` : ""} · {nombreArea(lote.area)}

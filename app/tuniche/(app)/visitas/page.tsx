@@ -4,6 +4,7 @@ import { alcanceActual, requireSesion } from "@/lib/tuniche/auth.actions";
 import { lotesCandidatos, visitasRecientes, type VisitaConContexto } from "@/lib/tuniche/visitas";
 import { asignarLoteAction, validarVisitaAction } from "@/lib/tuniche/visitas.actions";
 import { generarInformeAction } from "@/lib/tuniche/informes.actions";
+import Demo from "@/components/tuniche/Demo";
 
 export const dynamic = "force-dynamic";
 
@@ -117,6 +118,7 @@ function Tarjeta({
             >
               {e.texto}
             </span>
+            {v.demo && <Demo />}
             {v.origen === "audio" && (
               <span className="text-[12px]" style={{ color: "var(--tun-muted)" }}>
                 🎧 audio
