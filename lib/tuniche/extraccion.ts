@@ -56,6 +56,8 @@ function client(): OpenAI {
 /** Un lote candidato, tal como se le ofrece al modelo para que elija. */
 export interface LoteCandidato {
   id: number;
+  /** El área del lote. La usa la pantalla para no ofrecer lotes de la otra. */
+  area: string;
   codigo: string;
   agricultor: string;
   localidad: string | null;

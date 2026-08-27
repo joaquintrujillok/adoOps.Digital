@@ -155,7 +155,7 @@ async function procesarTranscripcion(
   p: { transcripcion: string; origen: "audio" | "texto"; waMessageId: string; audioUrl: string | null },
 ): Promise<void> {
   const alcance = alcanceDeUsuario(u);
-  const lotes = await lotesCandidatos(alcance);
+  const lotes = await lotesCandidatos(alcance, area);
 
   const extraida = await extraerVisita({
     transcripcion: p.transcripcion,

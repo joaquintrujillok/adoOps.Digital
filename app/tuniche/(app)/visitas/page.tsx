@@ -88,7 +88,7 @@ function Tarjeta({
   lotes,
 }: {
   v: VisitaConContexto;
-  lotes: { id: number; codigo: string; agricultor: string }[];
+  lotes: { id: number; area: string; codigo: string; agricultor: string }[];
 }) {
   const e = ESTADO[v.estado] ?? ESTADO.pendiente;
   const datos = (v.datos ?? {}) as Record<string, unknown>;
@@ -181,11 +181,16 @@ function Tarjeta({
               <option value="" disabled>
                 Elige el lote…
               </option>
-              {lotes.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.codigo} — {l.agricultor}
-                </option>
-              ))}
+              {/* Solo los del área de ESTA visita: se levantó con una plantilla
+                  y el lote tiene que pertenecer a la misma. La acción lo vuelve
+                  a comprobar en el servidor. */}
+              {lotes
+                .filter((l) => l.area === v.area)
+                .map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.codigo} — {l.agricultor}
+                  </option>
+                ))}
             </select>
           </div>
           <button type="submit" className="tun-boton-suave">

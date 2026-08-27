@@ -93,14 +93,23 @@ export async function loteConAgricultor(
 /**
  * Los lotes que se le ofrecen al modelo para que elija uno.
  *
- * Se le pasan **todos los del zonal**, no los de su área: un zonal de MN con 14
- * lotes cabe entero en el mensaje, y darle solo un subconjunto obligaría a
- * adivinar cuál subconjunto, que es el problema que esto viene a evitar.
+ * **El área no se deduce del alcance.** Para un jefe o un
+ * zonal coinciden, pero un `admin` no tiene área: su alcance es "todo". Sin este
+ * parámetro se le ofrecían al modelo los lotes de las dos áreas mientras las
+ * etapas venían de una sola, así que un audio sobre maíz podía quedar pegado a
+ * un lote de repollo. El área que manda es la de la plantilla contra la que se
+ * está estructurando — la del usuario, o la que el admin declaró en su cuenta.
+ *
+ * Dentro del área se le pasan **todos** los lotes que la persona puede ver, no
+ * un subconjunto: catorce lotes caben enteros en el mensaje, y recortarlos
+ * obligaría a adivinar cuáles dejar fuera, que es justo el problema que esto
+ * viene a evitar.
  */
-export async function lotesCandidatos(a: Alcance): Promise<LoteCandidato[]> {
+export async function lotesCandidatos(a: Alcance, area?: AreaId): Promise<LoteCandidato[]> {
   const filas = await db
     .select({
       id: tunicheLotes.id,
+      area: tunicheLotes.area,
       codigo: tunicheLotes.codigo,
       agricultor: tunicheAgricultores.razonSocial,
       localidad: tunicheAgricultores.localidad,
@@ -109,7 +118,17 @@ export async function lotesCandidatos(a: Alcance): Promise<LoteCandidato[]> {
     })
     .from(tunicheLotes)
     .innerJoin(tunicheAgricultores, eq(tunicheLotes.agricultorId, tunicheAgricultores.id))
-    .where(and(eq(tunicheLotes.activo, true), filtroAgricultor(a)))
+    .where(
+      and(
+        eq(tunicheLotes.activo, true),
+        // Sin área se devuelve todo lo que la persona puede ver: es lo que
+        // necesita la pantalla, que ofrece lotes para varias visitas a la vez y
+        // filtra cada desplegable por el área de SU visita. El flujo de audio sí
+        // la pasa siempre, porque ahí hay una sola plantilla en juego.
+        area ? eq(tunicheLotes.area, area) : undefined,
+        filtroAgricultor(a),
+      ),
+    )
     .orderBy(tunicheAgricultores.razonSocial);
   return filas;
 }

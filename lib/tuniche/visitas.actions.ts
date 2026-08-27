@@ -59,6 +59,16 @@ export async function asignarLoteAction(fd: FormData): Promise<void> {
   const destino = await loteConAgricultor(loteId, a);
   if (!destino) throw new Error("Ese lote no está en tu alcance");
 
+  // Y que sea del área de la visita. Comprobar solo el alcance no alcanza: un
+  // admin los ve todos, y sin esto podría colgarle a una visita de maíz un lote
+  // de repollo de la otra área. La visita se levantó con una plantilla; el lote
+  // tiene que pertenecer a esa misma.
+  const [v] = await db.select().from(tunicheVisitas).where(eq(tunicheVisitas.id, visitaId)).limit(1);
+  if (!v) return;
+  if (v.area !== destino.lote.area) {
+    throw new Error("Ese lote es de otra área. Una visita solo puede pegarse a un lote de su misma área.");
+  }
+
   const agricultorId = await agricultorDeLote(loteId);
   await db
     .update(tunicheVisitas)
