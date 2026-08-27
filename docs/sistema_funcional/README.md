@@ -234,6 +234,35 @@ Forzar una tabla de equivalencias daría un mapeo que ningún agrónomo de las d
    pegan a su última visita, copiadas a almacenamiento propio (la URL de WaSender
    vive una hora).
 
+## El repositorio de informes
+
+**Un informe no es una visita.** La visita es lo que pasó en el campo; el informe
+es lo que se le *comunicó a alguien*. Por eso `tuniche_informes.contenido` guarda
+un **snapshot completo** —nombres, cifras, fotos y resumen congelados al
+generarlo— y no un puñado de ids: si corregir una visita en octubre cambiara lo
+que dice el informe enviado en marzo, el repositorio dejaría de servir para lo
+único que importa, que es poder mostrar qué se dijo y cuándo.
+
+Dos tipos, un solo repositorio:
+
+| Tipo | Qué es | Destinatario | Cómo sale |
+|---|---|---|---|
+| `visita` | Lo que Francisco hoy manda por WhatsApp tras cada recorrido | El agricultor | WhatsApp, con el mismo texto que muestra la vista previa |
+| `mensual` | Lo que René arma a mano pegando fotos de Drive en un PowerPoint | El cliente en el extranjero | Se imprime y se despacha; el sistema registra a quién y cuándo |
+
+**Una visita produce un informe y solo uno** (índice único sobre `visita_id`).
+Dos constancias del mismo hecho, con contenidos que pueden diferir, es peor que
+ninguna.
+
+El PDF sale **imprimiendo la página**, no de un generador aparte: un segundo
+renderizador significaría dos versiones del mismo documento que se
+desincronizan, y la que se desincroniza siempre es la que nadie mira — la que
+recibe el cliente. Ver `@media print` en `app/tuniche/tuniche.css`.
+
+La transcripción del audio **no entra al snapshot**. Es material interno para
+contrastar lo que la IA entendió; al agricultor se le manda el informe, no la
+grabación de alguien hablando desde una camioneta.
+
 ### Las dos compuertas
 
 No hay una sola confirmación, hay dos, y las hace gente distinta:
@@ -242,6 +271,12 @@ No hay una sola confirmación, hay dos, y las hace gente distinta:
 |---|---|---|---|
 | **Validación** | El zonal que estuvo en el campo | "esto es lo que yo vi" | El historial **interno** |
 | **Visto bueno** | `jefe` o `admin` del área | "esto puede salir de Tuniche" | Recién ahí se puede enviar |
+
+El visto bueno se da **sobre el informe**, no sobre la visita: se aprueba el
+documento completo que va a salir, teniéndolo a la vista. Aprobar desde una
+tarjeta resumida sería aprobar algo distinto de lo que se envía — el error que
+este repo ya evitó una vez en el CRM al separar el texto de la cotización de la
+pantalla que lo muestra.
 
 Un zonal valida su propia visita —es el único que puede afirmar lo que vio— pero
 **no puede darse el visto bueno a sí mismo**. Un jefe sí puede aprobar una visita

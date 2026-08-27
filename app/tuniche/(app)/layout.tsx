@@ -30,6 +30,7 @@ export default async function TunicheAppLayout({
   const items: ItemNav[] = [
     { href: "/tuniche", etiqueta: "Inicio", icono: "◉" },
     { href: "/tuniche/visitas", etiqueta: "Visitas", icono: "◈" },
+    { href: "/tuniche/informes", etiqueta: "Informes", icono: "▤" },
     { href: "/tuniche/agricultores", etiqueta: "Agricultores", icono: "⛁" },
     ...(puedeGestionarUsuarios(sesion)
       ? [{ href: "/tuniche/usuarios", etiqueta: "Usuarios", icono: "◇" }]

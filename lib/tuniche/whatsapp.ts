@@ -52,7 +52,7 @@ import { alcanceDe } from "./session";
  *
  * **En producción la variable no va.** Sin ella, se manda de verdad.
  */
-async function responder(telefono: string, texto: string): Promise<void> {
+export async function enviarWhatsApp(telefono: string, texto: string): Promise<void> {
   if (process.env.TUNICHE_WHATSAPP_SIMULADO === "1") {
     console.log(`[tuniche · simulado → +${telefono}]\n${texto}\n`);
     return;
@@ -169,7 +169,7 @@ async function procesarTranscripcion(
     resumen: extraida.resumen,
   });
 
-  await responder(
+  await enviarWhatsApp(
     u.telefono!,
     borrador({
       lote: elegido?.codigo ?? null,
@@ -220,7 +220,7 @@ export async function procesarMensajeTuniche(msg: WaIncomingMessage): Promise<bo
   try {
     const area = areaDe(u);
     if (!area) {
-      await responder(
+      await enviarWhatsApp(
         u.telefono,
         "Tu cuenta no tiene un área asignada, así que no sé contra qué plantilla estructurar tu visita.\n\n" +
           `Entra al sistema y elígela en *Mi cuenta* (${nombreArea("mn")} o ${nombreArea("altue")}).`,
@@ -234,11 +234,11 @@ export async function procesarMensajeTuniche(msg: WaIncomingMessage): Promise<bo
     if (texto && CONFIRMACIONES.includes(texto.toLowerCase())) {
       const pendiente = await ultimaPendiente(u.id);
       if (!pendiente) {
-        await responder(u.telefono, "No tienes ninguna visita esperando validación. Mándame el audio de tu recorrido.");
+        await enviarWhatsApp(u.telefono, "No tienes ninguna visita esperando validación. Mándame el audio de tu recorrido.");
         return true;
       }
       await validar(pendiente.id);
-      await responder(
+      await enviarWhatsApp(
         u.telefono,
         pendiente.loteId
           ? "✅ Visita validada. Ya está en el historial del agricultor."
@@ -251,12 +251,12 @@ export async function procesarMensajeTuniche(msg: WaIncomingMessage): Promise<bo
     if (msg.message?.imageMessage) {
       const visita = await ultimaVisita(u.id);
       if (!visita) {
-        await responder(u.telefono, "Recibí la foto, pero todavía no hay una visita a la cual pegarla. Mándame primero el audio.");
+        await enviarWhatsApp(u.telefono, "Recibí la foto, pero todavía no hay una visita a la cual pegarla. Mándame primero el audio.");
         return true;
       }
       const temporal = await decryptImage(msg);
       if (!temporal) {
-        await responder(u.telefono, "⚠️ No pude descargar la foto. ¿La reenvías?");
+        await enviarWhatsApp(u.telefono, "⚠️ No pude descargar la foto. ¿La reenvías?");
         return true;
       }
       const url = await copiarFoto(temporal, visita.id, msg.key.id);
@@ -270,21 +270,21 @@ export async function procesarMensajeTuniche(msg: WaIncomingMessage): Promise<bo
             ? "dron"
             : "general";
       await guardarFoto({ visitaId: visita.id, url, tipo, waMessageId: msg.key.id });
-      await responder(u.telefono, `📷 Foto guardada (${tipo}) en tu última visita.`);
+      await enviarWhatsApp(u.telefono, `📷 Foto guardada (${tipo}) en tu última visita.`);
       return true;
     }
 
     // 3) Audio — el camino principal.
     if (msg.message?.audioMessage) {
-      await responder(u.telefono, "🎧 Recibí tu audio, lo estoy procesando…");
+      await enviarWhatsApp(u.telefono, "🎧 Recibí tu audio, lo estoy procesando…");
       const publica = await decryptAudio(msg);
       if (!publica) {
-        await responder(u.telefono, "⚠️ No pude descargar el audio. ¿Lo reenvías?");
+        await enviarWhatsApp(u.telefono, "⚠️ No pude descargar el audio. ¿Lo reenvías?");
         return true;
       }
       const transcripcion = await transcribeFromUrl(publica, `${msg.key.id}.ogg`);
       if (!transcripcion) {
-        await responder(u.telefono, "⚠️ No pude entender el audio. ¿Lo reenvías?");
+        await enviarWhatsApp(u.telefono, "⚠️ No pude entender el audio. ¿Lo reenvías?");
         return true;
       }
       await procesarTranscripcion(u, area, {
@@ -311,7 +311,7 @@ export async function procesarMensajeTuniche(msg: WaIncomingMessage): Promise<bo
   } catch (err) {
     console.error("tuniche/whatsapp:", err);
     try {
-      await responder(u.telefono, "⚠️ Tuve un problema procesando tu mensaje. Intentémoslo de nuevo.");
+      await enviarWhatsApp(u.telefono, "⚠️ Tuve un problema procesando tu mensaje. Intentémoslo de nuevo.");
     } catch {
       /* si tampoco se puede responder, el registro de arriba es lo que queda */
     }

@@ -142,6 +142,44 @@ await sql`ALTER TABLE tuniche_visitas ADD COLUMN IF NOT EXISTS aprobada_en TIMES
 // —cruza las dos— y un audio sin área no tiene plantilla. Ver lib/tuniche/session.ts.
 await sql`ALTER TABLE tuniche_usuarios ADD COLUMN IF NOT EXISTS area_audio VARCHAR(20)`;
 
+await sql`
+  CREATE TABLE IF NOT EXISTS tuniche_informes (
+    id SERIAL PRIMARY KEY,
+    tipo VARCHAR(20) NOT NULL,
+    area VARCHAR(20) NOT NULL,
+    titulo VARCHAR(200) NOT NULL,
+    estado VARCHAR(20) NOT NULL DEFAULT 'borrador',
+    visita_id INTEGER,
+    lote_id INTEGER,
+    agricultor_id INTEGER,
+    cliente VARCHAR(200),
+    periodo_desde TIMESTAMP,
+    periodo_hasta TIMESTAMP,
+    contenido JSONB NOT NULL,
+    generado_por INTEGER NOT NULL,
+    generado_en TIMESTAMP NOT NULL DEFAULT now(),
+    aprobado_por INTEGER,
+    aprobado_en TIMESTAMP,
+    enviado_por INTEGER,
+    enviado_en TIMESTAMP,
+    enviado_a VARCHAR(200),
+    created_at TIMESTAMP NOT NULL DEFAULT now()
+  )
+`;
+await sql`CREATE INDEX IF NOT EXISTS tuniche_informes_tipo_idx ON tuniche_informes (tipo)`;
+await sql`CREATE INDEX IF NOT EXISTS tuniche_informes_estado_idx ON tuniche_informes (estado)`;
+await sql`CREATE INDEX IF NOT EXISTS tuniche_informes_agricultor_idx ON tuniche_informes (agricultor_id)`;
+await sql`CREATE INDEX IF NOT EXISTS tuniche_informes_lote_idx ON tuniche_informes (lote_id)`;
+await sql`CREATE INDEX IF NOT EXISTS tuniche_informes_generado_idx ON tuniche_informes (generado_en)`;
+await sql`CREATE UNIQUE INDEX IF NOT EXISTS tuniche_informes_visita_idx ON tuniche_informes (visita_id)`;
+
+// El visto bueno se mudó de la visita al informe: se aprueba el documento que
+// va a salir, habiéndolo visto, y no una tarjeta en una lista. Estas dos
+// columnas duraron una hora y nunca tuvieron una fila; dejarlas ahí sería dejar
+// una segunda verdad sobre lo mismo, que es como se pudren estos esquemas.
+await sql`ALTER TABLE tuniche_visitas DROP COLUMN IF EXISTS aprobada_por`;
+await sql`ALTER TABLE tuniche_visitas DROP COLUMN IF EXISTS aprobada_en`;
+
 const [{ n }] = await sql`SELECT count(*)::int AS n FROM tuniche_usuarios`;
 
 console.log("✓ tuniche_usuarios · tuniche_agricultores · tuniche_lotes · tuniche_visitas · tuniche_fotos");

@@ -10,8 +10,8 @@ import { db } from "@/db";
 import {
   tunicheAgricultores,
   tunicheFotos,
+  tunicheInformes,
   tunicheLotes,
-  tunicheUsuarios,
   tunicheVisitas,
   type TunicheAgricultor,
   type TunicheLote,
@@ -121,8 +121,9 @@ export interface VisitaConContexto extends TunicheVisita {
   agricultorNombre: string | null;
   /** Sin esto no hay a quién enviarle el informe, y la pantalla tiene que decirlo. */
   agricultorTelefono: string | null;
-  /** Quién dio el visto bueno. Un VB sin nombre no es un VB. */
-  aprobadaPorNombre: string | null;
+  /** El informe generado de esta visita, si ya existe. Una visita, un informe. */
+  informeId: number | null;
+  informeEstado: string | null;
   fotos: number;
 }
 
@@ -143,15 +144,6 @@ async function conContexto(visitas: TunicheVisita[]): Promise<VisitaConContexto[
         .where(inArray(tunicheLotes.id, idsLote))
     : [];
 
-  const idsAprobador = [
-    ...new Set(visitas.map((v) => v.aprobadaPor).filter((x): x is number => x != null)),
-  ];
-  const aprobadores = idsAprobador.length
-    ? await db
-        .select({ id: tunicheUsuarios.id, nombre: tunicheUsuarios.nombre })
-        .from(tunicheUsuarios)
-        .where(inArray(tunicheUsuarios.id, idsAprobador))
-    : [];
 
   const fotos = await db
     .select({ visitaId: tunicheFotos.visitaId, n: sql<number>`count(*)::int` })
@@ -164,14 +156,30 @@ async function conContexto(visitas: TunicheVisita[]): Promise<VisitaConContexto[
     )
     .groupBy(tunicheFotos.visitaId);
 
+  const informes = await db
+    .select({
+      id: tunicheInformes.id,
+      visitaId: tunicheInformes.visitaId,
+      estado: tunicheInformes.estado,
+    })
+    .from(tunicheInformes)
+    .where(
+      inArray(
+        tunicheInformes.visitaId,
+        visitas.map((v) => v.id),
+      ),
+    );
+
   return visitas.map((v) => {
+    const inf = informes.find((x) => x.visitaId === v.id);
     const l = lotes.find((x) => x.id === v.loteId);
     return {
       ...v,
       loteCodigo: l?.codigo ?? null,
       agricultorNombre: l?.agricultor ?? null,
       agricultorTelefono: l?.telefono ?? null,
-      aprobadaPorNombre: aprobadores.find((a) => a.id === v.aprobadaPor)?.nombre ?? null,
+      informeId: inf?.id ?? null,
+      informeEstado: inf?.estado ?? null,
       fotos: fotos.find((f) => f.visitaId === v.id)?.n ?? 0,
     };
   });

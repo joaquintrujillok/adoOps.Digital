@@ -249,24 +249,12 @@ export const tunicheVisitas = pgTable(
     estado: varchar("estado", { length: 20 }).notNull().default("pendiente"),
     validadaEn: timestamp("validada_en"),
     /**
-     * El visto bueno para que esta visita salga de Tuniche.
+     * Cuándo salió efectivamente el informe de esta visita.
      *
-     * **Son dos compuertas distintas y por eso son dos columnas.** `validadaEn`
-     * la marca el zonal y afirma "esto es lo que yo vi": es la única persona que
-     * puede afirmarlo, y habilita el historial interno. `aprobadaEn` la marca la
-     * jefatura y afirma algo distinto —"esto puede salir de Tuniche"— porque el
-     * destinatario es un tercero, y una frase mal dicha en un audio pasa a ser
-     * una frase que la empresa le escribió a un cliente.
-     *
-     * Un zonal **no puede darse el visto bueno a sí mismo**: ver
-     * `puedeEnviarAlAgricultor` en lib/tuniche/session.ts.
-     */
-    aprobadaPor: integer("aprobada_por"),
-    aprobadaEn: timestamp("aprobada_en"),
-    /**
-     * Cuándo salió efectivamente. Es distinto de `aprobadaEn`: entre aprobar y
-     * que WhatsApp entregue el mensaje puede fallar la red, y una visita que se
-     * cree enviada sin haberlo sido es la peor de las dos mentiras posibles.
+     * **El visto bueno no vive acá**: vive en `tuniche_informes`, porque lo que
+     * se aprueba es el documento que va a salir, habiéndolo visto, y no una
+     * tarjeta en una lista. Esta columna es solo el eco para poder marcar la
+     * visita en el historial sin consultar la otra tabla.
      */
     enviadaAlAgricultorEn: timestamp("enviada_al_agricultor_en"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -302,3 +290,130 @@ export type TunicheAgricultor = typeof tunicheAgricultores.$inferSelect;
 export type TunicheLote = typeof tunicheLotes.$inferSelect;
 export type TunicheVisita = typeof tunicheVisitas.$inferSelect;
 export type TunicheFoto = typeof tunicheFotos.$inferSelect;
+
+// ─── El repositorio de informes ──────────────────────────────────────────────
+
+/**
+ * Un informe. Es lo único de este sistema que sale de Tuniche.
+ *
+ * **Por qué es una tabla y no una vista sobre las visitas.** Un informe es una
+ * *constancia*: dice qué se le comunicó a alguien, en qué fecha y con qué
+ * contenido. Si fuera una vista, corregir una visita en octubre cambiaría
+ * retroactivamente lo que dice el informe que se envió en marzo — y entonces
+ * deja de servir para lo único que importa, que es poder mostrarle a un
+ * agricultor qué se le dijo y cuándo.
+ *
+ * Por eso `contenido` es un **snapshot completo**, no un puñado de ids. Nombres,
+ * cifras, fotos y resumen quedan congelados en el momento de generarlo.
+ *
+ * **Dos tipos, un mismo repositorio.** El de `visita` es el que Francisco hoy
+ * manda por WhatsApp después de cada recorrido. El `mensual` es el que René arma
+ * a mano pegando fotos de Drive en un PowerPoint, para el cliente en el
+ * extranjero. Distinto destinatario y distinta cadencia, pero es el mismo acto
+ * —comunicar hacia afuera lo que se vio en el campo— y por eso el mismo visto
+ * bueno, el mismo registro de envío y el mismo lugar donde buscarlo después.
+ */
+export type TunicheTipoInforme = "visita" | "mensual";
+
+/** `borrador` → `aprobado` → `enviado`. No hay vuelta atrás desde `enviado`. */
+export type TunicheEstadoInforme = "borrador" | "aprobado" | "enviado";
+
+export const tunicheInformes = pgTable(
+  "tuniche_informes",
+  {
+    id: serial("id").primaryKey(),
+    tipo: varchar("tipo", { length: 20 }).notNull(),
+    area: varchar("area", { length: 20 }).notNull(),
+    titulo: varchar("titulo", { length: 200 }).notNull(),
+    estado: varchar("estado", { length: 20 }).notNull().default("borrador"),
+
+    // Un informe de visita apunta a su visita; uno mensual, a un cliente y un
+    // periodo. Las columnas del otro tipo quedan nulas — con dos tipos y siete
+    // columnas, una tabla por tipo costaría más de lo que ahorra.
+    visitaId: integer("visita_id"),
+    loteId: integer("lote_id"),
+    agricultorId: integer("agricultor_id"),
+    cliente: varchar("cliente", { length: 200 }),
+    periodoDesde: timestamp("periodo_desde"),
+    periodoHasta: timestamp("periodo_hasta"),
+
+    /** El snapshot. Es el informe: la pantalla lee de acá, no de las visitas. */
+    contenido: jsonb("contenido").$type<Record<string, unknown>>().notNull(),
+
+    generadoPor: integer("generado_por").notNull(),
+    generadoEn: timestamp("generado_en").defaultNow().notNull(),
+
+    /**
+     * El visto bueno. Vive acá y **no** en la visita, a propósito: se aprueba el
+     * documento que va a salir, habiéndolo visto, y no una tarjeta en una lista.
+     */
+    aprobadoPor: integer("aprobado_por"),
+    aprobadoEn: timestamp("aprobado_en"),
+
+    /**
+     * Cuándo salió de verdad, y a dónde. Es distinto de `aprobadoEn`: entre
+     * aprobar y que WhatsApp entregue puede fallar la red, y un informe que se
+     * cree enviado sin haberlo sido es la peor de las dos mentiras posibles.
+     */
+    enviadoPor: integer("enviado_por"),
+    enviadoEn: timestamp("enviado_en"),
+    enviadoA: varchar("enviado_a", { length: 200 }),
+
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("tuniche_informes_tipo_idx").on(t.tipo),
+    index("tuniche_informes_estado_idx").on(t.estado),
+    index("tuniche_informes_agricultor_idx").on(t.agricultorId),
+    index("tuniche_informes_lote_idx").on(t.loteId),
+    index("tuniche_informes_generado_idx").on(t.generadoEn),
+    // Una visita produce un informe y solo uno: dos informes de la misma visita
+    // significarían dos constancias distintas del mismo hecho.
+    uniqueIndex("tuniche_informes_visita_idx").on(t.visitaId),
+  ],
+);
+
+export type TunicheInforme = typeof tunicheInformes.$inferSelect;
+
+/** El snapshot de un informe de visita. Lo que se congela al generarlo. */
+export interface ContenidoVisita {
+  agricultor: string;
+  contacto: string | null;
+  localidad: string | null;
+  lote: string;
+  cultivo: string | null;
+  variedad: string | null;
+  hectareas: string | null;
+  zonal: string;
+  fecha: string;
+  etapa: string | null;
+  campos: { etiqueta: string; valor: string }[];
+  notaAgronomica: number | null;
+  resumen: string;
+  fotos: { url: string; tipo: string }[];
+}
+
+/** El snapshot de un informe mensual al cliente. */
+export interface ContenidoMensual {
+  cliente: string;
+  desde: string;
+  hasta: string;
+  lotes: {
+    codigo: string;
+    agricultor: string;
+    localidad: string | null;
+    cultivo: string | null;
+    variedad: string | null;
+    hectareas: string | null;
+    objetivo: string | null;
+    notaPromedio: number | null;
+    visitas: {
+      fecha: string;
+      zonal: string;
+      etapa: string | null;
+      notaAgronomica: number | null;
+      resumen: string;
+      fotos: { url: string; tipo: string }[];
+    }[];
+  }[];
+}
