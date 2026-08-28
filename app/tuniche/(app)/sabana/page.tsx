@@ -25,10 +25,18 @@ const SEMAFORO: Record<string, string> = {
   "con problema": "var(--tun-critico)",
 };
 
+/** Sin tildes ni mayúsculas: nadie busca escribiendo "BUNCHING" con tilde. */
+function normalizar(t: string): string {
+  return t
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
 export default async function Sabana({
   searchParams,
 }: {
-  searchParams: Promise<{ area?: string; vista?: string }>;
+  searchParams: Promise<{ area?: string; vista?: string; q?: string }>;
 }) {
   const s = await requireSesion();
   const alcance = await alcanceActual();
@@ -43,10 +51,21 @@ export default async function Sabana({
     : disponibles[0].id) as AreaId;
   const vista: Vista = sp.vista === "completa" ? "completa" : "resumen";
 
-  const [columnas, filas] = await Promise.all([
+  const [columnas, todas] = await Promise.all([
     Promise.resolve(columnasDe(area, vista)),
     filasDe(area, alcance),
   ]);
+
+  // Se busca sobre TODAS las celdas de la fila, incluidas las de hitos aunque la
+  // vista sea el resumen: quien escribe una fecha de trasplante espera encontrar
+  // ese lote, no que el buscador dependa de qué columnas estén visibles.
+  const q = normalizar((sp.q ?? "").trim());
+  const filas = q
+    ? todas.filter((f) => {
+        const heno = normalizar(Object.values(f.celdas).filter(Boolean).join(" "));
+        return q.split(/\s+/).every((palabra) => heno.includes(palabra));
+      })
+    : todas;
 
   // Se cuentan sobre la vista completa y no sobre la actual: en `resumen` no
   // hay ninguna columna de hito, y el botón terminaba ofreciendo "(+ hitos)"
@@ -103,17 +122,51 @@ export default async function Sabana({
           ))}
         </div>
 
-        {/* La salida a Excel no es una concesión: nadie deja una planilla de un
-            día para otro, y pedirlo sería la forma más rápida de que no usen
-            esto. Lo que se borra es la transcripción a mano, no la planilla. */}
-        <a href={`/api/tuniche/sabana?area=${area}`} className="tun-boton-suave">
-          Descargar en Excel (.csv)
-        </a>
+        <div className="flex flex-wrap items-end gap-2">
+          {/* El buscador conserva área y vista: cambiar de una a otra no puede
+              hacerte perder lo que estabas buscando. */}
+          <form className="flex items-end gap-2">
+            <input type="hidden" name="area" value={area} />
+            <input type="hidden" name="vista" value={vista} />
+            <input
+              name="q"
+              defaultValue={sp.q ?? ""}
+              className="tun-campo"
+              style={{ minWidth: 240 }}
+              placeholder="Lote, agricultor, variedad, zonal…"
+              aria-label="Buscar en la sábana"
+            />
+            <button type="submit" className="tun-boton-suave">
+              Buscar
+            </button>
+            {q && (
+              <Link
+                href={`/tuniche/sabana?area=${area}&vista=${vista}`}
+                className="pb-2 text-[13px]"
+                style={{ color: "var(--tun-brand)" }}
+              >
+                Limpiar
+              </Link>
+            )}
+          </form>
+
+          {/* La salida a Excel no es una concesión: nadie deja una planilla de un
+              día para otro, y pedirlo sería la forma más rápida de que no usen
+              esto. Lo que se borra es la transcripción a mano, no la planilla.
+              Exporta SIEMPRE la sábana completa, no lo filtrado: el archivo es
+              para trabajar, y uno recortado por una búsqueda de hace un rato es
+              una trampa que se descubre tarde. */}
+          <a href={`/api/tuniche/sabana?area=${area}`} className="tun-boton-suave">
+            Descargar en Excel (.csv)
+          </a>
+        </div>
       </div>
 
       {filas.length === 0 ? (
         <p className="text-[14px]" style={{ color: "var(--tun-muted)" }}>
-          No hay lotes de {nombreArea(area)} en tu alcance.
+          {q
+            ? "Ningún lote calza con lo que buscaste."
+            : `No hay lotes de ${nombreArea(area)} en tu alcance.`}
         </p>
       ) : (
         // La tabla scrollea dentro de su caja y no arrastra la página: con 30
@@ -221,8 +274,10 @@ export default async function Sabana({
 
       <div className="text-[12.5px]" style={{ color: "var(--tun-muted)" }}>
         <p>
-          {filas.length} {filas.length === 1 ? "lote" : "lotes"} · {columnas.length} columnas ·{" "}
-          {nombreArea(area)}.
+          {q
+            ? `${filas.length} de ${todas.length} lotes`
+            : `${filas.length} ${filas.length === 1 ? "lote" : "lotes"}`}{" "}
+          · {columnas.length} columnas · {nombreArea(area)}.
         </p>
         {/* La tabla es de lectura, y decir dónde se edita cada cosa evita la
             pregunta obvia. No son tres restricciones arbitrarias: son tres

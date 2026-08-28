@@ -32,6 +32,7 @@ export default async function TunicheAppLayout({
     { href: "/tuniche/visitas", etiqueta: "Visitas", icono: "◈" },
     { href: "/tuniche/informes", etiqueta: "Informes", icono: "▤" },
     { href: "/tuniche/sabana", etiqueta: "Sábana", icono: "▦" },
+    { href: "/tuniche/reportes", etiqueta: "Reportes", icono: "◐" },
     { href: "/tuniche/agricultores", etiqueta: "Agricultores", icono: "⛁" },
     ...(puedeGestionarUsuarios(sesion)
       ? [{ href: "/tuniche/usuarios", etiqueta: "Usuarios", icono: "◇" }]

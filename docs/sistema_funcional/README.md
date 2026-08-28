@@ -234,6 +234,34 @@ Forzar una tabla de equivalencias daría un mapeo que ningún agrónomo de las d
    pegan a su última visita, copiadas a almacenamiento propio (la URL de WaSender
    vive una hora).
 
+## Reportes: hacia adentro, no hacia afuera
+
+`/tuniche/reportes` responde una pregunta distinta de todo lo demás. El historial
+dice *"¿qué pasó en este campo?"*, la sábana *"¿cómo va la temporada?"*, los
+informes son documentos que **salen** hacia un tercero. Reportes mira hacia
+adentro: **¿qué se está quedando sin mirar?**
+
+Un tablero que solo muestra actividad deja invisible lo que no se hizo, y lo que
+no se hizo es lo que duele. Por eso "lo que se está quedando sin visitar" va
+arriba, antes que cualquier cifra de producción.
+
+- **Cobertura de lotes** — es la cifra que la POC tiene que mover. Francisco
+  estimó que ~50% de las visitas queda respaldada por WhatsApp, y de ese 50% nada
+  queda consultable. Esto la mide de verdad.
+- **Lotes atrasados y nunca visitados**, ordenados por antigüedad.
+- **Alertas abiertas** — según la **última** visita de cada lote. Un riego que
+  estuvo crítico en marzo y se arregló en abril deja de aparecer: una lista que
+  acumula lo ya resuelto enseña a ignorarla.
+- **Actividad por zonal** — por el zonal **a cargo del campo**, no por quién
+  apretó el micrófono. Es la pregunta de gestión, y son cosas distintas.
+- **Del campo al agricultor** — el embudo generados → con visto bueno →
+  enviados. Muestra dónde se detiene lo que debería salir.
+- **Zonales sin cuenta con teléfono** — tienen agricultores asignados y no pueden
+  mandar audios.
+
+No se congela nada: se recalcula entero en cada carga, porque su valor es
+justamente estar al día. Es lo contrario de un informe.
+
 ## El repositorio de informes
 
 **Un informe no es una visita.** La visita es lo que pasó en el campo; el informe
