@@ -259,6 +259,38 @@ arriba, antes que cualquier cifra de producción.
 - **Zonales sin cuenta con teléfono** — tienen agricultores asignados y no pueden
   mandar audios.
 
+### Los gráficos
+
+**Todo lo de esa pantalla es una sola serie**, y eso decide el diseño: comparar
+magnitudes (días sin visita, visitas por zonal) y una razón contra un total
+(cobertura). Con una serie no hace falta paleta categórica ni leyenda —la
+identidad la da el título— y el largo de la barra carga el dato, así que el color
+queda libre para lo único que significa algo acá: el estado.
+
+La cobertura es un **medidor, no una torta**. Una torta de dos gajos obliga a
+comparar ángulos para responder algo que un largo responde solo. La pista es un
+paso más claro del mismo tono del relleno, para que la severidad se lea a lo
+largo de toda la barra y no solo en la parte llena.
+
+Los "nunca visitados" **no llevan barra**: no hay magnitud que comparar, o tienen
+visitas o no. Son una lista, y la lista es el trabajo pendiente.
+
+**Los colores de gráfico están separados de los de texto, y no es duplicación.**
+Una marca necesita 3:1 contra la superficie; un texto necesita 4.5:1. El mismo
+hex no puede cumplir ambos y además mantener separación bajo daltonismo — el
+naranja lo demuestra: oscurecerlo hasta que sirva de texto lo acerca tanto al
+verde que un protanope deja de distinguirlos. Así que las barras llevan
+`--viz-*` y las etiquetas llevan los de texto, nunca al revés.
+
+Los `--viz-*` están validados con el validador de la guía sobre superficie
+blanca: banda de luminosidad, piso de croma, separación bajo daltonismo (ΔE 11.0
+protan) y piso de visión normal (ΔE 24.4) pasan. El naranja queda en 2.93 de
+contraste, bajo 3:1, y el alivio que eso exige es el que la pantalla ya tiene:
+toda marca va con su etiqueta y su cifra al lado, nunca sola.
+
+La pantalla es solo clara, como el resto del módulo — decisión tomada al elegir
+los tokens: se mira en un teléfono, a pleno sol, en marzo.
+
 No se congela nada: se recalcula entero en cada carga, porque su valor es
 justamente estar al día. Es lo contrario de un informe.
 

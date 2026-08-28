@@ -34,6 +34,32 @@
   --tun-brand-soft: #e8f1eb;
   --tun-sidebar: #1c2e24;
 
+  /* ── Colores de gráfico ──────────────────────────────────────────────────
+     Están separados de los de texto **a propósito**, y no es duplicación: un
+     color de marca (una barra) necesita 3:1 contra la superficie, y un color de
+     texto necesita 4.5:1. El mismo hex no puede cumplir los dos y además
+     mantener separación bajo daltonismo — el naranja lo demuestra: oscurecerlo
+     hasta que sirva como texto lo acerca tanto al verde que un protanope deja de
+     distinguirlos.
+     
+     Regla que se sigue de eso: las barras llevan estos colores; las etiquetas,
+     los valores y las leyendas llevan los de texto de arriba. Nunca al revés.
+
+     Validados con el validador de la guía sobre superficie #ffffff: banda de
+     luminosidad, piso de croma, separación bajo daltonismo (ΔE 11.0 protan) y
+     piso de visión normal (ΔE 24.4) pasan. El naranja queda en 2.93 de
+     contraste, bajo 3:1, y el alivio exigido es el que esta pantalla ya tiene:
+     toda marca va con su etiqueta y su cifra al lado, nunca sola. */
+  --viz-serie: #2f6f4e;
+  --viz-serie-pista: #e2ece6;
+  --viz-ok: #0f7d45;
+  --viz-ok-pista: #dcece4;
+  --viz-alerta: #d18700;
+  --viz-alerta-pista: #f7ead3;
+  --viz-critico: #a8202b;
+  --viz-critico-pista: #f2dcde;
+  --viz-grid: #e4e9e5;
+
   /* Estados */
   --tun-alerta: #b45309;
   --tun-alerta-soft: #fdf3e3;

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AREAS, nombreArea, type AreaId } from "@/lib/tuniche/areas";
 import { alcanceActual, requireSesion } from "@/lib/tuniche/auth.actions";
 import { armarReporte, zonalesSinCuenta, type LoteEnReporte } from "@/lib/tuniche/reportes";
+import { Barras, Embudo, Medidor, Punto } from "@/components/tuniche/Graficos";
 
 export const dynamic = "force-dynamic";
 
@@ -48,14 +49,23 @@ function Cifra({
   );
 }
 
-function Fila({ l, detalle }: { l: LoteEnReporte; detalle: string }) {
+function Fila({
+  l,
+  detalle,
+  nivel,
+}: {
+  l: LoteEnReporte;
+  detalle: string;
+  nivel?: "ok" | "alerta" | "critico";
+}) {
   return (
     <Link
       href={`/tuniche/lotes/${l.id}`}
       className="flex flex-wrap items-baseline justify-between gap-2 border-b px-1 py-2.5 last:border-0"
       style={{ borderColor: "var(--tun-border)" }}
     >
-      <span className="min-w-0">
+      <span className="flex min-w-0 items-center gap-2">
+        {nivel && <Punto nivel={nivel} />}
         <span className="text-[13.5px] font-semibold" style={{ color: "var(--tun-brand)" }}>
           {l.codigo}
         </span>
@@ -147,68 +157,91 @@ export default async function Reportes({
         ))}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {/* La cobertura va primero porque es la cifra que la POC tiene que
-            mover: hoy la mitad de las visitas no queda registrada en ninguna
-            parte. Es el antes y después que se puede demostrar. */}
-        <Cifra
-          valor={`${cobertura}%`}
-          etiqueta="Cobertura de lotes"
-          nota={`${conVisita} de ${r.lotes.length} tienen al menos una visita`}
-          color={cobertura >= 80 ? "var(--tun-ok)" : cobertura >= 50 ? "var(--tun-alerta)" : "var(--tun-critico)"}
+      <div className="grid gap-3 lg:grid-cols-[1.1fr_2fr]">
+        <Medidor
+          pct={cobertura}
+          titulo="Cobertura de lotes"
+          detalle={`${conVisita} de ${r.lotes.length} lotes tienen al menos una visita registrada. Es la cifra que la prueba de concepto tiene que mover.`}
         />
-        <Cifra valor={r.visitasPeriodo} etiqueta={`Visitas en ${dias} días`} />
-        <Cifra
-          valor={r.notaPromedio == null ? "—" : `${r.notaPromedio}%`}
-          etiqueta="Nota agronómica promedio"
-          color={r.notaPromedio == null ? undefined : colorNota(r.notaPromedio)}
-        />
-        <Cifra
-          valor={r.alertas.length}
-          etiqueta="Lotes con alerta abierta"
-          nota="riego, malezas o sanidad en la última visita"
-          color={r.alertas.length ? "var(--tun-critico)" : "var(--tun-ok)"}
-        />
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Cifra valor={r.visitasPeriodo} etiqueta={`Visitas en ${dias} días`} />
+          <Cifra
+            valor={r.notaPromedio == null ? "—" : `${r.notaPromedio}%`}
+            etiqueta="Nota agronómica promedio"
+            color={r.notaPromedio == null ? undefined : colorNota(r.notaPromedio)}
+          />
+          <Cifra
+            valor={r.alertas.length}
+            etiqueta="Lotes con alerta abierta"
+            nota="según su última visita"
+            color={r.alertas.length ? "var(--tun-critico)" : "var(--tun-ok)"}
+          />
+        </div>
       </div>
 
       {/* Lo que NO se hizo va antes que lo que sí: un tablero que solo muestra
           actividad deja invisible lo que se está quedando sin mirar, que es lo
           que duele. */}
-      {(r.nuncaVisitados.length > 0 || r.atrasados.length > 0) && (
+      <div className="grid gap-3 lg:grid-cols-2">
+        {/* Barras y no una lista: la pregunta no es "cuáles están atrasados"
+            sino "cuánto", y un largo responde eso de un vistazo mientras que una
+            columna de números obliga a compararlos de a pares. */}
+        <Barras
+          titulo="Los que llevan más tiempo sin visita"
+          nota={`Lotes cuya última visita validada es anterior a los ${dias} días.`}
+          unidad="días"
+          vacio="Ningún lote visitado se pasó del periodo."
+          datos={r.atrasados.slice(0, 10).map((l) => ({
+            id: l.id,
+            etiqueta: l.codigo,
+            sub: l.agricultor,
+            valor: l.dias ?? 0,
+            color:
+              (l.dias ?? 0) >= 60
+                ? "var(--viz-critico)"
+                : (l.dias ?? 0) >= 30
+                  ? "var(--viz-alerta)"
+                  : "var(--viz-serie)",
+            href: `/tuniche/lotes/${l.id}`,
+          }))}
+        />
+
+        <Barras
+          titulo="Actividad por zonal"
+          nota="Por el zonal a cargo del campo, no por quién apretó el micrófono."
+          unidad="visitas"
+          vacio="Sin visitas en el periodo."
+          datos={r.porZonal.map((z) => ({
+            id: z.zonal,
+            etiqueta: z.zonal,
+            sub: `${z.lotes} lotes${z.nota != null ? ` · nota ${z.nota}%` : ""}`,
+            valor: z.visitas,
+          }))}
+        />
+      </div>
+
+      {r.nuncaVisitados.length > 0 && (
         <section className="tun-tarjeta p-5">
           <h2 className="text-[15px] font-semibold" style={{ color: "var(--tun-ink)" }}>
-            Lo que se está quedando sin visitar
+            Nunca visitados ({r.nuncaVisitados.length} de {r.lotes.length})
           </h2>
-          {r.atrasados.length > 0 && (
-            <div className="mt-4">
-              <div className="mb-1 text-[12px] uppercase tracking-[0.08em]" style={{ color: "var(--tun-muted)" }}>
-                Sin visita en los últimos {dias} días ({r.atrasados.length})
-              </div>
-              {r.atrasados.slice(0, 12).map((l) => (
-                <Fila key={l.id} l={l} detalle={`hace ${l.dias} días`} />
-              ))}
-              {r.atrasados.length > 12 && (
-                <p className="mt-2 text-[12.5px]" style={{ color: "var(--tun-muted)" }}>
-                  y {r.atrasados.length - 12} más.
-                </p>
-              )}
-            </div>
-          )}
-          {r.nuncaVisitados.length > 0 && (
-            <div className="mt-5">
-              <div className="mb-1 text-[12px] uppercase tracking-[0.08em]" style={{ color: "var(--tun-muted)" }}>
-                Nunca visitados ({r.nuncaVisitados.length})
-              </div>
-              {r.nuncaVisitados.slice(0, 12).map((l) => (
-                <Fila key={l.id} l={l} detalle="sin ninguna visita" />
-              ))}
-              {r.nuncaVisitados.length > 12 && (
-                <p className="mt-2 text-[12.5px]" style={{ color: "var(--tun-muted)" }}>
-                  y {r.nuncaVisitados.length - 12} más.
-                </p>
-              )}
-            </div>
-          )}
+          <p className="mt-1 mb-3 text-[12.5px]" style={{ color: "var(--tun-muted)" }}>
+            No llevan barra porque no hay magnitud que comparar: o tienen visitas o no.
+            Es una lista, y la lista es el trabajo pendiente.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {r.nuncaVisitados.map((l) => (
+              <Link
+                key={l.id}
+                href={`/tuniche/lotes/${l.id}`}
+                className="rounded-lg border px-2.5 py-1.5 text-[12.5px]"
+                style={{ borderColor: "var(--tun-border)", color: "var(--tun-ink-2)" }}
+                title={l.agricultor}
+              >
+                <b style={{ color: "var(--tun-brand)" }}>{l.codigo}</b>
+              </Link>
+            ))}
+          </div>
         </section>
       )}
 
@@ -226,6 +259,15 @@ export default async function Reportes({
             <Fila
               key={l.id}
               l={l}
+              // Crítico si hay algo con problema declarado; alerta si es una
+              // observación. El punto acompaña SIEMPRE al texto, nunca lo
+              // reemplaza: es lo que hace que la lista se lea sin distinguir
+              // colores, y el alivio que exige el naranja de marca.
+              nivel={
+                l.riego === "crítico" || l.sanidad === "con problema" || l.malezas === "alta"
+                  ? "critico"
+                  : "alerta"
+              }
               detalle={[
                 l.riego && l.riego !== "bien" ? `riego ${l.riego}` : null,
                 l.malezas === "alta" ? "malezas alta" : null,
@@ -238,80 +280,24 @@ export default async function Reportes({
         </section>
       )}
 
-      <div className="grid gap-3 lg:grid-cols-2">
-        <section className="tun-tarjeta p-5">
-          <h2 className="text-[15px] font-semibold" style={{ color: "var(--tun-ink)" }}>
-            Actividad por zonal
-          </h2>
-          <p className="mt-1 mb-3 text-[12.5px]" style={{ color: "var(--tun-muted)" }}>
-            Por el zonal a cargo del campo, no por quién apretó el micrófono: es la
-            pregunta de gestión.
-          </p>
-          {r.porZonal.length === 0 ? (
-            <p className="text-[13.5px]" style={{ color: "var(--tun-muted)" }}>
-              Sin datos en el periodo.
-            </p>
-          ) : (
-            r.porZonal.map((z) => (
-              <div
-                key={z.zonal}
-                className="flex flex-wrap items-baseline justify-between gap-2 border-b py-2.5 last:border-0"
-                style={{ borderColor: "var(--tun-border)" }}
-              >
-                <span className="text-[13.5px]" style={{ color: "var(--tun-ink)" }}>
-                  {z.zonal}
-                </span>
-                <span className="text-[12.5px]" style={{ color: "var(--tun-ink-2)" }}>
-                  {z.visitas} {z.visitas === 1 ? "visita" : "visitas"} · {z.lotes} lotes
-                  {z.nota != null && (
-                    <b className="ml-2" style={{ color: colorNota(z.nota) }}>
-                      {z.nota}%
-                    </b>
-                  )}
-                </span>
-              </div>
-            ))
-          )}
-        </section>
-
-        <section className="tun-tarjeta p-5">
-          <h2 className="text-[15px] font-semibold" style={{ color: "var(--tun-ink)" }}>
-            Del campo al agricultor
-          </h2>
-          <p className="mt-1 mb-3 text-[12.5px]" style={{ color: "var(--tun-muted)" }}>
-            Dónde se está deteniendo lo que debería salir.
-          </p>
-          {[
-            ["Informes generados", r.informes.generados, null],
-            ["Con visto bueno", r.informes.conVistoBueno, r.informes.generados],
-            ["Enviados al agricultor", r.informes.enviados, r.informes.generados],
-          ].map(([etiqueta, valor, total]) => (
-            <div
-              key={etiqueta as string}
-              className="flex items-baseline justify-between border-b py-2.5 last:border-0"
-              style={{ borderColor: "var(--tun-border)" }}
-            >
-              <span className="text-[13.5px]" style={{ color: "var(--tun-ink-2)" }}>
-                {etiqueta as string}
-              </span>
-              <span className="text-[15px] font-semibold" style={{ color: "var(--tun-ink)" }}>
-                {valor as number}
-                {total ? (
-                  <span className="ml-1 text-[12px] font-normal" style={{ color: "var(--tun-muted)" }}>
-                    de {total as number}
-                  </span>
-                ) : null}
-              </span>
-            </div>
-          ))}
-          {r.sinInforme > 0 && (
-            <p className="mt-3 text-[13px]" style={{ color: "var(--tun-alerta)" }}>
-              {r.sinInforme} {r.sinInforme === 1 ? "visita validada" : "visitas validadas"} del
-              periodo todavía sin informe generado.
-            </p>
-          )}
-        </section>
+      <div className="grid gap-3">
+        <Embudo
+          titulo="Del campo al agricultor"
+          nota="Dónde se detiene lo que debería salir. Los tres pasos comparten escala: lo que interesa no es cuánto mide cada uno, sino dónde se cae."
+          pasos={[
+            { etiqueta: "Informes generados", valor: r.informes.generados },
+            { etiqueta: "Con visto bueno", valor: r.informes.conVistoBueno },
+            { etiqueta: "Enviados al agricultor", valor: r.informes.enviados },
+          ]}
+        />
       </div>
+
+      {r.sinInforme > 0 && (
+        <p className="text-[13px]" style={{ color: "var(--tun-alerta)" }}>
+          {r.sinInforme} {r.sinInforme === 1 ? "visita validada" : "visitas validadas"} del
+          periodo todavía sin informe generado.
+        </p>
+      )}
 
       {sinCuenta.length > 0 && (
         <section
