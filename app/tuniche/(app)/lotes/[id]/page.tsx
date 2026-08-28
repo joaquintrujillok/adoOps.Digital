@@ -2,10 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { nombreArea } from "@/lib/tuniche/areas";
 import { VISITA, etapaPorId, etapasDe } from "@/lib/tuniche/plantillas";
-import { alcanceActual } from "@/lib/tuniche/auth.actions";
+import { alcanceActual, requireSesion } from "@/lib/tuniche/auth.actions";
 import { fotosDe, historialDeLote, loteConAgricultor } from "@/lib/tuniche/visitas";
 import type { AreaId } from "@/lib/tuniche/areas";
 import Demo from "@/components/tuniche/Demo";
+import { EditarIdentificacion, HitosDeEtapa } from "@/components/tuniche/EditarLote";
+import { puedeEnviarAlAgricultor } from "@/lib/tuniche/session";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +43,7 @@ function Dato({ etiqueta, valor }: { etiqueta: string; valor: string }) {
 
 export default async function LoteDetalle({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const s = await requireSesion();
   const alcance = await alcanceActual();
   const encontrado = await loteConAgricultor(Number(id), alcance);
   // notFound() y no un mensaje de permisos: si el lote no está en el alcance de
@@ -95,36 +98,53 @@ export default async function LoteDetalle({ params }: { params: Promise<{ id: st
         </div>
       </section>
 
-      {/* Capa 3 · los hitos. Solo las etapas que tienen algo cargado: una lista
-          de nueve etapas vacías no informa, solo hace scroll. */}
-      {etapas.some((e) => e.campos.some((c) => hitos[c.id] != null)) && (
-        <section className="tun-tarjeta p-5">
+      {puedeEnviarAlAgricultor(s) && (
+        <details className="tun-tarjeta p-5">
+          <summary className="cursor-pointer text-[13px] font-medium" style={{ color: "var(--tun-brand)" }}>
+            Corregir los datos del lote
+          </summary>
+          <div className="mt-4 border-t pt-4" style={{ borderColor: "var(--tun-border)" }}>
+            <EditarIdentificacion
+              area={lote.area}
+              lote={{
+                id: lote.id,
+                temporada: lote.temporada,
+                cultivo: lote.cultivo,
+                variedad: lote.variedad,
+                relacionHm: lote.relacionHm,
+                hectareas: lote.hectareas,
+                objetivo: lote.objetivo,
+                clienteFinal: lote.clienteFinal,
+                idase: lote.idase,
+                tipoSemilla: lote.tipoSemilla,
+              }}
+            />
+          </div>
+        </details>
+      )}
+
+      {/* Capa 3 · los hitos. Ahora TODAS las etapas, no solo las que tienen algo
+          cargado: antes esto era de solo lectura y una etapa vacía no informaba
+          nada, pero desde que se pueden llenar, la etapa vacía ES el trabajo
+          pendiente y esconderla la vuelve invisible. */}
+      <section>
+        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
           <h2
             className="text-[11px] font-semibold uppercase tracking-[0.16em]"
             style={{ color: "var(--tun-muted)" }}
           >
             Hitos del ciclo
           </h2>
-          <div className="mt-4 space-y-5">
-            {etapas
-              .filter((e) => e.campos.some((c) => hitos[c.id] != null))
-              .map((e) => (
-                <div key={e.id}>
-                  <div className="mb-2 text-[13px] font-semibold" style={{ color: "var(--tun-ink)" }}>
-                    {e.nombre}
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    {e.campos
-                      .filter((c) => hitos[c.id] != null)
-                      .map((c) => (
-                        <Dato key={c.id} etiqueta={c.etiqueta} valor={String(hitos[c.id])} />
-                      ))}
-                  </div>
-                </div>
-              ))}
-          </div>
-        </section>
-      )}
+          <span className="text-[12.5px]" style={{ color: "var(--tun-muted)" }}>
+            No salen del audio: se cargan acá, a medida que avanza el cultivo.
+          </span>
+        </div>
+        <div className="space-y-2">
+          {etapas.map((e) => (
+            <HitosDeEtapa key={e.id} loteId={lote.id} etapa={e} hitos={hitos} />
+          ))}
+        </div>
+      </section>
 
       {/* Capa 2 · el historial. Es el "mira, esta es la trazabilidad de tu campo". */}
       <section>

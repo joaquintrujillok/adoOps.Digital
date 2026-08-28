@@ -219,11 +219,21 @@ export default async function Sabana({
         </div>
       )}
 
-      <p className="text-[12.5px]" style={{ color: "var(--tun-muted)" }}>
-        {filas.length} {filas.length === 1 ? "lote" : "lotes"} · {columnas.length} columnas ·{" "}
-        {nombreArea(area)}. Las columnas sobre fondo verde son las que aporta el
-        sistema: no estaban en la planilla original y se actualizan con cada visita.
-      </p>
+      <div className="text-[12.5px]" style={{ color: "var(--tun-muted)" }}>
+        <p>
+          {filas.length} {filas.length === 1 ? "lote" : "lotes"} · {columnas.length} columnas ·{" "}
+          {nombreArea(area)}.
+        </p>
+        {/* La tabla es de lectura, y decir dónde se edita cada cosa evita la
+            pregunta obvia. No son tres restricciones arbitrarias: son tres
+            naturalezas distintas de dato. */}
+        <p className="mt-2">
+          Las columnas sobre <b>fondo verde</b> las aporta el sistema y se actualizan solas
+          con cada visita validada: no se editan porque son un reflejo, y cambiarlas acá
+          crearía una segunda verdad que contradice a la visita. Los <b>hitos</b> y los
+          datos del contrato se corrigen entrando al lote.
+        </p>
+      </div>
     </div>
   );
 }
