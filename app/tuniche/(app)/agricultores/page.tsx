@@ -7,11 +7,51 @@ import ContactoAgricultor from "@/components/tuniche/ContactoAgricultor";
 
 export const dynamic = "force-dynamic";
 
-export default async function Agricultores() {
-  const alcance = await alcanceActual();
-  const agricultores = await listarAgricultores(alcance);
+/** Sin tildes ni mayúsculas: nadie escribe "AGRÍCOLA" con tilde al buscar. */
+function normalizar(t: string): string {
+  return t
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
 
-  const sinContacto = agricultores.filter((a) => !a.telefono).length;
+export default async function Agricultores({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; sin?: string }>;
+}) {
+  const alcance = await alcanceActual();
+  const sp = await searchParams;
+  const todos = await listarAgricultores(alcance);
+
+  const sinContacto = todos.filter((a) => !a.telefono).length;
+
+  // Se filtra en memoria: son decenas de agricultores por área y por temporada,
+  // y buscar también dentro de sus lotes —por código o variedad— en la base
+  // costaría un join y un índice de texto que nadie va a mantener.
+  const q = normalizar((sp.q ?? "").trim());
+  const soloSinTelefono = sp.sin === "1";
+  const agricultores = todos.filter((a) => {
+    if (soloSinTelefono && a.telefono) return false;
+    if (!q) return true;
+    const heno = normalizar(
+      [
+        a.razonSocial,
+        a.nombreContacto,
+        a.localidad,
+        a.region,
+        a.distribuidor,
+        a.zonalNombre,
+        a.telefono,
+        ...a.lotes.flatMap((l) => [l.codigo, l.cultivo, l.variedad]),
+      ]
+        .filter(Boolean)
+        .join(" "),
+    );
+    // Todas las palabras, en cualquier orden: "martina talagante" encuentra lo
+    // mismo que "talagante martina", que es como la gente busca de verdad.
+    return q.split(/\s+/).every((palabra) => heno.includes(palabra));
+  });
 
   return (
     <div className="space-y-7">
@@ -20,10 +60,45 @@ export default async function Agricultores() {
           Agricultores
         </h1>
         <p className="mt-1 text-[14px]" style={{ color: "var(--tun-ink-2)" }}>
-          {agricultores.length} agricultores ·{" "}
-          {agricultores.reduce((n, a) => n + a.lotes.length, 0)} lotes
+          {q || soloSinTelefono
+            ? `${agricultores.length} de ${todos.length} agricultores`
+            : `${todos.length} agricultores`}{" "}
+          · {agricultores.reduce((n, a) => n + a.lotes.length, 0)} lotes
         </p>
       </header>
+
+      {/* Filtro por GET, igual que la sábana: la búsqueda queda en la URL, así
+          que se puede compartir y sobrevive a entrar a un lote y volver. Un
+          filtro que solo vive en memoria obliga a rehacerlo cada vez. */}
+      <form className="tun-tarjeta flex flex-wrap items-end gap-3 p-4">
+        <div className="min-w-[260px] flex-1">
+          <label htmlFor="q" className="tun-etiqueta">
+            Buscar
+          </label>
+          <input
+            id="q"
+            name="q"
+            defaultValue={sp.q ?? ""}
+            className="tun-campo"
+            placeholder="Agricultor, contacto, localidad, zonal, lote o variedad…"
+          />
+        </div>
+        <label
+          className="flex items-center gap-2 pb-2.5 text-[13.5px]"
+          style={{ color: "var(--tun-ink-2)" }}
+        >
+          <input type="checkbox" name="sin" value="1" defaultChecked={soloSinTelefono} />
+          Solo los que no tienen teléfono
+        </label>
+        <button type="submit" className="tun-boton-suave">
+          Buscar
+        </button>
+        {(q || soloSinTelefono) && (
+          <a href="/tuniche/agricultores" className="pb-2.5 text-[13px]" style={{ color: "var(--tun-brand)" }}>
+            Limpiar
+          </a>
+        )}
+      </form>
 
       {/* Sin teléfono no hay a quién mandarle el informe, y ese es el último paso
           del flujo completo. Decirlo acá arriba y no en cada ficha: es un
@@ -37,7 +112,7 @@ export default async function Agricultores() {
             color: "var(--tun-alerta)",
           }}
         >
-          <b>{sinContacto} de {agricultores.length} agricultores no tienen teléfono.</b>{" "}
+          <b>{sinContacto} de {todos.length} agricultores no tienen teléfono.</b>{" "}
           Ninguna de las dos planillas lo traía — MN mandó las columnas vacías y Altué
           venía anonimizada. Sin ese dato se puede registrar la visita, pero no
           enviarle el informe al agricultor.
@@ -113,8 +188,9 @@ export default async function Agricultores() {
 
       {agricultores.length === 0 && (
         <p className="text-[14px]" style={{ color: "var(--tun-muted)" }}>
-          No hay agricultores en tu alcance. Si eres zonal, todavía no tienes ninguno
-          asignado — pídeselo a quien administra el sistema.
+          {q || soloSinTelefono
+            ? "Ningún agricultor calza con lo que buscaste."
+            : "No hay agricultores en tu alcance. Si eres zonal, todavía no tienes ninguno asignado — pídeselo a quien administra el sistema."}
         </p>
       )}
     </div>
