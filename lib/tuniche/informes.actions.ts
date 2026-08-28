@@ -13,6 +13,21 @@ import { enviarWhatsApp } from "./whatsapp";
 
 const RUTA = "/tuniche/informes";
 
+/**
+ * Lo que devuelven las acciones de esta pantalla.
+ *
+ * **Devuelven el error en vez de lanzarlo, y eso importa más de lo que parece.**
+ * Un `throw` en una acción de servidor llega al borde de error como un digest:
+ * Next redacta el mensaje en producción, así que la persona ve un texto genérico
+ * y el motivo real —que suele ser una regla de negocio perfectamente explicable,
+ * como "este agricultor no tiene teléfono"— queda solo en los registros del
+ * servidor. Lo lanzado sirve para lo inesperado; esto es lo esperado.
+ */
+export interface Resultado {
+  error?: string;
+  ok?: string;
+}
+
 /** Comprueba que el informe esté al alcance de quien actúa, y lo devuelve. */
 async function informeEnAlcance(id: number) {
   const s = await requireSesion();
@@ -83,21 +98,33 @@ export async function generarMensualAction(fd: FormData): Promise<void> {
  * se envía. Queda registrado con nombre y fecha — un visto bueno sin nombre no
  * es un visto bueno.
  */
-export async function aprobarInformeAction(fd: FormData): Promise<void> {
-  const s = await requireEnvioAlAgricultor();
-  const id = Number(fd.get("id"));
-  if (!Number.isInteger(id) || id <= 0) return;
+export async function aprobarInformeAction(_prev: Resultado, fd: FormData): Promise<Resultado> {
+  try {
+    const s = await requireEnvioAlAgricultor();
+    const id = Number(fd.get("id"));
+    if (!Number.isInteger(id) || id <= 0) return { error: "Informe inválido" };
 
-  const { informe } = await informeEnAlcance(id);
-  if (informe.estado === "enviado") return; // ya salió; aprobar de nuevo no significa nada
+    const { informe } = await informeEnAlcance(id);
+    if (informe.estado === "enviado") return { ok: "Este informe ya salió." };
 
-  await db
-    .update(tunicheInformes)
-    .set({ estado: "aprobado", aprobadoPor: s.userId, aprobadoEn: new Date() })
-    .where(eq(tunicheInformes.id, id));
+    await db
+      .update(tunicheInformes)
+      .set({ estado: "aprobado", aprobadoPor: s.userId, aprobadoEn: new Date() })
+      .where(eq(tunicheInformes.id, id));
 
-  revalidatePath(RUTA);
-  revalidatePath(`${RUTA}/${id}`);
+    revalidatePath(RUTA);
+    revalidatePath(`${RUTA}/${id}`);
+    return { ok: "Visto bueno dado." };
+  } catch (err) {
+    return { error: mensaje(err) };
+  }
+}
+
+/** El texto de un error, ya sea una regla de negocio o una falla inesperada. */
+function mensaje(err: unknown): string {
+  if (err instanceof Error && err.message) return err.message;
+  console.error("tuniche/informes:", err);
+  return "No se pudo completar. Intenta de nuevo.";
 }
 
 /**
@@ -108,23 +135,28 @@ export async function aprobarInformeAction(fd: FormData): Promise<void> {
  * agricultor lo tiene en su teléfono— y ahí se bloquea en vez de fingir que se
  * deshizo.
  */
-export async function retirarInformeAction(fd: FormData): Promise<void> {
-  await requireEnvioAlAgricultor();
-  const id = Number(fd.get("id"));
-  if (!Number.isInteger(id) || id <= 0) return;
+export async function retirarInformeAction(_prev: Resultado, fd: FormData): Promise<Resultado> {
+  try {
+    await requireEnvioAlAgricultor();
+    const id = Number(fd.get("id"));
+    if (!Number.isInteger(id) || id <= 0) return { error: "Informe inválido" };
 
-  const { informe } = await informeEnAlcance(id);
-  if (informe.estado === "enviado") {
-    throw new Error("Este informe ya salió. El visto bueno no se puede retirar.");
+    const { informe } = await informeEnAlcance(id);
+    if (informe.estado === "enviado") {
+      return { error: "Este informe ya salió. El visto bueno no se puede retirar." };
+    }
+
+    await db
+      .update(tunicheInformes)
+      .set({ estado: "borrador", aprobadoPor: null, aprobadoEn: null })
+      .where(eq(tunicheInformes.id, id));
+
+    revalidatePath(RUTA);
+    revalidatePath(`${RUTA}/${id}`);
+    return { ok: "Visto bueno retirado." };
+  } catch (err) {
+    return { error: mensaje(err) };
   }
-
-  await db
-    .update(tunicheInformes)
-    .set({ estado: "borrador", aprobadoPor: null, aprobadoEn: null })
-    .where(eq(tunicheInformes.id, id));
-
-  revalidatePath(RUTA);
-  revalidatePath(`${RUTA}/${id}`);
 }
 
 /**
@@ -138,50 +170,57 @@ export async function retirarInformeAction(fd: FormData): Promise<void> {
  * antes dejaría informes que el sistema cree enviados y el agricultor nunca
  * recibió, que es la peor de las dos mentiras posibles.
  */
-export async function enviarInformeAction(fd: FormData): Promise<void> {
-  const s = await requireEnvioAlAgricultor();
-  const id = Number(fd.get("id"));
-  if (!Number.isInteger(id) || id <= 0) return;
+export async function enviarInformeAction(_prev: Resultado, fd: FormData): Promise<Resultado> {
+  try {
+    const s = await requireEnvioAlAgricultor();
+    const id = Number(fd.get("id"));
+    if (!Number.isInteger(id) || id <= 0) return { error: "Informe inválido" };
 
-  const { informe } = await informeEnAlcance(id);
-  if (informe.tipo !== "visita") {
-    throw new Error("El informe mensual no sale por WhatsApp. Márcalo como enviado cuando lo despaches.");
-  }
-  if (informe.estado === "enviado") return;
-  if (informe.estado !== "aprobado") {
-    throw new Error("Este informe no tiene visto bueno. Nada sale de Tuniche sin él.");
-  }
-  // Un informe de demostración habla de un agricultor inventado. Que su teléfono
-  // también sea inventado no basta: un número de ocho dígitos siempre puede
-  // pertenecer a alguien, y el día que llegue un WhatsApp con observaciones
-  // agronómicas de un campo que no existe, la explicación va a llegar tarde.
-  if (informe.demo) {
-    throw new Error(
-      "Este es un informe de demostración y no se envía a nadie. El flujo se puede recorrer entero, pero el despacho real está bloqueado.",
+    const { informe } = await informeEnAlcance(id);
+    if (informe.tipo !== "visita") {
+      return {
+        error: "El informe mensual no sale por WhatsApp. Márcalo como enviado cuando lo despaches.",
+      };
+    }
+    if (informe.estado === "enviado") return { ok: "Este informe ya salió." };
+    if (informe.estado !== "aprobado") {
+      return { error: "Este informe no tiene visto bueno. Nada sale de Tuniche sin él." };
+    }
+    if (informe.demo) {
+      return {
+        error:
+          "Este es un informe de demostración y no se envía a nadie. El flujo se puede recorrer entero, pero el despacho real está bloqueado.",
+      };
+    }
+
+    const [ag] = await db
+      .select({ telefono: tunicheAgricultores.telefono, nombre: tunicheAgricultores.razonSocial })
+      .from(tunicheAgricultores)
+      .where(eq(tunicheAgricultores.id, informe.agricultorId!))
+      .limit(1);
+
+    if (!ag?.telefono) {
+      return {
+        error: `${ag?.nombre ?? "Este agricultor"} no tiene teléfono registrado. Cárgalo en su ficha y vuelve a intentarlo.`,
+      };
+    }
+
+    await enviarWhatsApp(
+      ag.telefono,
+      textoWhatsApp(informe.contenido as unknown as ContenidoVisita),
     );
+
+    await db
+      .update(tunicheInformes)
+      .set({ estado: "enviado", enviadoPor: s.userId, enviadoEn: new Date(), enviadoA: ag.telefono })
+      .where(eq(tunicheInformes.id, id));
+
+    revalidatePath(RUTA);
+    revalidatePath(`${RUTA}/${id}`);
+    return { ok: `Informe enviado a ${ag.nombre}.` };
+  } catch (err) {
+    return { error: mensaje(err) };
   }
-
-  const [ag] = await db
-    .select({ telefono: tunicheAgricultores.telefono, nombre: tunicheAgricultores.razonSocial })
-    .from(tunicheAgricultores)
-    .where(eq(tunicheAgricultores.id, informe.agricultorId!))
-    .limit(1);
-
-  if (!ag?.telefono) {
-    throw new Error(
-      `${ag?.nombre ?? "Este agricultor"} no tiene teléfono registrado. Sin eso no hay a quién enviarle el informe.`,
-    );
-  }
-
-  await enviarWhatsApp(ag.telefono, textoWhatsApp(informe.contenido as unknown as ContenidoVisita));
-
-  await db
-    .update(tunicheInformes)
-    .set({ estado: "enviado", enviadoPor: s.userId, enviadoEn: new Date(), enviadoA: ag.telefono })
-    .where(eq(tunicheInformes.id, id));
-
-  revalidatePath(RUTA);
-  revalidatePath(`${RUTA}/${id}`);
 }
 
 /**
@@ -192,23 +231,28 @@ export async function enviarInformeAction(fd: FormData): Promise<void> {
  * sistema registra el hecho —quién lo despachó, cuándo y a qué destinatario—,
  * que es lo que hoy no queda escrito en ninguna parte.
  */
-export async function marcarEnviadoAction(fd: FormData): Promise<void> {
-  const s = await requireEnvioAlAgricultor();
-  const id = Number(fd.get("id"));
-  const destinatario = ((fd.get("destinatario") as string) ?? "").trim();
-  if (!Number.isInteger(id) || id <= 0) return;
-  if (!destinatario) throw new Error("Anota a quién se le envió");
+export async function marcarEnviadoAction(_prev: Resultado, fd: FormData): Promise<Resultado> {
+  try {
+    const s = await requireEnvioAlAgricultor();
+    const id = Number(fd.get("id"));
+    const destinatario = ((fd.get("destinatario") as string) ?? "").trim();
+    if (!Number.isInteger(id) || id <= 0) return { error: "Informe inválido" };
+    if (!destinatario) return { error: "Anota a quién se le envió" };
 
-  const { informe } = await informeEnAlcance(id);
-  if (informe.estado !== "aprobado") {
-    throw new Error("Este informe no tiene visto bueno. Nada sale de Tuniche sin él.");
+    const { informe } = await informeEnAlcance(id);
+    if (informe.estado !== "aprobado") {
+      return { error: "Este informe no tiene visto bueno. Nada sale de Tuniche sin él." };
+    }
+
+    await db
+      .update(tunicheInformes)
+      .set({ estado: "enviado", enviadoPor: s.userId, enviadoEn: new Date(), enviadoA: destinatario })
+      .where(eq(tunicheInformes.id, id));
+
+    revalidatePath(RUTA);
+    revalidatePath(`${RUTA}/${id}`);
+    return { ok: `Registrado como enviado a ${destinatario}.` };
+  } catch (err) {
+    return { error: mensaje(err) };
   }
-
-  await db
-    .update(tunicheInformes)
-    .set({ estado: "enviado", enviadoPor: s.userId, enviadoEn: new Date(), enviadoA: destinatario })
-    .where(eq(tunicheInformes.id, id));
-
-  revalidatePath(RUTA);
-  revalidatePath(`${RUTA}/${id}`);
 }

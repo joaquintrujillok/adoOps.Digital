@@ -3,12 +3,10 @@ import { notFound } from "next/navigation";
 import { nombreArea } from "@/lib/tuniche/areas";
 import { alcanceActual, requireSesion } from "@/lib/tuniche/auth.actions";
 import { informePorId, textoWhatsApp } from "@/lib/tuniche/informes";
-import {
-  aprobarInformeAction,
-  enviarInformeAction,
-  marcarEnviadoAction,
-  retirarInformeAction,
-} from "@/lib/tuniche/informes.actions";
+import { eq } from "drizzle-orm";
+import { db } from "@/db";
+import { tunicheAgricultores } from "@/db/tuniche";
+import AccionesInforme from "@/components/tuniche/AccionesInforme";
 import { puedeEnviarAlAgricultor } from "@/lib/tuniche/session";
 import type { ContenidoMensual, ContenidoVisita } from "@/db/tuniche";
 import Demo from "@/components/tuniche/Demo";
@@ -66,6 +64,20 @@ export default async function InformeDetalle({ params }: { params: Promise<{ id:
   if (!informe) notFound();
 
   const puede = puedeEnviarAlAgricultor(s);
+
+  // Se consulta ANTES de pintar los controles. Sin teléfono no hay a quién
+  // enviarle, y ofrecer el botón para explicarlo recién cuando falla es peor que
+  // no ofrecerlo: la persona ya hizo el gesto y no sabe qué tiene que arreglar.
+  const [ag] = informe.agricultorId
+    ? await db
+        .select({
+          telefono: tunicheAgricultores.telefono,
+          nombre: tunicheAgricultores.razonSocial,
+        })
+        .from(tunicheAgricultores)
+        .where(eq(tunicheAgricultores.id, informe.agricultorId))
+        .limit(1)
+    : [undefined];
   const esVisita = informe.tipo === "visita";
   const cv = esVisita ? (informe.contenido as unknown as ContenidoVisita) : null;
   const cm = !esVisita ? (informe.contenido as unknown as ContenidoMensual) : null;
@@ -253,78 +265,18 @@ export default async function InformeDetalle({ params }: { params: Promise<{ id:
           Salida
         </h2>
 
-        {informe.estado === "enviado" ? (
-          <p className="mt-3 text-[14px]" style={{ color: "var(--tun-ok)" }}>
-            ✓ Enviado el {fechaLarga(informe.enviadoEn!)}
-            {informe.enviadoA ? ` a ${informe.enviadoA}` : ""}. Este documento ya no se
-            puede modificar ni retirar: el destinatario lo tiene.
-          </p>
-        ) : informe.estado === "aprobado" ? (
-          <div className="mt-3 space-y-4">
-            <p className="text-[14px]" style={{ color: "var(--tun-ink-2)" }}>
-              Con visto bueno de <b>{informe.aprobadoPorNombre}</b>. Puede salir.
-            </p>
-            {puede && esVisita && (
-              <form action={enviarInformeAction} className="flex flex-wrap items-center gap-3">
-                <input type="hidden" name="id" value={informe.id} />
-                <button type="submit" className="tun-boton">
-                  Enviar al agricultor por WhatsApp
-                </button>
-              </form>
-            )}
-            {puede && !esVisita && (
-              // El mensual va al cliente en el extranjero y hoy no tenemos su
-              // canal. En vez de inventar una integración que nadie pidió, se
-              // registra el hecho, que es lo que hoy no queda escrito en ninguna
-              // parte: quién lo despachó, cuándo y a quién.
-              <form action={marcarEnviadoAction} className="flex flex-wrap items-end gap-3">
-                <input type="hidden" name="id" value={informe.id} />
-                <div className="min-w-[260px] flex-1">
-                  <label htmlFor="destinatario" className="tun-etiqueta">
-                    ¿A quién se lo enviaste?
-                  </label>
-                  <input
-                    id="destinatario"
-                    name="destinatario"
-                    required
-                    className="tun-campo"
-                    placeholder="correo o nombre del contacto del cliente"
-                  />
-                </div>
-                <button type="submit" className="tun-boton">
-                  Marcar como enviado
-                </button>
-              </form>
-            )}
-            {puede && (
-              <form action={retirarInformeAction}>
-                <input type="hidden" name="id" value={informe.id} />
-                <button type="submit" className="tun-boton-suave">
-                  Retirar visto bueno
-                </button>
-              </form>
-            )}
-          </div>
-        ) : puede ? (
-          <div className="mt-3 space-y-3">
-            <p className="text-[14px]" style={{ color: "var(--tun-ink-2)" }}>
-              Este informe está en borrador. <b>Nada sale de Tuniche sin visto bueno</b>, y
-              se da sobre el documento de arriba: lo que apruebas es exactamente lo que
-              va a recibir el destinatario.
-            </p>
-            <form action={aprobarInformeAction}>
-              <input type="hidden" name="id" value={informe.id} />
-              <button type="submit" className="tun-boton">
-                Dar visto bueno
-              </button>
-            </form>
-          </div>
-        ) : (
-          <p className="mt-3 text-[14px]" style={{ color: "var(--tun-muted)" }}>
-            En borrador, esperando el visto bueno de la jefatura de tu área. Nada sale de
-            Tuniche sin eso.
-          </p>
-        )}
+        <AccionesInforme
+          id={informe.id}
+          tipo={informe.tipo}
+          estado={informe.estado}
+          puede={puede}
+          demo={informe.demo}
+          aprobadoPor={informe.aprobadoPorNombre}
+          enviadoEn={informe.enviadoEn ? fechaLarga(informe.enviadoEn) : null}
+          enviadoA={informe.enviadoA}
+          agricultor={ag?.nombre ?? null}
+          telefono={ag?.telefono ?? null}
+        />
       </section>
 
       {/* La vista previa del mensaje que realmente sale, armada con la MISMA

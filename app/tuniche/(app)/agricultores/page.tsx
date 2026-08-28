@@ -3,6 +3,7 @@ import { nombreArea } from "@/lib/tuniche/areas";
 import { alcanceActual } from "@/lib/tuniche/auth.actions";
 import { listarAgricultores } from "@/lib/tuniche/visitas";
 import Demo from "@/components/tuniche/Demo";
+import ContactoAgricultor from "@/components/tuniche/ContactoAgricultor";
 
 export const dynamic = "force-dynamic";
 
@@ -71,6 +72,23 @@ export default async function Agricultores() {
                 {a.lotes.length} {a.lotes.length === 1 ? "lote" : "lotes"}
               </span>
             </div>
+
+            <details className="mt-4">
+              <summary
+                className="cursor-pointer text-[13px] font-medium"
+                style={{ color: a.telefono ? "var(--tun-brand)" : "var(--tun-alerta)" }}
+              >
+                {a.telefono ? "Editar contacto" : "Cargar teléfono y contacto"}
+              </summary>
+              <div className="mt-3 border-t pt-3" style={{ borderColor: "var(--tun-border)" }}>
+                <ContactoAgricultor
+                  id={a.id}
+                  nombreContacto={a.nombreContacto}
+                  telefono={a.telefono}
+                  email={a.email}
+                />
+              </div>
+            </details>
 
             <div className="mt-4 flex flex-wrap gap-2">
               {a.lotes.map((l) => (
