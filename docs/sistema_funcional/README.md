@@ -310,6 +310,42 @@ Dos tipos, un solo repositorio:
 | `visita` | Lo que Francisco hoy manda por WhatsApp tras cada recorrido | El agricultor | WhatsApp, con el mismo texto que muestra la vista previa |
 | `mensual` | Lo que René arma a mano pegando fotos de Drive en un PowerPoint | El cliente en el extranjero | Se imprime y se despacha; el sistema registra a quién y cuándo |
 
+### El PDF y las fotos
+
+El informe de visita sale al agricultor como **PDF adjunto más un texto breve**,
+en un solo mensaje: así ve de qué se trata sin abrir nada y tiene el detalle si
+lo quiere, en vez de recibir dos notificaciones por la misma visita. Antes el
+informe entero viajaba como texto — un muro de viñetas en una burbuja de
+WhatsApp, sin fotos.
+
+Se genera con `@react-pdf/renderer`, traído del CRM de CDC, y no con un navegador
+headless: Puppeteer en Vercel pesa unos 50 MB, hay que mantenerlo al día con
+Chromium y arranca lento.
+
+El archivo **se sube a WaSender** en vez de exponer una URL propia. El documento
+lleva el nombre de un agricultor, su lote y lo que se observó en su campo;
+publicarlo en una ruta sin sesión para que el proveedor la alcance sería filtrar
+el informe de un cliente por conveniencia.
+
+`/api/tuniche/informes/[id]/pdf` sirve el mismo documento al navegador, para
+revisarlo **sin gastar un envío**.
+
+**Las fotos entran de dos formas.** La imagen normal y la mandada *como
+documento* —que es lo que hace la gente para que WhatsApp no le recomprima la
+foto, el caso de las de dron—. Antes esas segundas llegaban y se ignoraban en
+silencio, que es la peor manera de perder una foto: nadie se entera.
+
+Y como las fotos llegan **después** del audio, en mensajes aparte, una que
+aterriza cuando el informe ya estaba generado entra igual al snapshot. Según el
+estado: en `borrador` se actualiza; en `aprobado` se actualiza y **se retira el
+visto bueno**, porque lo aprobado no tenía esa foto; en `enviado` no se toca nada
+y se le avisa a quien la mandó.
+
+En el PDF solo se incrustan PNG y JPEG: las fotos de demostración son SVG, que
+react-pdf no dibuja, y pasárselas reventaría el documento entero por una imagen
+de mentira. Un hueco rotulado con el motivo es mejor que un informe que no se
+generó.
+
 **Una visita produce un informe y solo uno** (índice único sobre `visita_id`).
 Dos constancias del mismo hecho, con contenidos que pueden diferir, es peor que
 ninguna.

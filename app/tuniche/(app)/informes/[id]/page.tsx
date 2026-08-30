@@ -288,8 +288,12 @@ export default async function InformeDetalle({ params }: { params: Promise<{ id:
             className="text-[11px] font-semibold uppercase tracking-[0.16em]"
             style={{ color: "var(--tun-muted)" }}
           >
-            Lo que va a recibir por WhatsApp
+            El mensaje que acompaña al PDF
           </h2>
+          <p className="mt-1 text-[12.5px]" style={{ color: "var(--tun-muted)" }}>
+            Va como epígrafe del adjunto, en el mismo mensaje. El detalle y las fotos
+            viajan en el PDF.
+          </p>
           <pre
             className="mt-3 whitespace-pre-wrap rounded-lg p-4 text-[13px]"
             style={{

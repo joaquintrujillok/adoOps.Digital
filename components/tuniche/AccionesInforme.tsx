@@ -97,13 +97,30 @@ export default function AccionesInforme({
   const esVisita = tipo === "visita";
   const sinTelefono = esVisita && !telefono;
 
+  // El PDF se puede mirar en cualquier estado, y conviene que así sea: es lo
+  // que va a recibir el agricultor, y quien da el visto bueno debería poder
+  // abrirlo antes de darlo — no después.
+  const verPdf = esVisita ? (
+    <a
+      href={`/api/tuniche/informes/${id}/pdf`}
+      target="_blank"
+      rel="noreferrer"
+      className="tun-boton-suave"
+    >
+      Ver el PDF que se adjunta
+    </a>
+  ) : null;
+
   if (estado === "enviado") {
     return (
-      <p className="mt-3 text-[14px]" style={{ color: "var(--tun-ok)" }}>
-        ✓ Enviado el {enviadoEn}
-        {enviadoA ? ` a ${enviadoA}` : ""}. Este documento ya no se puede modificar ni
-        retirar: el destinatario lo tiene.
-      </p>
+      <div className="mt-3 space-y-3">
+        <p className="text-[14px]" style={{ color: "var(--tun-ok)" }}>
+          ✓ Enviado el {enviadoEn}
+          {enviadoA ? ` a ${enviadoA}` : ""}, con el PDF adjunto. Este documento ya no se
+          puede modificar ni retirar: el destinatario lo tiene.
+        </p>
+        {verPdf}
+      </div>
     );
   }
 
@@ -149,13 +166,18 @@ export default function AccionesInforme({
         )}
 
         {puede && esVisita && !sinTelefono && !demo && (
-          <form action={enviar}>
+          <form action={enviar} className="flex flex-wrap items-center gap-3">
             <input type="hidden" name="id" value={id} />
             <button type="submit" disabled={enviando} className="tun-boton">
               {enviando ? "Enviando…" : "Enviar al agricultor por WhatsApp"}
             </button>
+            <span className="text-[12.5px]" style={{ color: "var(--tun-muted)" }}>
+              Va el PDF adjunto y el texto de abajo como epígrafe, en un solo mensaje.
+            </span>
           </form>
         )}
+
+        {verPdf}
 
         {puede && !esVisita && (
           <form action={marcar} className="flex flex-wrap items-end gap-3">
@@ -216,12 +238,15 @@ export default function AccionesInforme({
         </p>
       )}
       <Aviso estado={aprobado} />
-      <form action={aprobar}>
-        <input type="hidden" name="id" value={id} />
-        <button type="submit" disabled={aprobando} className="tun-boton">
-          {aprobando ? "Guardando…" : "Dar visto bueno"}
-        </button>
-      </form>
+      <div className="flex flex-wrap items-center gap-3">
+        <form action={aprobar}>
+          <input type="hidden" name="id" value={id} />
+          <button type="submit" disabled={aprobando} className="tun-boton">
+            {aprobando ? "Guardando…" : "Dar visto bueno"}
+          </button>
+        </form>
+        {verPdf}
+      </div>
     </div>
   );
 }

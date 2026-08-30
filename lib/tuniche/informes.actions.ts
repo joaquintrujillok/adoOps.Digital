@@ -4,12 +4,19 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { tunicheAgricultores, tunicheInformes, type ContenidoVisita } from "@/db/tuniche";
+import {
+  tunicheAgricultores,
+  tunicheInformes,
+  tunicheUsuarios,
+  type ContenidoVisita,
+} from "@/db/tuniche";
 import { esAreaValida, type AreaId } from "./areas";
 import { requireEnvioAlAgricultor, requireSesion } from "./auth.actions";
 import { generarDeVisita, generarMensual, textoWhatsApp } from "./informes";
 import { alcanceDe } from "./session";
 import { enviarWhatsApp } from "./whatsapp";
+import { generarPdfInforme, nombrePdf } from "./pdf-informe";
+import { sendDocument, uploadFile } from "@/lib/wasender";
 
 const RUTA = "/tuniche/informes";
 
@@ -205,10 +212,46 @@ export async function enviarInformeAction(_prev: Resultado, fd: FormData): Promi
       };
     }
 
-    await enviarWhatsApp(
-      ag.telefono,
-      textoWhatsApp(informe.contenido as unknown as ContenidoVisita),
-    );
+    const contenido = informe.contenido as unknown as ContenidoVisita;
+    const texto = textoWhatsApp(contenido);
+
+    // El PDF se arma, se sube y se manda en UN mensaje con el texto de epígrafe.
+    // Si algo de eso falla, NO se marca como enviado: un informe que el sistema
+    // cree enviado y el agricultor nunca recibió es la peor de las dos mentiras
+    // posibles, y la única que nadie va a ir a comprobar.
+    let pdf: Buffer;
+    try {
+      // El nombre de quien aprobó se busca acá: `informeEnAlcance` devuelve la
+      // fila cruda y el pie del PDF lo necesita escrito, no como id.
+      const [aprobador] = informe.aprobadoPor
+        ? await db
+            .select({ nombre: tunicheUsuarios.nombre })
+            .from(tunicheUsuarios)
+            .where(eq(tunicheUsuarios.id, informe.aprobadoPor))
+            .limit(1)
+        : [undefined];
+
+      pdf = await generarPdfInforme({
+        contenido,
+        demo: informe.demo,
+        generadoPor: null,
+        aprobadoPor: aprobador?.nombre ?? null,
+      });
+    } catch (err) {
+      console.error("tuniche/pdf:", err);
+      return { error: "No se pudo armar el PDF del informe. Intenta de nuevo." };
+    }
+
+    const subida = await uploadFile(pdf, "application/pdf");
+    if (!subida.ok) return { error: `No se pudo subir el informe: ${subida.message}` };
+
+    const salio = await sendDocument(ag.telefono, subida.url, nombrePdf(contenido), texto);
+    if (!salio) {
+      return {
+        error:
+          "WhatsApp no aceptó el envío. El informe sigue con su visto bueno; vuelve a intentarlo.",
+      };
+    }
 
     await db
       .update(tunicheInformes)
@@ -217,7 +260,7 @@ export async function enviarInformeAction(_prev: Resultado, fd: FormData): Promi
 
     revalidatePath(RUTA);
     revalidatePath(`${RUTA}/${id}`);
-    return { ok: `Informe enviado a ${ag.nombre}.` };
+    return { ok: `Informe enviado a ${ag.nombre} con el PDF adjunto.` };
   } catch (err) {
     return { error: mensaje(err) };
   }

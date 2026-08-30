@@ -155,6 +155,57 @@ export async function generarDeVisita(
   return { id: creado.id, yaExistia: false };
 }
 
+/**
+ * Vuelve a poner las fotos de una visita dentro del snapshot de su informe.
+ *
+ * **Hace falta porque las fotos llegan después.** El zonal manda el audio y a
+ * continuación las fotos, en mensajes aparte; si entremedio alguien generó el
+ * informe, el snapshot quedó congelado sin ellas y el agricultor recibiría un
+ * informe al que le faltan justo las imágenes de su campo — que es la mitad de
+ * lo que quiere ver.
+ *
+ * Qué hace según el estado, que no es lo mismo en los tres casos:
+ *
+ * - `borrador` — actualiza el snapshot. Nadie aprobó nada todavía.
+ * - `aprobado` — actualiza y **retira el visto bueno**. Lo que se aprobó no
+ *   tenía esa foto; dejarlo aprobado sería cambiar en silencio un documento que
+ *   alguien ya revisó.
+ * - `enviado` — no toca nada. El agricultor ya lo tiene; el sistema no puede
+ *   fingir que le llegó algo distinto.
+ *
+ * Devuelve qué pasó, para poder decírselo a quien mandó la foto.
+ */
+export async function refrescarFotos(
+  visitaId: number,
+): Promise<"sin-informe" | "actualizado" | "visto-bueno-retirado" | "ya-enviado"> {
+  const [inf] = await db
+    .select()
+    .from(tunicheInformes)
+    .where(eq(tunicheInformes.visitaId, visitaId))
+    .limit(1);
+  if (!inf) return "sin-informe";
+  if (inf.estado === "enviado") return "ya-enviado";
+
+  const fotos = await db
+    .select({ url: tunicheFotos.url, tipo: tunicheFotos.tipo })
+    .from(tunicheFotos)
+    .where(eq(tunicheFotos.visitaId, visitaId))
+    .orderBy(asc(tunicheFotos.id));
+
+  const contenido = { ...(inf.contenido as unknown as ContenidoVisita), fotos };
+  const retira = inf.estado === "aprobado";
+
+  await db
+    .update(tunicheInformes)
+    .set({
+      contenido: contenido as unknown as Record<string, unknown>,
+      ...(retira ? { estado: "borrador", aprobadoPor: null, aprobadoEn: null } : {}),
+    })
+    .where(eq(tunicheInformes.id, inf.id));
+
+  return retira ? "visto-bueno-retirado" : "actualizado";
+}
+
 /** Los clientes que tienen lotes en un área. Es por quién se agrupa el mensual. */
 export async function clientesDe(area: AreaId): Promise<string[]> {
   const filas = await db
@@ -386,16 +437,22 @@ export async function informesDeLote(loteId: number): Promise<TunicheInforme[]> 
     .orderBy(desc(tunicheInformes.generadoEn));
 }
 
-// ─── El texto que sale por WhatsApp ──────────────────────────────────────────
+// ─── El texto que acompaña al PDF ────────────────────────────────────────────
 
 /**
- * La versión en texto del informe de visita.
+ * El epígrafe del mensaje que recibe el agricultor.
+ *
+ * **Corto a propósito, porque ya no carga el detalle: lo carga el PDF adjunto.**
+ * Antes este texto era el informe entero y llegaba como un muro de viñetas en
+ * una burbuja de WhatsApp — legible a medias en un teléfono y sin las fotos.
+ * Ahora dice lo justo para que alguien sepa de qué se trata sin abrir nada, y
+ * quien quiera el detalle abre el archivo.
  *
  * Vive acá y no en la pantalla, por la misma razón que el CRM separó el texto de
- * su cotización: la vista previa y el mensaje que realmente sale tienen que
- * usar la misma función. Si la pantalla reconstruyera el texto por su cuenta, el
- * día que alguien cambie una línea estaría dando el visto bueno a algo distinto
- * de lo que se envía.
+ * su cotización: la vista previa y el mensaje que realmente sale usan esta misma
+ * función. Si la pantalla reconstruyera el texto por su cuenta, el día que
+ * alguien cambie una línea estaría dando el visto bueno a algo distinto de lo
+ * que se envía.
  */
 export function textoWhatsApp(c: ContenidoVisita): string {
   const fecha = new Intl.DateTimeFormat("es-CL", {
@@ -406,22 +463,20 @@ export function textoWhatsApp(c: ContenidoVisita): string {
 
   const L: string[] = [];
   L.push(`*Semillas Tuniche · Visita a campo*`);
-  L.push(`${fecha}`);
-  L.push("");
-  L.push(`*Lote:* ${c.lote}${c.cultivo ? ` · ${c.cultivo}` : ""}${c.variedad ? ` ${c.variedad}` : ""}`);
-  if (c.hectareas) L.push(`*Superficie:* ${c.hectareas} ha`);
-  if (c.etapa) L.push(`*Etapa:* ${c.etapa}`);
+  L.push(`${c.lote}${c.cultivo ? ` · ${c.cultivo}` : ""} — ${fecha}`);
   L.push("");
   if (c.resumen) {
     L.push(c.resumen);
     L.push("");
   }
-  for (const campo of c.campos) L.push(`• ${campo.etiqueta}: ${campo.valor}`);
-  if (c.notaAgronomica != null) L.push(`• Nota agronómica: ${c.notaAgronomica}%`);
-  if (c.fotos.length) {
-    L.push("");
-    L.push(`Se adjuntan ${c.fotos.length} ${c.fotos.length === 1 ? "foto" : "fotos"}.`);
-  }
+  if (c.notaAgronomica != null) L.push(`Nota agronómica: *${c.notaAgronomica}%*`);
+
+  const n = c.fotos?.length ?? 0;
+  L.push(
+    n > 0
+      ? `El detalle y las ${n} ${n === 1 ? "foto" : "fotos"} van en el informe adjunto.`
+      : "El detalle va en el informe adjunto.",
+  );
   L.push("");
   L.push(`Visita realizada por ${c.zonal}.`);
   return L.join("\n");

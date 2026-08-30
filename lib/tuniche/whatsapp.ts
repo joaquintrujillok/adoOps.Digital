@@ -19,6 +19,7 @@ import { put } from "@vercel/blob";
 import { transcribeFromUrl } from "@/lib/stt";
 import {
   decryptAudio,
+  decryptDocument,
   decryptImage,
   extractText,
   sendText,
@@ -28,6 +29,7 @@ import type { AreaId } from "./areas";
 import { nombreArea } from "./areas";
 import { VISITA } from "./plantillas";
 import { extraerVisita, type LoteCandidato } from "./extraccion";
+import { refrescarFotos } from "./informes";
 import { usuarioPorTelefono } from "./usuarios";
 import type { TunicheUsuario } from "@/db/tuniche";
 import {
@@ -424,20 +426,39 @@ export async function procesarMensajeTuniche(msg: WaIncomingMessage): Promise<bo
     }
 
     // 2) Foto — se pega a la última visita de esta persona.
-    if (msg.message?.imageMessage) {
+    //
+    // Entran las dos formas: la imagen normal y la mandada **como documento**,
+    // que es lo que hace la gente para que WhatsApp no le recomprima la foto —
+    // el caso de las de dron. Antes esas llegaban y se ignoraban en silencio,
+    // que es la peor manera de perder una foto: nadie se entera.
+    const comoImagen = Boolean(msg.message?.imageMessage);
+    const comoDocumento =
+      Boolean(msg.message?.documentMessage) &&
+      /^image\//i.test(msg.message?.documentMessage?.mimetype ?? "");
+
+    if (comoImagen || comoDocumento) {
       const visita = await ultimaVisita(u.id);
       if (!visita) {
-        await enviarWhatsApp(u.telefono, "Recibí la foto, pero todavía no hay una visita a la cual pegarla. Mándame primero el audio.");
+        await enviarWhatsApp(
+          u.telefono,
+          "Recibí la foto, pero todavía no hay una visita a la cual pegarla. Mándame primero el audio.",
+        );
         return true;
       }
-      const temporal = await decryptImage(msg);
+      const temporal = comoImagen ? await decryptImage(msg) : await decryptDocument(msg);
       if (!temporal) {
         await enviarWhatsApp(u.telefono, "⚠️ No pude descargar la foto. ¿La reenvías?");
         return true;
       }
       const url = await copiarFoto(temporal, visita.id, msg.key.id);
-      // El pie de foto decide el tipo: en Altué se pide general, hembra y macho.
-      const pie = (msg.message.imageMessage.caption ?? "").toLowerCase();
+
+      // El pie decide el tipo: en Altué se pide general, de hembra y de macho.
+      const pie = (
+        msg.message?.imageMessage?.caption ??
+        msg.message?.documentMessage?.caption ??
+        msg.message?.documentMessage?.fileName ??
+        ""
+      ).toLowerCase();
       const tipo = pie.includes("hembra")
         ? "hembra"
         : pie.includes("macho")
@@ -445,8 +466,24 @@ export async function procesarMensajeTuniche(msg: WaIncomingMessage): Promise<bo
           : pie.includes("dron") || pie.includes("drone")
             ? "dron"
             : "general";
+
       await guardarFoto({ visitaId: visita.id, url, tipo, waMessageId: msg.key.id });
-      await enviarWhatsApp(u.telefono, `📷 Foto guardada (${tipo}) en tu última visita.`);
+
+      // Si el informe ya estaba generado, la foto tiene que entrar igual: el
+      // snapshot se congela, pero congelarlo sin las fotos que venían en camino
+      // sería mandarle al agricultor un informe al que le faltan justo las
+      // imágenes de su campo.
+      const efecto = await refrescarFotos(visita.id);
+      const cola = {
+        "sin-informe": "",
+        actualizado: "\n\nTambién quedó dentro del informe.",
+        "visto-bueno-retirado":
+          "\n\n⚠️ El informe ya tenía visto bueno y se retiró: lo aprobado no incluía esta foto. Hay que volver a aprobarlo.",
+        "ya-enviado":
+          "\n\n⚠️ El informe de esta visita ya se le envió al agricultor, así que esta foto NO va en él.",
+      }[efecto];
+
+      await enviarWhatsApp(u.telefono, `📷 Foto guardada (${tipo}) en tu última visita.${cola}`);
       return true;
     }
 

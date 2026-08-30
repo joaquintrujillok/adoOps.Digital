@@ -16,6 +16,7 @@
   "dependencies": {
     "@getbrevo/brevo": "^5.0.4",
     "@neondatabase/serverless": "^1.1.0",
+    "@react-pdf/renderer": "^4.9.0",
     "@sentry/nextjs": "^10.59.0",
     "@vercel/blob": "^2.6.1",
     "drizzle-kit": "^0.31.10",
