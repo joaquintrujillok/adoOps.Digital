@@ -4,7 +4,7 @@
 // nada muta. Eso permite que el flujo de WhatsApp —que no es una acción de
 // formulario— use `usuarioPorTelefono` sin arrastrar el resto.
 
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { tunicheUsuarios, type TunicheUsuario } from "@/db/tuniche";
 import { normalizarTelefono } from "@/lib/crm/telefono";
@@ -69,4 +69,25 @@ export async function usuarioPorTelefono(
 
   if (!u || !u.activo) return null;
   return u;
+}
+
+/**
+ * Quién recibe los informes de un área.
+ *
+ * Devuelve `null` si nadie está marcado o si quien lo está no tiene teléfono —
+ * los dos casos impiden enviar, y la pantalla tiene que poder decir cuál es.
+ */
+export async function receptorDe(area: string): Promise<TunicheUsuario | null> {
+  const [u] = await db
+    .select()
+    .from(tunicheUsuarios)
+    .where(
+      and(
+        eq(tunicheUsuarios.area, area),
+        eq(tunicheUsuarios.recibeInformes, true),
+        eq(tunicheUsuarios.activo, true),
+      ),
+    )
+    .limit(1);
+  return u ?? null;
 }

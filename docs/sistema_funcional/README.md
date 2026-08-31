@@ -307,8 +307,33 @@ Dos tipos, un solo repositorio:
 
 | Tipo | Qué es | Destinatario | Cómo sale |
 |---|---|---|---|
-| `visita` | Lo que Francisco hoy manda por WhatsApp tras cada recorrido | El agricultor | WhatsApp, con el mismo texto que muestra la vista previa |
+| `visita` | Lo que Francisco hoy manda por WhatsApp tras cada recorrido | **Quien recibe los informes de su área**, que lo reenvía | WhatsApp, con el PDF adjunto |
 | `mensual` | Lo que René arma a mano pegando fotos de Drive en un PowerPoint | El cliente en el extranjero | Se imprime y se despacha; el sistema registra a quién y cuándo |
+
+### A quién llega el informe
+
+**Durante la prueba de concepto nada sale directo al agricultor.** El PDF le llega
+a una persona de Tuniche —Francisco Pinochet en Mercado Nacional, René Ortiz en
+Producción Altué— que lo reenvía desde su propio WhatsApp, que es exactamente
+como trabajan hoy.
+
+Eso destrabó la POC: el teléfono de cada agricultor **dejó de ser un requisito**
+para poder enviar. Sigue haciendo falta el día que el sistema le escriba al
+agricultor directo, pero ya no bloquea nada.
+
+Se declara con la marca `recibe_informes` en la ficha de la persona, y **no se
+deduce del rol**. Que hoy coincida con los dos jefes es una coincidencia de esta
+etapa; el día que alguien esté de vacaciones van a querer cambiar quién recibe sin
+tocarle el cargo. Una sola persona activa por área: dos serían dos copias del
+mismo informe y nadie sabría cuál reenviar.
+
+El mensaje que recibe lleva una primera línea para él —«Informe listo para X,
+reenvíale el PDF con el texto de abajo»— y debajo el texto **tal cual** debería
+leerlo el agricultor, para que pueda reenviarlo sin reescribirlo.
+
+Y `enviado_a` guarda a quién llegó **de verdad**, no a quién estaba dirigido: un
+registro con el nombre del agricultor afirmaría que le llegó a él, y eso todavía
+lo hace una persona.
 
 ### El PDF y las fotos
 

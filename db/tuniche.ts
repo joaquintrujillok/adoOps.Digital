@@ -92,6 +92,22 @@ export const tunicheUsuarios = pgTable(
      * `zonal` es siempre NULL — su `area` ya responde la pregunta.
      */
     areaAudio: varchar("area_audio", { length: 20 }),
+    /**
+     * Quién recibe los informes de su área.
+     *
+     * **Durante la prueba de concepto nada sale directo al agricultor.** El PDF
+     * llega a una persona de Tuniche —Francisco en Mercado Nacional, René en
+     * Producción Altué— y esa persona lo reenvía desde su propio WhatsApp, que
+     * es exactamente como trabajan hoy. Eso además desbloqueó la POC: dejó de
+     * hacer falta el teléfono de cada agricultor, que era lo único que faltaba.
+     *
+     * **Es una marca explícita y no se deduce de `rol`.** Que hoy coincida con
+     * los jefes es una coincidencia de esta etapa; el día que alguien esté de
+     * vacaciones van a querer cambiar quién recibe sin tocarle el cargo. Una
+     * sola persona activa por área la lleva: dos serían dos copias del mismo
+     * informe y nadie sabría cuál reenviar.
+     */
+    recibeInformes: boolean("recibe_informes").notNull().default(false),
     /** Quién le dio el acceso. La pregunta que siempre se hace después. */
     creadoPor: integer("creado_por"),
     createdAt: timestamp("created_at").defaultNow().notNull(),

@@ -64,6 +64,7 @@ export default function AccionesInforme({
   enviadoEn,
   enviadoA,
   agricultor,
+  receptor,
   telefono,
 }: {
   id: number;
@@ -75,6 +76,8 @@ export default function AccionesInforme({
   enviadoEn: string | null;
   enviadoA: string | null;
   agricultor: string | null;
+  /** Quién recibe el PDF. Durante la POC no es el agricultor. */
+  receptor: string | null;
   telefono: string | null;
 }) {
   const [aprobado, aprobar, aprobando] = useActionState<Resultado, FormData>(
@@ -95,7 +98,7 @@ export default function AccionesInforme({
   );
 
   const esVisita = tipo === "visita";
-  const sinTelefono = esVisita && !telefono;
+  const sinReceptor = esVisita && (!receptor || !telefono);
 
   // El PDF se puede mirar en cualquier estado, y conviene que así sea: es lo
   // que va a recibir el agricultor, y quien da el visto bueno debería poder
@@ -116,7 +119,8 @@ export default function AccionesInforme({
       <div className="mt-3 space-y-3">
         <p className="text-[14px]" style={{ color: "var(--tun-ok)" }}>
           ✓ Enviado el {enviadoEn}
-          {enviadoA ? ` a ${enviadoA}` : ""}, con el PDF adjunto. Este documento ya no se
+          {enviadoA ? ` a ${enviadoA}` : ""}, con el PDF adjunto
+          {agricultor ? `, para reenviar a ${agricultor}` : ""}. Este documento ya no se
           puede modificar ni retirar: el destinatario lo tiene.
         </p>
         {verPdf}
@@ -136,7 +140,7 @@ export default function AccionesInforme({
         {/* Se comprueba ANTES de ofrecer el botón. Ofrecer una acción que no
             puede funcionar y explicarlo recién cuando falla es peor que no
             ofrecerla: la persona ya hizo el gesto y no sabe qué arreglar. */}
-        {puede && sinTelefono && (
+        {puede && sinReceptor && (
           <p
             className="rounded-lg border px-3 py-2.5 text-[13px]"
             style={{
@@ -145,9 +149,17 @@ export default function AccionesInforme({
               color: "var(--tun-alerta)",
             }}
           >
-            <b>{agricultor ?? "Este agricultor"} no tiene teléfono registrado</b>, así que
-            todavía no hay a quién enviarle el informe. Cárgalo en su ficha y el botón
-            aparece.
+            {receptor ? (
+              <>
+                <b>{receptor} recibe los informes de esta área pero no tiene teléfono</b>,
+                así que el PDF no tiene a dónde llegar. Cárgaselo en Usuarios.
+              </>
+            ) : (
+              <>
+                <b>Nadie está marcado para recibir los informes de esta área.</b> Márcalo en
+                la ficha de esa persona, en Usuarios, y el botón aparece.
+              </>
+            )}
           </p>
         )}
 
@@ -165,14 +177,17 @@ export default function AccionesInforme({
           </p>
         )}
 
-        {puede && esVisita && !sinTelefono && !demo && (
+        {puede && esVisita && !sinReceptor && !demo && (
           <form action={enviar} className="flex flex-wrap items-center gap-3">
             <input type="hidden" name="id" value={id} />
             <button type="submit" disabled={enviando} className="tun-boton">
-              {enviando ? "Enviando…" : "Enviar al agricultor por WhatsApp"}
+              {enviando ? "Enviando…" : `Enviar a ${receptor}`}
             </button>
+            {/* Se dice a quién llega Y por qué, porque el botón podría leerse
+                como que el agricultor lo recibe directo — y todavía no. */}
             <span className="text-[12.5px]" style={{ color: "var(--tun-muted)" }}>
-              Va el PDF adjunto y el texto de abajo como epígrafe, en un solo mensaje.
+              El PDF le llega a <b>{receptor}</b> por WhatsApp, para que se lo reenvíe a{" "}
+              {agricultor ?? "el agricultor"}.
             </span>
           </form>
         )}
@@ -231,10 +246,10 @@ export default function AccionesInforme({
         sobre el documento de arriba: lo que apruebas es exactamente lo que va a recibir el
         destinatario.
       </p>
-      {sinTelefono && (
+      {sinReceptor && (
         <p className="text-[13px]" style={{ color: "var(--tun-alerta)" }}>
-          Ojo: {agricultor ?? "este agricultor"} todavía no tiene teléfono, así que aunque
-          le des el visto bueno no se va a poder enviar.
+          Ojo: esta área todavía no tiene a nadie marcado para recibir los informes, así
+          que aunque le des el visto bueno no se va a poder enviar.
         </p>
       )}
       <Aviso estado={aprobado} />

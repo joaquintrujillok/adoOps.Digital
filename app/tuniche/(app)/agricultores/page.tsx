@@ -114,8 +114,9 @@ export default async function Agricultores({
         >
           <b>{sinContacto} de {todos.length} agricultores no tienen teléfono.</b>{" "}
           Ninguna de las dos planillas lo traía — MN mandó las columnas vacías y Altué
-          venía anonimizada. Sin ese dato se puede registrar la visita, pero no
-          enviarle el informe al agricultor.
+          venía anonimizada. <b>Hoy no bloquea nada</b>: durante la prueba de concepto el
+          informe llega a quien recibe los de cada área y esa persona lo reenvía. Hace
+          falta el día que el sistema le escriba al agricultor directo.
         </p>
       )}
 

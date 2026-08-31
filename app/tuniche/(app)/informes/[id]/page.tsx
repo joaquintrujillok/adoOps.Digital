@@ -6,6 +6,7 @@ import { informePorId, textoWhatsApp } from "@/lib/tuniche/informes";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { tunicheAgricultores } from "@/db/tuniche";
+import { receptorDe } from "@/lib/tuniche/usuarios";
 import AccionesInforme from "@/components/tuniche/AccionesInforme";
 import { puedeEnviarAlAgricultor } from "@/lib/tuniche/session";
 import type { ContenidoMensual, ContenidoVisita } from "@/db/tuniche";
@@ -70,14 +71,16 @@ export default async function InformeDetalle({ params }: { params: Promise<{ id:
   // no ofrecerlo: la persona ya hizo el gesto y no sabe qué tiene que arreglar.
   const [ag] = informe.agricultorId
     ? await db
-        .select({
-          telefono: tunicheAgricultores.telefono,
-          nombre: tunicheAgricultores.razonSocial,
-        })
+        .select({ nombre: tunicheAgricultores.razonSocial })
         .from(tunicheAgricultores)
         .where(eq(tunicheAgricultores.id, informe.agricultorId))
         .limit(1)
     : [undefined];
+
+  // Quién recibe el PDF. Durante la POC no es el agricultor: es la persona del
+  // área que lo reenvía. Se consulta ANTES de pintar los controles, porque si no
+  // hay receptor el botón de enviar no puede funcionar y no debe ofrecerse.
+  const receptor = await receptorDe(informe.area);
   const esVisita = informe.tipo === "visita";
   const cv = esVisita ? (informe.contenido as unknown as ContenidoVisita) : null;
   const cm = !esVisita ? (informe.contenido as unknown as ContenidoMensual) : null;
@@ -275,7 +278,8 @@ export default async function InformeDetalle({ params }: { params: Promise<{ id:
           enviadoEn={informe.enviadoEn ? fechaLarga(informe.enviadoEn) : null}
           enviadoA={informe.enviadoA}
           agricultor={ag?.nombre ?? null}
-          telefono={ag?.telefono ?? null}
+          receptor={receptor?.nombre ?? null}
+          telefono={receptor?.telefono ?? null}
         />
       </section>
 

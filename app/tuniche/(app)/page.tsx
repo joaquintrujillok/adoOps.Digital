@@ -118,13 +118,14 @@ export default async function InicioTuniche() {
             className="text-[11px] font-semibold uppercase tracking-[0.16em]"
             style={{ color: "var(--tun-muted)" }}
           >
-            Lo que falta para cerrar el flujo
+            Dato pendiente
           </h2>
           <p className="mt-3 text-[14px]" style={{ color: "var(--tun-ink-2)" }}>
-            <b>{sinTelefono} de {agricultores.length} agricultores no tienen teléfono.</b> Ninguna
-            de las dos planillas lo traía: la de MN mandó las columnas de contacto vacías y la de
-            Altué venía anonimizada. Se puede registrar la visita, pero todavía no hay a quién
-            mandarle el informe.
+            <b>{sinTelefono} de {agricultores.length} agricultores no tienen teléfono.</b>{" "}
+            Ninguna de las dos planillas lo traía. <b>No bloquea la prueba de concepto</b>:
+            el informe le llega a quien recibe los de cada área, que lo reenvía desde su
+            propio WhatsApp. Hace falta el día que el sistema le escriba al agricultor
+            directo.
           </p>
         </section>
       )}

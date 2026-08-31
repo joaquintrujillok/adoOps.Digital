@@ -16,6 +16,7 @@ import { generarDeVisita, generarMensual, textoWhatsApp } from "./informes";
 import { alcanceDe } from "./session";
 import { enviarWhatsApp } from "./whatsapp";
 import { generarPdfInforme, nombrePdf } from "./pdf-informe";
+import { receptorDe } from "./usuarios";
 import { sendDocument, uploadFile } from "@/lib/wasender";
 
 const RUTA = "/tuniche/informes";
@@ -206,14 +207,33 @@ export async function enviarInformeAction(_prev: Resultado, fd: FormData): Promi
       .where(eq(tunicheAgricultores.id, informe.agricultorId!))
       .limit(1);
 
-    if (!ag?.telefono) {
+    // **El informe NO va al agricultor, va a quien lo reenvía.** Durante la
+    // prueba de concepto el PDF llega a una persona de Tuniche —Francisco en
+    // Mercado Nacional, René en Producción Altué— que lo manda desde su propio
+    // WhatsApp, como trabajan hoy. Es también lo que destrabó la POC: el
+    // teléfono del agricultor dejó de ser un requisito para poder enviar.
+    const receptor = await receptorDe(informe.area);
+    if (!receptor) {
       return {
-        error: `${ag?.nombre ?? "Este agricultor"} no tiene teléfono registrado. Cárgalo en su ficha y vuelve a intentarlo.`,
+        error:
+          "Nadie está marcado para recibir los informes de esta área. Márcalo en la ficha de esa persona, en Usuarios.",
+      };
+    }
+    if (!receptor.telefono) {
+      return {
+        error: `${receptor.nombre} recibe los informes de esta área pero no tiene teléfono registrado. Cárgalo en Usuarios.`,
       };
     }
 
     const contenido = informe.contenido as unknown as ContenidoVisita;
-    const texto = textoWhatsApp(contenido);
+
+    // El epígrafe lleva una primera línea para quien lo recibe y, debajo, el
+    // texto TAL CUAL debería leerlo el agricultor. Así puede reenviarlo sin
+    // reescribirlo, que es la diferencia entre que use esto y que no.
+    const texto =
+      `📋 Informe listo para *${ag?.nombre ?? "el agricultor"}*. Reenvíale el PDF con el texto de abajo.\n` +
+      `──────────\n` +
+      textoWhatsApp(contenido);
 
     // El PDF se arma, se sube y se manda en UN mensaje con el texto de epígrafe.
     // Si algo de eso falla, NO se marca como enviado: un informe que el sistema
@@ -245,7 +265,7 @@ export async function enviarInformeAction(_prev: Resultado, fd: FormData): Promi
     const subida = await uploadFile(pdf, "application/pdf");
     if (!subida.ok) return { error: `No se pudo subir el informe: ${subida.message}` };
 
-    const salio = await sendDocument(ag.telefono, subida.url, nombrePdf(contenido), texto);
+    const salio = await sendDocument(receptor.telefono, subida.url, nombrePdf(contenido), texto);
     if (!salio) {
       return {
         error:
@@ -255,12 +275,22 @@ export async function enviarInformeAction(_prev: Resultado, fd: FormData): Promi
 
     await db
       .update(tunicheInformes)
-      .set({ estado: "enviado", enviadoPor: s.userId, enviadoEn: new Date(), enviadoA: ag.telefono })
+      .set({
+        estado: "enviado",
+        enviadoPor: s.userId,
+        enviadoEn: new Date(),
+        // Se guarda a quién llegó de verdad, no a quién estaba dirigido. Un
+        // registro que dijera el nombre del agricultor afirmaría que le llegó a
+        // él, y eso todavía no pasó: lo reenvía una persona.
+        enviadoA: `${receptor.nombre} · +${receptor.telefono}`,
+      })
       .where(eq(tunicheInformes.id, id));
 
     revalidatePath(RUTA);
     revalidatePath(`${RUTA}/${id}`);
-    return { ok: `Informe enviado a ${ag.nombre} con el PDF adjunto.` };
+    return {
+      ok: `Informe enviado a ${receptor.nombre} con el PDF adjunto, para que se lo reenvíe a ${ag?.nombre ?? "el agricultor"}.`,
+    };
   } catch (err) {
     return { error: mensaje(err) };
   }

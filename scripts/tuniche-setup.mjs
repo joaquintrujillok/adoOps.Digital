@@ -133,6 +133,10 @@ await sql`
 `;
 await sql`CREATE INDEX IF NOT EXISTS tuniche_fotos_visita_idx ON tuniche_fotos (visita_id)`;
 
+// Quién recibe los informes de su área. Ver db/tuniche.ts: durante la POC el PDF
+// no va al agricultor, va a una persona de Tuniche que lo reenvía.
+await sql`ALTER TABLE tuniche_usuarios ADD COLUMN IF NOT EXISTS recibe_informes BOOLEAN NOT NULL DEFAULT FALSE`;
+
 // El visto bueno de jefatura para que una visita salga al agricultor. Es una
 // compuerta distinta de la validación del zonal: ver db/tuniche.ts.
 await sql`ALTER TABLE tuniche_visitas ADD COLUMN IF NOT EXISTS aprobada_por INTEGER`;

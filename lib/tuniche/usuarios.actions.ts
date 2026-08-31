@@ -54,6 +54,7 @@ interface Campos {
   telefono: string | null;
   rol: TunicheRol;
   area: AreaId | null;
+  recibeInformes: boolean;
 }
 
 /**
@@ -103,8 +104,27 @@ function leerCampos(fd: FormData): { campos?: Campos; error?: string } {
     }
   }
 
+  // Un admin no recibe informes de un área porque no tiene una. Y sin teléfono
+  // no hay a dónde mandárselos: marcarlo igual dejaría un receptor que no puede
+  // recibir, que es peor que no tener ninguno porque parece resuelto.
+  const recibe = fd.get("recibeInformes") === "1";
+  if (recibe && !area) {
+    return { error: "Solo alguien con área asignada puede recibir sus informes." };
+  }
+  if (recibe && !telefono) {
+    return { error: "Para recibir los informes hace falta un teléfono: es a donde llega el PDF." };
+  }
+
   return {
-    campos: { username, nombre, email: emailCrudo || null, telefono, rol: rol as TunicheRol, area },
+    campos: {
+      username,
+      nombre,
+      email: emailCrudo || null,
+      telefono,
+      rol: rol as TunicheRol,
+      area,
+      recibeInformes: recibe,
+    },
   };
 }
 
@@ -142,10 +162,12 @@ export async function crearUsuarioAction(
       passwordHash: hashPassword(clave),
       rol: campos.rol,
       area: campos.area,
+      recibeInformes: campos.recibeInformes,
       activo: true,
       debeCambiarClave: true,
       creadoPor: admin.userId,
     });
+    if (campos.recibeInformes) await soloUnReceptor(campos.area!, campos.username);
   } catch (err) {
     return { error: traducirConflicto(err, campos) };
   }
@@ -188,8 +210,10 @@ export async function actualizarUsuarioAction(
         telefono: campos.telefono,
         rol: campos.rol,
         area: campos.area,
+        recibeInformes: campos.recibeInformes,
       })
       .where(eq(tunicheUsuarios.id, id));
+    if (campos.recibeInformes) await soloUnReceptorPorId(campos.area!, id);
   } catch (err) {
     return { error: traducirConflicto(err, campos) };
   }
@@ -338,4 +362,34 @@ export async function guardarAreaAudioAction(fd: FormData): Promise<void> {
     .where(eq(tunicheUsuarios.id, s.userId));
 
   revalidatePath("/tuniche/cuenta");
+}
+
+/**
+ * Deja a una sola persona recibiendo los informes de un área.
+ *
+ * Dos receptores serían dos copias del mismo informe y nadie sabría cuál
+ * reenviar — o peor, los dos lo reenviarían. Marcar a alguien desmarca al
+ * anterior en silencio, que es lo que espera quien hace el cambio: está
+ * *reemplazando* al receptor, no agregando otro.
+ */
+async function soloUnReceptorPorId(area: AreaId, id: number): Promise<void> {
+  await db
+    .update(tunicheUsuarios)
+    .set({ recibeInformes: false })
+    .where(
+      and(
+        eq(tunicheUsuarios.area, area),
+        eq(tunicheUsuarios.recibeInformes, true),
+        ne(tunicheUsuarios.id, id),
+      ),
+    );
+}
+
+async function soloUnReceptor(area: AreaId, username: string): Promise<void> {
+  const [nuevo] = await db
+    .select({ id: tunicheUsuarios.id })
+    .from(tunicheUsuarios)
+    .where(eq(tunicheUsuarios.username, username))
+    .limit(1);
+  if (nuevo) await soloUnReceptorPorId(area, nuevo.id);
 }

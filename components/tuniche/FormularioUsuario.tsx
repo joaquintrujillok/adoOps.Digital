@@ -17,6 +17,7 @@ export interface ValoresUsuario {
   telefono: string | null;
   rol: string;
   area: string | null;
+  recibeInformes: boolean;
 }
 
 const ROLES = [
@@ -173,6 +174,30 @@ export default function FormularioUsuario({ valores }: { valores?: ValoresUsuari
           </p>
         </div>
       </div>
+
+      {/* Durante la POC el informe no va al agricultor: llega a una persona del
+          área que lo reenvía desde su propio WhatsApp, como trabajan hoy. */}
+      {rol !== "admin" && (
+        <label
+          className="flex items-start gap-2.5 rounded-lg border p-3.5 text-[13.5px]"
+          style={{ borderColor: "var(--tun-border)", color: "var(--tun-ink-2)" }}
+        >
+          <input
+            type="checkbox"
+            name="recibeInformes"
+            value="1"
+            defaultChecked={valores?.recibeInformes ?? false}
+            className="mt-0.5"
+          />
+          <span>
+            <b style={{ color: "var(--tun-ink)" }}>Recibe los informes de su área</b>
+            <br />
+            Los PDF aprobados le llegan a esta persona por WhatsApp, para que se los
+            reenvíe al agricultor. Solo una por área: marcar a alguien desmarca al
+            anterior.
+          </span>
+        </label>
+      )}
 
       {estado.error && (
         <p

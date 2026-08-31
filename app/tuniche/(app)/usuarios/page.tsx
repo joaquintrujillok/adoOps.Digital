@@ -112,6 +112,15 @@ export default async function UsuariosTuniche() {
                       Desactivada
                     </span>
                   )}
+                  {u.recibeInformes && u.activo && (
+                    <span
+                      className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                      style={{ background: "var(--tun-brand-soft)", color: "var(--tun-brand-dark)" }}
+                      title="Los informes aprobados de su área le llegan por WhatsApp para que los reenvíe."
+                    >
+                      Recibe los informes
+                    </span>
+                  )}
                   {u.debeCambiarClave && u.activo && (
                     <span
                       className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
@@ -189,6 +198,7 @@ export default async function UsuariosTuniche() {
                     telefono: u.telefono,
                     rol: u.rol,
                     area: u.area,
+                    recibeInformes: u.recibeInformes,
                   }}
                 />
               </div>
