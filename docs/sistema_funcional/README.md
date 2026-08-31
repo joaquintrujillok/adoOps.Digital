@@ -598,31 +598,25 @@ producción esa variable no va.
 | Historial por agricultor y por lote | ✅ verificado en pantalla |
 | Envío del informe al agricultor | ❌ falta el teléfono del agricultor |
 
-## Lo que falta, y de quién depende
+## El alcance de la prueba de concepto
 
-**Ninguna de las dos planillas trae a quién mandarle el informe.** Es el hallazgo
-más importante de la importación y bloquea el último paso del flujo:
+**Está cerrado, y conviene que siga cerrado.** La POC es el ciclo completo desde
+el audio del zonal hasta el PDF en manos de quien lo reenvía al agricultor, con
+las cinco cuentas creadas y las dos áreas cargadas. Nada más.
 
-- **MN**: las columnas `Nombre Contacto`, `Teléfono` y `Correo` están vacías en
-  las 14 filas. Francisco mandó la estructura, no los datos.
-- **Altué**: las columnas `CLIENTE` y `AGRICULTOR` están vacías en las 23 filas.
-  René anonimizó la sábana antes de mandarla.
+Lo que quedó **deliberadamente afuera**, para no diluirla:
 
-Lo demás, en orden:
+- **El informe directo al agricultor.** Hoy llega a Francisco o a René según el
+  área y ellos lo reenvían, que es como trabajan. El teléfono de cada agricultor
+  hace falta el día que eso cambie, y ese día es una decisión de ellos.
+- **José Casanova.** Tiene 10 lotes de Altué asignados y no tiene cuenta. René
+  los ve igual como jefe del área; sumarlo es agregar una cuenta cuando se decida.
+- **Identificador de lote y superficie en MN.** Su planilla es un libro de ventas
+  y no trae potrero ni hectáreas. Hoy se importa una fila = un lote provisional
+  (`MN26-0001`) y el zonal lo corrige en su primera visita.
+- **La reportería mensual al cliente en el extranjero**, que hoy René arma a mano
+  pegando fotos en un PowerPoint. Probablemente el dolor de mayor retorno, pero
+  tiene otro destinatario, otro formato y otra cadencia.
 
-1. **Los zonales y sus números de WhatsApp.** Hoy figuran Francisco Pinochet,
-   Carlos Mancilla y José Casanova en las planillas, sin cuenta ni número. El
-   número es la identidad del sistema.
-2. **Identificador de lote en MN.** Su planilla es un libro de ventas y no tiene
-   potrero. Hoy se importa una fila = un lote provisional (`MN26-0001`) y la
-   propuesta es que el zonal lo corrija en su primera visita.
-3. **Superficie en hectáreas para MN.** Miden en bolsas vendidas.
-4. **Un audio real.** De una visita de verdad, sin ensayar. Es lo único que dice
-   si la extracción funciona: el ruido de la camioneta y las frases a medias son
-   el problema, no el vocabulario.
-
-Fuera del alcance de esta etapa, y anotado porque salió en la reunión: **la
-reportería mensual al cliente en el extranjero**, que hoy René arma a mano
-pegando fotos en un PowerPoint. Es un dolor real y probablemente el de mayor
-retorno, pero es otro problema —tiene otro destinatario y otro formato— y
-mezclarlo acá diluiría la POC.
+Ninguno de estos bloquea nada hoy. Están anotados para que la próxima
+conversación empiece donde corresponde, no para pedirlos ahora.

@@ -1,0 +1,574 @@
+<title>Del audio al agricultor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+
+<style>
+  :root {
+    --ground:#f4f6f3; --surface:#ffffff; --sunk:#eef2ee;
+    --ink:#16211a; --ink-2:#47584d; --muted:#7d8c82; --line:#dde5df;
+    --brand:#2f6f4e; --brand-soft:#e6f0ea; --brand-line:#b9d4c4;
+    --alerta:#b45309; --alerta-soft:#faf0e3;
+    --critico:#a4262c;
+    --shadow:0 1px 2px rgba(22,33,26,.05);
+  }
+  :root:not([data-theme="light"]) { }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:#121814; --surface:#1a221c; --sunk:#151d17;
+      --ink:#edf3ee; --ink-2:#b5c4b9; --muted:#87978c; --line:#2c362e;
+      --brand:#6cbe8f; --brand-soft:#1c2922; --brand-line:#2f4a3a;
+      --alerta:#e0a458; --alerta-soft:#26201a;
+      --critico:#e28a8a;
+      --shadow:none;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground:#121814; --surface:#1a221c; --sunk:#151d17;
+    --ink:#edf3ee; --ink-2:#b5c4b9; --muted:#87978c; --line:#2c362e;
+    --brand:#6cbe8f; --brand-soft:#1c2922; --brand-line:#2f4a3a;
+    --alerta:#e0a458; --alerta-soft:#26201a;
+    --critico:#e28a8a;
+    --shadow:none;
+  }
+
+  *, *::before, *::after { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--ground); color:var(--ink);
+    font-family:"Source Serif 4", Georgia, serif;
+    font-size:17px; line-height:1.62;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:1040px; margin:0 auto; padding:0 24px 96px; }
+  .col { max-width:660px; }
+  h1,h2,h3,.eyebrow,.lane,th { font-family:"Familjen Grotesk", system-ui, sans-serif; }
+  code, .mono { font-family:"IBM Plex Mono", ui-monospace, monospace; }
+
+  header.top { padding:72px 0 40px; }
+  .eyebrow {
+    font-size:12px; font-weight:600; letter-spacing:.16em; text-transform:uppercase;
+    color:var(--brand); margin:0 0 14px;
+  }
+  h1 {
+    font-size:clamp(38px,6vw,60px); line-height:1.02; font-weight:700;
+    letter-spacing:-.025em; margin:0 0 18px; text-wrap:balance;
+  }
+  .lede { font-size:20px; line-height:1.55; color:var(--ink-2); margin:0; max-width:640px; }
+
+  h2 {
+    font-size:26px; font-weight:600; letter-spacing:-.015em;
+    margin:64px 0 6px; text-wrap:balance;
+  }
+  h2 + .sub { color:var(--muted); font-size:16px; margin:0 0 24px; }
+  h3 { font-size:17px; font-weight:600; margin:32px 0 8px; letter-spacing:-.01em; }
+  p { margin:0 0 16px; }
+  .col p { max-width:65ch; }
+  strong { font-weight:600; }
+  a { color:var(--brand); }
+
+  .rule { height:1px; background:var(--line); border:0; margin:0; }
+
+  /* Tarjetas de canal */
+  .canales { display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); margin:28px 0 0; }
+  .canal {
+    background:var(--surface); border:1px solid var(--line); border-radius:10px;
+    padding:16px 18px; box-shadow:var(--shadow);
+  }
+  .canal .k { font-family:"Familjen Grotesk",sans-serif; font-size:11px; font-weight:600;
+    letter-spacing:.14em; text-transform:uppercase; color:var(--muted); }
+  .canal .v { font-family:"IBM Plex Mono",monospace; font-size:16px; margin-top:6px; color:var(--ink); }
+  .canal .n { font-size:14px; color:var(--ink-2); margin-top:6px; line-height:1.45; }
+
+  figure { margin:32px 0 8px; }
+  .plano {
+    background:var(--surface); border:1px solid var(--line); border-radius:12px;
+    padding:20px 8px; overflow-x:auto; box-shadow:var(--shadow);
+  }
+  .plano svg { display:block; margin:0 auto; max-width:100%; height:auto; min-width:620px; }
+  figcaption { font-size:14.5px; color:var(--muted); margin-top:12px; max-width:65ch; line-height:1.5; }
+
+  table { border-collapse:collapse; width:100%; margin:24px 0 8px; font-size:15.5px; }
+  th, td { text-align:left; padding:11px 14px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { font-size:12px; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:var(--muted); }
+  td:first-child { font-weight:600; white-space:nowrap; }
+  .si { color:var(--brand); font-weight:600; }
+  .no { color:var(--muted); }
+  .tabla-envoltorio { overflow-x:auto; }
+
+  .nota {
+    border-left:3px solid var(--brand); background:var(--brand-soft);
+    padding:16px 20px; border-radius:0 8px 8px 0; margin:28px 0;
+  }
+  .nota.aviso { border-left-color:var(--alerta); background:var(--alerta-soft); }
+  .nota p { margin:0; }
+  .nota p + p { margin-top:10px; }
+
+  ol.pasos { list-style:none; counter-reset:p; padding:0; margin:24px 0; }
+  ol.pasos li {
+    counter-increment:p; position:relative; padding-left:44px; margin-bottom:18px;
+    max-width:65ch;
+  }
+  ol.pasos li::before {
+    content:counter(p); position:absolute; left:0; top:1px;
+    width:28px; height:28px; border-radius:50%;
+    background:var(--brand-soft); color:var(--brand);
+    border:1px solid var(--brand-line);
+    font-family:"Familjen Grotesk",sans-serif; font-size:13px; font-weight:600;
+    display:flex; align-items:center; justify-content:center;
+  }
+  ol.pasos b { font-weight:600; }
+
+  .verbo {
+    font-family:"IBM Plex Mono",monospace; font-size:13.5px; font-weight:600;
+    background:var(--sunk); border:1px solid var(--line);
+    padding:2px 7px; border-radius:5px; color:var(--ink);
+  }
+
+  footer { margin-top:72px; padding-top:24px; border-top:1px solid var(--line);
+    color:var(--muted); font-size:14px; }
+
+  @media (prefers-reduced-motion:no-preference) {
+    a { transition:opacity .15s ease; }
+  }
+  a:focus-visible, summary:focus-visible { outline:2px solid var(--brand); outline-offset:3px; }
+</style>
+
+<div class="wrap">
+
+<header class="top">
+  <p class="eyebrow">Semillas Tuniche · Sistema de visitas a campo</p>
+  <h1>Del audio al agricultor</h1>
+  <p class="lede">Cómo entra una visita, quién la confirma, quién autoriza que salga
+  y dónde se consulta después. Un recorrido por el sistema desde el lado de la
+  persona que lo usa.</p>
+
+  <div class="canales">
+    <div class="canal">
+      <div class="k">Se le manda el audio a</div>
+      <div class="v">+56 9 2257 6899</div>
+      <div class="n">El número del sistema. Es a donde llega todo.</div>
+    </div>
+    <div class="canal">
+      <div class="k">Desde</div>
+      <div class="v">el teléfono del zonal</div>
+      <div class="n">El número registrado en su ficha. Es su identidad: desde otro,
+      el sistema no sabe quién habla.</div>
+    </div>
+    <div class="canal">
+      <div class="k">Se consulta en</div>
+      <div class="v">adoops.digital/tuniche</div>
+      <div class="n">Con usuario y contraseña.</div>
+    </div>
+  </div>
+</header>
+
+<hr class="rule">
+
+<div class="col">
+  <h2>Quién entra y quién no</h2>
+  <p class="sub">La primera decisión del diseño, y la que más consecuencias tiene.</p>
+
+  <p><strong>Entran solo personas de Tuniche.</strong> El agricultor no tiene cuenta,
+  no tiene que aprender nada y no instala nada: recibe su informe por WhatsApp, que
+  es exactamente lo que ya hace hoy y lo único que ha demostrado que usa.</p>
+
+  <p>El cliente en el extranjero tampoco entra. Recibe el informe mensual por el
+  canal de siempre, y el sistema deja constancia de que salió.</p>
+</div>
+
+<div class="tabla-envoltorio">
+<table>
+  <thead>
+    <tr><th>Rol</th><th>Ve</th><th>Envía al agricultor</th><th>Administra cuentas</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Zonal</td><td>Sus propios agricultores, dentro de su área</td><td class="no">—</td><td class="no">—</td></tr>
+    <tr><td>Jefe de área</td><td>Toda su área</td><td class="si">Sí</td><td class="no">—</td></tr>
+    <tr><td>Administrador</td><td>Las dos áreas</td><td class="si">Sí</td><td class="si">Sí</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="col">
+  <p style="margin-top:18px">El cargo no importa: importa el alcance. Un jefe de área
+  también sale a terreno y carga visitas — el rol define lo que <em>puede hacer</em>,
+  no dónde trabaja.</p>
+</div>
+
+<h2>El recorrido completo</h2>
+<p class="sub">De la camioneta al teléfono del agricultor, con sus dos confirmaciones humanas.</p>
+
+<figure>
+  <div class="plano">
+    <svg viewBox="0 0 900 812" role="img" aria-label="Diagrama de carriles: el zonal manda un audio, el sistema lo reconoce por su número, lo transcribe y lo estructura, devuelve un borrador; el zonal responde OK y la visita entra al historial; se genera el informe, la jefatura le da el visto bueno y recién entonces el agricultor lo recibe.">
+      <defs>
+        <marker id="fa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+        </marker>
+        <marker id="fv" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#2f6f4e"/>
+        </marker>
+      </defs>
+
+      <!-- carriles -->
+      <g font-family="Familjen Grotesk, sans-serif" font-size="11" font-weight="600"
+         letter-spacing="1.4" fill="currentColor" opacity=".5">
+        <text x="126" y="20" text-anchor="middle">ZONAL</text>
+        <text x="450" y="20" text-anchor="middle">SISTEMA</text>
+        <text x="778" y="20" text-anchor="middle">JEFATURA</text>
+      </g>
+      <g stroke="currentColor" stroke-width="1" opacity=".12">
+        <line x1="252" y1="30" x2="252" y2="800"/>
+        <line x1="648" y1="30" x2="648" y2="800"/>
+      </g>
+
+      <g font-family="Familjen Grotesk, sans-serif" font-size="13" fill="currentColor">
+
+        <!-- 1 zonal: audio -->
+        <rect x="26" y="44" width="200" height="54" rx="8" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".85"/>
+        <text x="126" y="68" text-anchor="middle">Manda el audio</text>
+        <text x="126" y="85" text-anchor="middle" font-size="11.5" opacity=".65">apenas termina de recorrer</text>
+
+        <!-- 2 sistema: reconoce -->
+        <rect x="278" y="128" width="344" height="54" rx="8" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".85"/>
+        <text x="450" y="152" text-anchor="middle">Reconoce el número</text>
+        <text x="450" y="169" text-anchor="middle" font-size="11.5" opacity=".65">quién es · de qué área · qué plantilla aplica</text>
+
+        <!-- 3 transcribe -->
+        <rect x="278" y="212" width="344" height="44" rx="8" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".85"/>
+        <text x="450" y="240" text-anchor="middle">Transcribe el audio</text>
+
+        <!-- 4 estructura -->
+        <rect x="278" y="286" width="344" height="54" rx="8" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".85"/>
+        <text x="450" y="310" text-anchor="middle">Estructura contra la plantilla</text>
+        <text x="450" y="327" text-anchor="middle" font-size="11.5" opacity=".65">y elige el lote entre los suyos, o dice que no supo</text>
+
+        <!-- 5 borrador -->
+        <rect x="278" y="370" width="344" height="44" rx="8" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".85"/>
+        <text x="450" y="398" text-anchor="middle">Devuelve el borrador por WhatsApp</text>
+
+        <!-- 6 COMPUERTA 1 -->
+        <rect x="26" y="444" width="200" height="58" rx="8" fill="#2f6f4e" fill-opacity=".08" stroke="#2f6f4e" stroke-width="2"/>
+        <text x="126" y="468" text-anchor="middle" font-weight="600" fill="#2f6f4e">Responde OK</text>
+        <text x="126" y="486" text-anchor="middle" font-size="11" fill="#2f6f4e" opacity=".85">1.ª compuerta · «esto es lo que vi»</text>
+
+        <!-- 7 historial -->
+        <rect x="278" y="532" width="344" height="44" rx="8" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".85"/>
+        <text x="450" y="560" text-anchor="middle">Entra al historial del agricultor</text>
+
+        <!-- 8 informe -->
+        <rect x="278" y="606" width="344" height="44" rx="8" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".85"/>
+        <text x="450" y="634" text-anchor="middle">Se genera el informe</text>
+
+        <!-- 9 COMPUERTA 2 -->
+        <rect x="674" y="680" width="200" height="58" rx="8" fill="#2f6f4e" fill-opacity=".08" stroke="#2f6f4e" stroke-width="2"/>
+        <text x="774" y="704" text-anchor="middle" font-weight="600" fill="#2f6f4e">Visto bueno</text>
+        <text x="774" y="722" text-anchor="middle" font-size="11" fill="#2f6f4e" opacity=".85">2.ª compuerta · «puede salir»</text>
+
+        <!-- 10 agricultor -->
+        <rect x="278" y="768" width="344" height="40" rx="20" fill="currentColor" fill-opacity=".07" stroke="currentColor" stroke-width="1.5" opacity=".85"/>
+        <text x="450" y="793" text-anchor="middle" font-weight="600">El agricultor recibe su informe</text>
+      </g>
+
+      <!-- flechas -->
+      <g stroke="currentColor" stroke-width="1.5" fill="none" opacity=".55" marker-end="url(#fa)">
+        <polyline points="126,98 126,155 272,155"/>
+        <line x1="450" y1="182" x2="450" y2="206"/>
+        <line x1="450" y1="256" x2="450" y2="280"/>
+        <line x1="450" y1="340" x2="450" y2="364"/>
+      </g>
+      <g stroke="#2f6f4e" stroke-width="1.8" fill="none" marker-end="url(#fv)">
+        <polyline points="278,392 126,392 126,438"/>
+        <polyline points="126,502 126,554 272,554"/>
+        <line x1="450" y1="576" x2="450" y2="600"/>
+        <polyline points="622,628 774,628 774,674"/>
+        <polyline points="774,738 774,788 628,788"/>
+      </g>
+
+      <g font-family="IBM Plex Mono, monospace" font-size="10.5" fill="#2f6f4e">
+        <text x="196" y="386" text-anchor="middle">OK / NO</text>
+        <text x="700" y="622" text-anchor="middle">jefe o admin</text>
+      </g>
+      <g font-family="IBM Plex Mono, monospace" font-size="10.5" fill="currentColor" opacity=".5">
+        <text x="196" y="149" text-anchor="middle">audio</text>
+      </g>
+    </svg>
+  </div>
+  <figcaption>Los dos recuadros verdes son personas decidiendo. Todo lo que hay
+  entre ellos es automático, y nada los saltea: sin el <span class="verbo">OK</span>
+  la visita no entra al historial, y sin el visto bueno no sale de Tuniche.</figcaption>
+</figure>
+
+<div class="col">
+  <h2>Las dos compuertas</h2>
+  <p class="sub">Se parecen y son cosas distintas. Confundirlas es el error caro.</p>
+
+  <p>Cada una la da una persona diferente y afirma algo diferente:</p>
+</div>
+
+<div class="tabla-envoltorio">
+<table>
+  <thead>
+    <tr><th></th><th>Quién</th><th>Qué afirma</th><th>Qué habilita</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Validación</td>
+      <td>El zonal que estuvo en el campo</td>
+      <td>«Esto es lo que yo vi»</td>
+      <td>El historial <strong>interno</strong></td>
+    </tr>
+    <tr>
+      <td>Visto bueno</td>
+      <td>Jefe de área o administrador</td>
+      <td>«Esto puede salir de Tuniche»</td>
+      <td>Recién ahí se puede enviar</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<div class="col">
+  <p style="margin-top:18px">Un zonal valida su propia visita porque es el único que
+  puede afirmar lo que vio. Pero <strong>no puede darse el visto bueno a sí mismo</strong>:
+  el destinatario es un tercero, y una frase mal dicha en un audio deja de ser una frase
+  de un zonal para pasar a ser una frase que la empresa le escribió a un cliente.</p>
+
+  <div class="nota">
+    <p><strong>El envío nunca es automático.</strong> No se dispara al validar, no hay
+    envío por lote ni programado. Cada informe lo decide una persona, y ese nombre queda
+    guardado.</p>
+    <p>El visto bueno se da <strong>mirando el documento completo</strong>, con la vista
+    previa exacta del mensaje que va a recibir el agricultor al lado. Aprobar desde una
+    tarjeta resumida sería aprobar algo distinto de lo que se envía.</p>
+  </div>
+</div>
+
+<h2>Cuando el sistema no está seguro</h2>
+<p class="sub">Un zonal dice «estuve en La Martina», no «estuve en el lote MN26-0002».</p>
+
+<figure>
+  <div class="plano">
+    <svg viewBox="0 0 880 330" role="img" aria-label="Tres caminos según lo que el sistema logra identificar: si reconoce el lote lo asigna; si reconoce al agricultor pero no cuál de sus lotes, pregunta por WhatsApp con la lista numerada; si no reconoce ninguno, la visita queda sin asignar y se resuelve en el sistema.">
+      <defs>
+        <marker id="fb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+
+      <g font-family="Familjen Grotesk, sans-serif" font-size="13" fill="currentColor">
+        <rect x="18" y="132" width="184" height="58" rx="8" fill="currentColor" fill-opacity=".06" stroke="currentColor" stroke-width="1.5" opacity=".9"/>
+        <text x="110" y="156" text-anchor="middle" font-weight="600">Lo que dijo</text>
+        <text x="110" y="174" text-anchor="middle" font-size="11.5" opacity=".7">contra sus propios lotes</text>
+
+        <!-- camino 1 -->
+        <rect x="330" y="24" width="230" height="52" rx="8" fill="none" stroke="#2f6f4e" stroke-width="1.8"/>
+        <text x="445" y="46" text-anchor="middle" fill="#2f6f4e" font-weight="600">Reconoce el lote</text>
+        <text x="445" y="63" text-anchor="middle" font-size="11.5" fill="#2f6f4e" opacity=".8">o el agricultor tiene uno solo</text>
+        <rect x="606" y="24" width="256" height="52" rx="8" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".55"/>
+        <text x="734" y="55" text-anchor="middle" font-size="12.5" opacity=".85">Queda asignado</text>
+
+        <!-- camino 2 -->
+        <rect x="330" y="134" width="230" height="54" rx="8" fill="none" stroke="currentColor" stroke-width="1.8" opacity=".9"/>
+        <text x="445" y="157" text-anchor="middle" font-weight="600">Reconoce al agricultor,</text>
+        <text x="445" y="175" text-anchor="middle" font-weight="600">no cuál de sus lotes</text>
+        <rect x="606" y="126" width="256" height="70" rx="8" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".55"/>
+        <text x="734" y="150" text-anchor="middle" font-size="12.5" opacity=".85">Pregunta por WhatsApp</text>
+        <text x="734" y="169" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" opacity=".7">1. MN26-0002 · 2775</text>
+        <text x="734" y="184" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" opacity=".7">2. MN26-0011 · 2767</text>
+
+        <!-- camino 3 -->
+        <rect x="330" y="248" width="230" height="52" rx="8" fill="none" stroke="currentColor" stroke-width="1.8" opacity=".55"/>
+        <text x="445" y="270" text-anchor="middle" opacity=".85">No reconoce ninguno</text>
+        <text x="445" y="287" text-anchor="middle" font-size="11.5" opacity=".6">guarda lo que dijo, textual</text>
+        <rect x="606" y="248" width="256" height="52" rx="8" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".55"/>
+        <text x="734" y="272" text-anchor="middle" font-size="12.5" opacity=".85">Se asigna en el sistema</text>
+        <text x="734" y="289" text-anchor="middle" font-size="11" opacity=".6">no entra al historial hasta entonces</text>
+      </g>
+
+      <g stroke="currentColor" stroke-width="1.4" fill="none" opacity=".5" marker-end="url(#fb)">
+        <polyline points="202,150 266,150 266,50 324,50"/>
+        <line x1="202" y1="161" x2="324" y2="161"/>
+        <polyline points="202,172 266,172 266,274 324,274"/>
+        <line x1="560" y1="50" x2="600" y2="50"/>
+        <line x1="560" y1="161" x2="600" y2="161"/>
+        <line x1="560" y1="274" x2="600" y2="274"/>
+      </g>
+    </svg>
+  </div>
+  <figcaption>El sistema prefiere declarar que no supo antes que adivinar. Un informe
+  pegado al lote equivocado contamina el historial de un agricultor que no tuvo esa
+  visita — y eso no se nota hasta que alguien lo lee en voz alta frente a él.</figcaption>
+</figure>
+
+<div class="col">
+  <p>A la pregunta del segundo camino se le contesta desde el mismo WhatsApp con
+  <span class="verbo">2775</span>, <span class="verbo">2</span>,
+  <span class="verbo">MN26-0002</span> o <span class="verbo">el de la 2775</span>.
+  Se resuelve comparando texto, sin volver a preguntarle a la IA: es una pregunta
+  cerrada con dos respuestas posibles, y ahí ya no hace falta incertidumbre.</p>
+</div>
+
+<h2>Qué se puede hacer desde WhatsApp</h2>
+<p class="sub">Deliberadamente poco. Corregir es en el sistema.</p>
+
+<div class="tabla-envoltorio">
+<table>
+  <thead><tr><th>Respuesta</th><th>Qué hace</th></tr></thead>
+  <tbody>
+    <tr><td><span class="verbo">OK</span></td><td>Valida la visita: entra al historial del agricultor</td></tr>
+    <tr><td><span class="verbo">NO</span></td><td>La descarta. Se puede recuperar en el sistema</td></tr>
+    <tr><td><span class="verbo">2775</span></td><td>Elige el lote, cuando quedó la duda de cuál era</td></tr>
+    <tr><td>Una foto</td><td>Se pega a su última visita. El pie decide si es general, de hembra o de macho</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="col">
+  <p style="margin-top:18px"><strong>Descartar sí está en WhatsApp; corregir no.</strong>
+  El audio equivocado se manda desde el teléfono y se nota segundos después: obligar a
+  entrar al sistema para eso es fricción justo donde duele. Corregir por audio, en cambio,
+  obligaría a adivinar qué campo se está corrigiendo y a mantener una conversación con
+  estado — tres formas de que el sistema entienda mal una corrección, que es peor que el
+  error original porque a una corrección nadie vuelve a revisarla.</p>
+</div>
+
+<h2>Los estados de una visita</h2>
+<p class="sub">Nada se borra. Lo descartado sigue ahí.</p>
+
+<figure>
+  <div class="plano">
+    <svg viewBox="0 0 860 250" role="img" aria-label="Estados de una visita: nace pendiente; con OK pasa a validada, con NO pasa a descartada, y desde descartada se puede recuperar volviendo a pendiente. Editar cualquiera de las dos la deja como corregida.">
+      <defs>
+        <marker id="fc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+      <g font-family="Familjen Grotesk, sans-serif" font-size="13.5" fill="currentColor">
+        <rect x="30" y="96" width="150" height="46" rx="23" fill="currentColor" fill-opacity=".06" stroke="currentColor" stroke-width="1.5"/>
+        <text x="105" y="124" text-anchor="middle" font-weight="600">Pendiente</text>
+
+        <rect x="352" y="24" width="150" height="46" rx="23" fill="#2f6f4e" fill-opacity=".1" stroke="#2f6f4e" stroke-width="1.8"/>
+        <text x="427" y="52" text-anchor="middle" font-weight="600" fill="#2f6f4e">Validada</text>
+
+        <rect x="352" y="168" width="150" height="46" rx="23" fill="none" stroke="currentColor" stroke-width="1.4" opacity=".55"/>
+        <text x="427" y="196" text-anchor="middle" opacity=".8">Descartada</text>
+
+        <rect x="640" y="96" width="180" height="46" rx="23" fill="#2f6f4e" fill-opacity=".1" stroke="#2f6f4e" stroke-width="1.8"/>
+        <text x="730" y="124" text-anchor="middle" font-weight="600" fill="#2f6f4e">Corregida</text>
+      </g>
+      <g stroke="currentColor" stroke-width="1.4" fill="none" opacity=".55" marker-end="url(#fc)">
+        <polyline points="180,110 266,110 266,47 346,47"/>
+        <polyline points="180,128 266,128 266,191 346,191"/>
+        <polyline points="352,205 300,205 300,142 176,142 176,136"/>
+        <polyline points="502,47 570,47 570,116 634,116"/>
+        <polyline points="180,119 260,119 260,119 634,119"/>
+      </g>
+      <g font-family="IBM Plex Mono, monospace" font-size="11" fill="currentColor" opacity=".65">
+        <text x="266" y="70" text-anchor="middle">OK</text>
+        <text x="266" y="164" text-anchor="middle">NO</text>
+        <text x="300" y="222" text-anchor="middle">recuperar</text>
+        <text x="580" y="80" text-anchor="middle">editar</text>
+        <text x="440" y="112" text-anchor="middle">editar</text>
+      </g>
+    </svg>
+  </div>
+  <figcaption>Una visita descartada sale de la bandeja y del historial, pero la fila
+  sobrevive con su transcripción. Si alguien descarta por error el audio de una visita
+  que sí ocurrió, borrarla de verdad significaría perderla para siempre: el audio
+  original en WhatsApp también expira.</figcaption>
+</figure>
+
+<div class="col">
+  <p>La <strong>transcripción no se edita nunca</strong>. Es la constancia de lo que dijo
+  la persona, y es contra ella que se contrasta lo que entendió la IA. En el informe queda
+  a la vista bajo «Lo que dijo el zonal»: cuando alguien dude de un campo, la respuesta no
+  es «lo dijo la IA», es la frase textual.</p>
+</div>
+
+<h2>Los estados de un informe</h2>
+<p class="sub">Un informe es una constancia: dice qué se comunicó y cuándo.</p>
+
+<figure>
+  <div class="plano">
+    <svg viewBox="0 0 800 170" role="img" aria-label="Estados de un informe: borrador, aprobado tras el visto bueno, y enviado. Desde aprobado se puede retirar el visto bueno y volver a borrador; desde enviado no hay vuelta atrás.">
+      <defs>
+        <marker id="fd" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+      <g font-family="Familjen Grotesk, sans-serif" font-size="13.5" fill="currentColor">
+        <rect x="24" y="46" width="168" height="46" rx="23" fill="none" stroke="currentColor" stroke-width="1.4" opacity=".7"/>
+        <text x="108" y="74" text-anchor="middle" opacity=".9">Borrador</text>
+
+        <rect x="316" y="46" width="168" height="46" rx="23" fill="#2f6f4e" fill-opacity=".1" stroke="#2f6f4e" stroke-width="1.8"/>
+        <text x="400" y="74" text-anchor="middle" font-weight="600" fill="#2f6f4e">Con visto bueno</text>
+
+        <rect x="608" y="46" width="168" height="46" rx="23" fill="#2f6f4e" fill-opacity=".18" stroke="#2f6f4e" stroke-width="2"/>
+        <text x="692" y="74" text-anchor="middle" font-weight="600" fill="#2f6f4e">Enviado</text>
+      </g>
+      <g stroke="currentColor" stroke-width="1.4" fill="none" opacity=".55" marker-end="url(#fd)">
+        <line x1="192" y1="62" x2="310" y2="62"/>
+        <line x1="484" y1="62" x2="602" y2="62"/>
+        <polyline points="400,92 400,126 108,126 108,98"/>
+      </g>
+      <g font-family="IBM Plex Mono, monospace" font-size="11" fill="currentColor" opacity=".65">
+        <text x="251" y="52" text-anchor="middle">visto bueno</text>
+        <text x="543" y="52" text-anchor="middle">enviar</text>
+        <text x="254" y="142" text-anchor="middle">retirar el visto bueno</text>
+      </g>
+    </svg>
+  </div>
+  <figcaption>El visto bueno se puede retirar mientras el informe no haya salido — uno
+  que no se puede retirar es una trampa que enseña a no aprobar. Después no: el
+  destinatario ya lo tiene en su teléfono, y fingir que se deshizo sería peor.</figcaption>
+</figure>
+
+<div class="col">
+  <p>El contenido del informe se <strong>congela al generarse</strong>. Si alguien corrige
+  la visita en octubre, el informe que se envió en marzo sigue diciendo lo que decía —
+  porque para eso sirve: para poder mostrar qué se dijo y cuándo.</p>
+</div>
+
+<h2>Dónde se consulta cada cosa</h2>
+<p class="sub">Cuatro pantallas, cuatro preguntas distintas.</p>
+
+<div class="tabla-envoltorio">
+<table>
+  <thead><tr><th>Pantalla</th><th>Responde</th><th>Quién la abre</th></tr></thead>
+  <tbody>
+    <tr><td>Visitas</td><td>¿Qué llegó y qué espera mi confirmación?</td><td>El zonal, todos los días</td></tr>
+    <tr><td>El lote</td><td>¿Qué pasó en este campo?</td><td>Quien va a hablar con ese agricultor</td></tr>
+    <tr><td>Sábana</td><td>¿Cómo va la temporada completa?</td><td>Jefatura, una fila por lote</td></tr>
+    <tr><td>Reportes</td><td>¿Qué se está quedando sin mirar?</td><td>Jefatura, para decidir dónde ir</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="col">
+  <p style="margin-top:18px"><strong>Informes</strong> es la quinta y no responde una
+  pregunta de operación sino de constancia: qué se comunicó hacia afuera, a quién y
+  cuándo. Es el único lugar donde vive lo que salió de Tuniche.</p>
+
+  <h2>Lo que hace esta etapa</h2>
+  <p class="sub">El alcance está cerrado a propósito.</p>
+
+  <p>La prueba de concepto cubre el ciclo completo: el audio desde el campo, la
+  visita validada por quien la levantó, el informe con visto bueno de jefatura, y
+  el PDF en manos de quien lo reenvía al agricultor.</p>
+
+  <div class="nota">
+    <p><strong>En esta etapa el sistema no le escribe al agricultor.</strong> El
+    informe aprobado llega a Francisco Pinochet en Mercado Nacional y a René Ortiz
+    en Producción Altué, y son ellos quienes lo reenvían desde su propio WhatsApp
+    — como se hace hoy.</p>
+    <p>Es una decisión, no una limitación pendiente: mantiene el envío en manos de
+    quien conoce al agricultor, que es exactamente donde está hoy.</p>
+  </div>
+</div>
+
+<footer>
+  <p>adoOps · Sistema de visitas a campo de Semillas Tuniche · agosto de 2026</p>
+</footer>
+
+</div>
