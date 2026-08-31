@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { VISITA } from "@/lib/tuniche/plantillas";
 import { alcanceActual, requireSesion } from "@/lib/tuniche/auth.actions";
@@ -133,9 +134,9 @@ function Tarjeta({
                 🎧 audio
               </span>
             )}
-            {v.fotos > 0 && (
+            {v.fotos.length > 0 && (
               <span className="text-[12px]" style={{ color: "var(--tun-muted)" }}>
-                📷 {v.fotos}
+                📷 {v.fotos.length}
               </span>
             )}
           </div>
@@ -266,6 +267,58 @@ function Tarjeta({
             />
           </div>
         </details>
+      )}
+
+      {/* Las fotos, a la vista. Van ANTES del botón de validar y no escondidas
+          tras un desplegable: quien confirma tiene que haberlas mirado, y algo
+          que hay que abrir para ver es algo que la mitad de las veces no se
+          abre. Cada una se amplía en una pestaña nueva. */}
+      {v.fotos.length > 0 && (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {v.fotos.map((f, i) => (
+            <a
+              key={i}
+              href={f.url}
+              target="_blank"
+              rel="noreferrer"
+              className="block"
+              title={`Ampliar la foto ${f.tipo}`}
+            >
+              <figure className="w-[132px]">
+                {/* `next/image` para las de Blob, que baja una miniatura en vez
+                    de la foto entera; `img` para las de demostración, que son
+                    data URIs y no pasan por el optimizador. La diferencia real
+                    es de 180 KB a unos pocos: quien mira esta pantalla suele
+                    estar en un campo, con el dato justo. */}
+                {f.url.startsWith("http") ? (
+                  <Image
+                    src={f.url}
+                    alt={`Foto ${f.tipo} de la visita`}
+                    width={132}
+                    height={96}
+                    className="h-[96px] w-[132px] rounded-lg object-cover"
+                    style={{ border: "1px solid var(--tun-border)" }}
+                  />
+                ) : (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={f.url}
+                    alt={`Foto ${f.tipo} de la visita`}
+                    loading="lazy"
+                    className="h-[96px] w-[132px] rounded-lg object-cover"
+                    style={{ border: "1px solid var(--tun-border)" }}
+                  />
+                )}
+                <figcaption
+                  className="mt-1 text-[11px] capitalize"
+                  style={{ color: "var(--tun-muted)" }}
+                >
+                  {f.tipo}
+                </figcaption>
+              </figure>
+            </a>
+          ))}
+        </div>
       )}
 
       <BloqueInforme v={v} />

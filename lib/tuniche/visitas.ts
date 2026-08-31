@@ -5,7 +5,7 @@
 // los agricultores de Altué. Una consulta que arme su propio `where` se salta el
 // control sin que nada avise, y el síntoma aparece meses después en una reunión.
 
-import { and, asc, desc, eq, inArray, isNotNull, isNull, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import {
   tunicheAgricultores,
@@ -148,7 +148,15 @@ export interface VisitaConContexto extends TunicheVisita {
   /** El informe generado de esta visita, si ya existe. Una visita, un informe. */
   informeId: number | null;
   informeEstado: string | null;
-  fotos: number;
+  /**
+   * Las fotos, no su cantidad.
+   *
+   * Antes esto era un número y la bandeja mostraba «📷 3». Pero la bandeja es
+   * donde alguien **valida**, y validar un reporte cuyas fotos no puedes ver es
+   * una compuerta de mentira: se confirma el texto y las imágenes pasan sin que
+   * nadie las mire, que son justo la mitad de lo que le importa al agricultor.
+   */
+  fotos: { url: string; tipo: string }[];
 }
 
 async function conContexto(visitas: TunicheVisita[]): Promise<VisitaConContexto[]> {
@@ -170,7 +178,7 @@ async function conContexto(visitas: TunicheVisita[]): Promise<VisitaConContexto[
 
 
   const fotos = await db
-    .select({ visitaId: tunicheFotos.visitaId, n: sql<number>`count(*)::int` })
+    .select({ visitaId: tunicheFotos.visitaId, url: tunicheFotos.url, tipo: tunicheFotos.tipo })
     .from(tunicheFotos)
     .where(
       inArray(
@@ -178,7 +186,7 @@ async function conContexto(visitas: TunicheVisita[]): Promise<VisitaConContexto[
         visitas.map((v) => v.id),
       ),
     )
-    .groupBy(tunicheFotos.visitaId);
+    .orderBy(asc(tunicheFotos.id));
 
   const informes = await db
     .select({
@@ -219,7 +227,7 @@ async function conContexto(visitas: TunicheVisita[]): Promise<VisitaConContexto[
       agricultorTelefono: l?.telefono ?? null,
       informeId: inf?.id ?? null,
       informeEstado: inf?.estado ?? null,
-      fotos: fotos.find((f) => f.visitaId === v.id)?.n ?? 0,
+      fotos: fotos.filter((f) => f.visitaId === v.id).map((f) => ({ url: f.url, tipo: f.tipo })),
     };
   });
 }
