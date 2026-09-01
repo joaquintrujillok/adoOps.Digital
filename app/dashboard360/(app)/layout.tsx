@@ -6,6 +6,10 @@ import Nav, { type GrupoNav } from "@/components/dashboard360/Nav";
 import { logoutAction, requireSession } from "@/lib/dashboard360/auth.actions";
 import { disponible, emisoresConProblema, sinResponder } from "@/lib/dashboard360/motor";
 import {
+  disponible as contenidoDisponible,
+  emisoresConProblema as perfilesConProblema,
+} from "@/lib/dashboard360/contenido";
+import {
   disponible as reunionesDisponible,
   sinResumen,
 } from "@/lib/dashboard360/reuniones";
@@ -16,7 +20,7 @@ import ChipModuloAuto from "@/components/ChipModuloAuto";
 export const dynamic = "force-dynamic";
 
 async function contadores() {
-  const [problemas, borradores, hayMotor, hayReuniones] = await Promise.all([
+  const [problemas, borradores, hayMotor, hayContenido, hayReuniones] = await Promise.all([
     db
       .select({ id: d360Fuentes.id })
       .from(d360Fuentes)
@@ -26,6 +30,7 @@ async function contadores() {
       .from(d360Informes)
       .where(eq(d360Informes.estado, "borrador")),
     disponible(),
+    contenidoDisponible(),
     reunionesDisponible(),
   ]);
 
@@ -37,7 +42,12 @@ async function contadores() {
     ? await Promise.all([sinResponder(), emisoresConProblema()])
     : [0, 0];
 
-  // Mismo cuidado que con el motor: el tablero se despliega sin las tablas
+  // Mismo cuidado que con el motor: la máquina de contenido puede no estar
+  // desplegada, y preguntarle a sus tablas cuando no existen costaría una
+  // consulta fallida por cada carga de CUALQUIER pantalla del tablero.
+  const perfiles = hayContenido ? await perfilesConProblema() : 0;
+
+  // Y lo mismo con las reuniones: el tablero se despliega sin las tablas
   // `reunion_*` y no debe pagar una consulta fallida por cada carga.
   const reunionesPendientes = hayReuniones ? await sinResumen() : 0;
 
@@ -47,6 +57,8 @@ async function contadores() {
     hayMotor,
     responder,
     emisores,
+    hayContenido,
+    perfiles,
     hayReuniones,
     reunionesPendientes,
   };
@@ -64,6 +76,8 @@ export default async function Dashboard360AppLayout({
     hayMotor,
     responder,
     emisores,
+    hayContenido,
+    perfiles,
     hayReuniones,
     reunionesPendientes,
   } = await contadores();
@@ -150,6 +164,19 @@ export default async function Dashboard360AppLayout({
                 etiqueta: "Emisores",
                 icono: "◉",
                 badge: emisores,
+              },
+            ]
+          : []),
+        // Perfiles conectados cuelga del mismo grupo y por la misma razón que
+        // Emisores: responde "¿va a salir lo que está programado?", que es la
+        // versión de contenido de "¿hay algo caído?".
+        ...(hayContenido
+          ? [
+              {
+                href: "/dashboard360/contenido/emisores",
+                etiqueta: "Perfiles conectados",
+                icono: "◍",
+                badge: perfiles,
               },
             ]
           : []),

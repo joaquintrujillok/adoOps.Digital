@@ -344,3 +344,11 @@ export * from "./leads";
 // =============================================================================
 
 export * from "./dashboard360";
+
+// =============================================================================
+// Máquina de contenido (/dashboard360/contenido) — las tablas viven en
+// db/contenido.ts y se reexportan acá por el mismo motivo que las demás:
+// drizzle-kit solo mira el `schema` declarado en drizzle.config.ts.
+// =============================================================================
+
+export * from "./contenido";
