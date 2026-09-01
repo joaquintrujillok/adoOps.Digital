@@ -158,33 +158,18 @@ export default async function CrmPage() {
       <Card
         className="mt-6"
         titulo="Nueva oportunidad"
-        descripcion={
-          gente.length === 0
-            ? "Primero hay que dar de alta un contacto"
-            : "Siempre va a nombre de una persona"
-        }
+        descripcion="Siempre va a nombre de una persona. Si es nueva, se crea acá mismo."
       >
-        {gente.length === 0 ? (
-          <Vacio
-            mensaje="No hay contactos todavía"
-            sugerencia="Una oportunidad sin nadie con quien hablar no es una oportunidad. Agrega un contacto primero."
-          />
-        ) : (
-          <form action={crearOportunidadAction} className="flex flex-wrap items-end gap-3">
+        <form action={crearOportunidadAction} className="space-y-4">
+          <div className="flex flex-wrap items-end gap-3">
             <label className="text-[12px] text-[var(--d360-ink-2)]">
               <span className="mb-1 block">Título</span>
-              <input name="titulo" required className={`${campo} w-64`} placeholder="Qué se le vende" />
-            </label>
-            <label className="text-[12px] text-[var(--d360-ink-2)]">
-              <span className="mb-1 block">Contacto</span>
-              <select name="contactoId" required className={`${campo} w-56`}>
-                {gente.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nombre}
-                    {c.empresa ? ` · ${c.empresa}` : ""}
-                  </option>
-                ))}
-              </select>
+              <input
+                name="titulo"
+                required
+                className={`${campo} w-64`}
+                placeholder="Qué se le vende"
+              />
             </label>
             <label className="text-[12px] text-[var(--d360-ink-2)]">
               <span className="mb-1 block">Monto (CLP)</span>
@@ -204,11 +189,59 @@ export default async function CrmPage() {
               <span className="mb-1 block">Cierre estimado</span>
               <input name="cierreEstimado" type="date" className={campo} />
             </label>
-            <button className={btnPrimario} type="submit">
-              Crear
-            </button>
-          </form>
-        )}
+          </div>
+
+          {/* ── La persona ────────────────────────────────────────────────────
+              Las dos vías conviven en el mismo formulario, sin pestañas ni
+              JavaScript: se elige de la lista, o se escribe abajo. Con la cartera
+              vacía la lista viene en "persona nueva" y el camino es uno solo.
+
+              La versión anterior exigía que el contacto ya existiera y, sin
+              contactos, no mostraba formulario: decía "agrega un contacto
+              primero" y no llevaba a ninguna parte. La regla era correcta; el
+              momento de cobrarla, el peor posible. */}
+          <div className="rounded-lg border border-[var(--d360-border)] bg-[#f9fbfc] p-4">
+            <p className="mb-3 text-[12px] font-medium text-[var(--d360-ink-2)]">
+              ¿Con quién se habla?
+            </p>
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="text-[12px] text-[var(--d360-ink-2)]">
+                <span className="mb-1 block">De la cartera</span>
+                <select name="contactoId" className={`${campo} w-56`} defaultValue="">
+                  <option value="">— persona nueva —</option>
+                  {gente.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nombre}
+                      {c.empresa ? ` · ${c.empresa}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <span className="pb-2 text-[12px] text-[var(--d360-muted)]">o</span>
+
+              <label className="text-[12px] text-[var(--d360-ink-2)]">
+                <span className="mb-1 block">Nombre</span>
+                <input name="contactoNuevo" className={`${campo} w-48`} placeholder="Nombre y apellido" />
+              </label>
+              <label className="text-[12px] text-[var(--d360-ink-2)]">
+                <span className="mb-1 block">Cargo</span>
+                <input name="cargoNuevo" className={`${campo} w-44`} />
+              </label>
+              <label className="text-[12px] text-[var(--d360-ink-2)]">
+                <span className="mb-1 block">Empresa</span>
+                {/* Por nombre y no por lista: si ya existe se reusa, y si no se
+                    crea. Obligar a darla de alta aparte es el mismo callejón
+                    otra vez, un piso más abajo. */}
+                <input name="empresaNueva" className={`${campo} w-48`} />
+              </label>
+            </div>
+          </div>
+
+          <button className={btnPrimario} type="submit">
+            Crear oportunidad
+          </button>
+        </form>
       </Card>
 
       {historial.length > 0 ? (

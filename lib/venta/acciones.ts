@@ -14,7 +14,7 @@
 // Una actividad es algo que ocurrió. Corregir el pasado es cómo se pierde la
 // confianza en un CRM.
 
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import {
@@ -75,24 +75,73 @@ export async function crearContactoAction(formData: FormData) {
 }
 
 /**
+ * Busca una empresa por nombre o la crea. Sin distinguir mayúsculas: quien anota
+ * "constructora pehuén" a las nueve de la mañana y "Constructora Pehuén" a las
+ * seis de la tarde está hablando de la misma empresa, y dos fichas para la misma
+ * empresa es cómo un CRM empieza a mentir.
+ */
+async function empresaPorNombre(nombre: string | null): Promise<number | null> {
+  if (!nombre) return null;
+  const [existente] = await db
+    .select({ id: ventaEmpresas.id })
+    .from(ventaEmpresas)
+    .where(sql`lower(${ventaEmpresas.nombre}) = lower(${nombre})`)
+    .limit(1);
+  if (existente) return existente.id;
+
+  const [creada] = await db
+    .insert(ventaEmpresas)
+    .values({ nombre })
+    .returning({ id: ventaEmpresas.id });
+  return creada.id;
+}
+
+/**
  * Crear una oportunidad exige contacto. Ver la invariante en `db/venta.ts`: una
  * oportunidad sin nadie con quien hablar no es una oportunidad, es una idea, y
  * las ideas inflan el pronóstico sin que nadie pueda hacer nada con ellas.
+ *
+ * **Pero la invariante se cobra sin mandar a nadie a otra pantalla.** La primera
+ * versión exigía que el contacto ya existiera, y con la cartera vacía eso era un
+ * callejón sin salida: el formulario no aparecía y el mensaje decía "agrega un
+ * contacto primero" sin llevar a ninguna parte. Una regla correcta cobrada en el
+ * peor momento se siente como que el sistema no sirve.
+ *
+ * Ahora el mismo formulario acepta las dos cosas: elegir a alguien de la lista, o
+ * escribir un nombre nuevo y crearlo al paso. La invariante sigue intacta —al
+ * final siempre hay una persona— y deja de costar dos pantallas.
  */
 export async function crearOportunidadAction(formData: FormData) {
   const sesion = await exigirSesion();
   const titulo = texto(formData, "titulo", 200);
-  const contactoId = Number(formData.get("contactoId"));
-  if (!titulo || !Number.isInteger(contactoId) || contactoId <= 0) return;
+  if (!titulo) return;
 
-  // La empresa se hereda del contacto si no se especifica: en la práctica es
-  // siempre la misma, y pedirla dos veces es una forma de que quede en blanco.
-  const [contacto] = await db
-    .select({ empresaId: ventaContactos.empresaId })
-    .from(ventaContactos)
-    .where(eq(ventaContactos.id, contactoId))
-    .limit(1);
-  if (!contacto) return;
+  const elegido = Number(formData.get("contactoId"));
+  let contactoId = Number.isInteger(elegido) && elegido > 0 ? elegido : 0;
+  let empresaId: number | null = null;
+
+  if (contactoId > 0) {
+    // La empresa se hereda del contacto: en la práctica es siempre la misma, y
+    // pedirla dos veces es una forma de que quede en blanco.
+    const [contacto] = await db
+      .select({ empresaId: ventaContactos.empresaId })
+      .from(ventaContactos)
+      .where(eq(ventaContactos.id, contactoId))
+      .limit(1);
+    if (!contacto) return;
+    empresaId = contacto.empresaId;
+  } else {
+    const nombre = texto(formData, "contactoNuevo", 200);
+    // Sin persona no hay oportunidad. Es el único caso en que esto no hace nada.
+    if (!nombre) return;
+
+    empresaId = await empresaPorNombre(texto(formData, "empresaNueva", 200));
+    const [nuevo] = await db
+      .insert(ventaContactos)
+      .values({ nombre, empresaId, cargo: texto(formData, "cargoNuevo", 160) })
+      .returning({ id: ventaContactos.id });
+    contactoId = nuevo.id;
+  }
 
   const monto = Number(formData.get("monto"));
   const cierre = texto(formData, "cierreEstimado", 10);
@@ -102,7 +151,7 @@ export async function crearOportunidadAction(formData: FormData) {
     .values({
       titulo,
       contactoId,
-      empresaId: contacto.empresaId,
+      empresaId,
       etapa: "nuevo",
       probabilidad: probabilidadDe("nuevo"),
       monto: Number.isFinite(monto) && monto > 0 ? Math.round(monto) : 0,
@@ -121,6 +170,7 @@ export async function crearOportunidadAction(formData: FormData) {
   });
 
   revalidatePath(TABLERO);
+  revalidatePath("/dashboard360/crm/contactos");
 }
 
 // ─── Movimiento ──────────────────────────────────────────────────────────────
