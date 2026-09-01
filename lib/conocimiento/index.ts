@@ -169,3 +169,40 @@ export async function cuantos(cuenta: string): Promise<number> {
     return 0;
   }
 }
+
+export type ResumenCuenta = {
+  cuenta: string;
+  origenes: { origen: string; trozos: number; tokens: number; siempre: number }[];
+  total: number;
+};
+
+/**
+ * Qué hay cargado, por archivo.
+ *
+ * Se agrupa por origen y no por cuenta a secas porque la operación que importa
+ * es "volví a editar kb-soho.md y lo subí": tener a la vista cuántos trozos dejó
+ * cada archivo es lo que permite notar que una subida se cortó a la mitad.
+ */
+export async function resumen(cuenta: string): Promise<ResumenCuenta> {
+  try {
+    const filas = await db
+      .select({
+        origen: conocimientoTrozos.origen,
+        trozos: sql<number>`count(*)::int`,
+        tokens: sql<number>`coalesce(sum(${conocimientoTrozos.tokens}), 0)::int`,
+        siempre: sql<number>`count(*) filter (where ${conocimientoTrozos.siempre} = 1)::int`,
+      })
+      .from(conocimientoTrozos)
+      .where(eq(conocimientoTrozos.cuenta, cuenta))
+      .groupBy(conocimientoTrozos.origen)
+      .orderBy(conocimientoTrozos.origen);
+
+    return {
+      cuenta,
+      origenes: filas,
+      total: filas.reduce((a, f) => a + f.trozos, 0),
+    };
+  } catch {
+    return { cuenta, origenes: [], total: 0 };
+  }
+}

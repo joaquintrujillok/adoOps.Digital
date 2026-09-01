@@ -164,6 +164,13 @@ export default async function Dashboard360AppLayout({
                 icono: "✎",
                 badge: reunionesPendientes,
               },
+              // La base del copiloto cuelga de Reuniones y no de Datos: se toca
+              // cuando cambia lo que ofreces, no cuando algo se cae.
+              {
+                href: "/dashboard360/reuniones/conocimiento",
+                etiqueta: "Base de conocimiento",
+                icono: "◫",
+              },
             ]
           : []),
       ],
