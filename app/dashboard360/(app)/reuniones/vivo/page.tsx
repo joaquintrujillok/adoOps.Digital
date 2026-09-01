@@ -33,14 +33,14 @@ export default async function VivoPage() {
             otra persona no llega a ningún micrófono y se transcribe media
             conversación.
           </li>
-          <li>Subí el volumen del parlante más de lo habitual.</li>
+          <li>Sube el volumen del parlante más de lo habitual.</li>
           <li>
-            Apretá empezar <em>antes</em> de que hablen, y fijate cuánto tarda en
-            aparecer el texto.
+            Aprieta empezar <em>antes</em> de que hablen, y fíjate cuánto tarda
+            en aparecer el texto.
           </li>
           <li>
-            Mirá el panel de eventos: si algo falla, la respuesta está ahí y no en
-            un mensaje genérico.
+            Mira el panel de eventos: si algo falla, la respuesta está ahí y no
+            en un mensaje genérico.
           </li>
         </ol>
       </Card>

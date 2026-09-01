@@ -161,14 +161,14 @@ export default async function ReunionesPage({
         {!hay ? (
           <Vacio
             mensaje="El módulo de reuniones no está desplegado acá"
-            sugerencia="Faltan las tablas reunion_*. Corré node scripts/reuniones-setup.mjs."
+            sugerencia="Faltan las tablas reunion_*. Corre node scripts/reuniones-setup.mjs."
           />
         ) : reuniones.length === 0 ? (
           <Vacio
             mensaje={hayFiltro ? "Nada calza con esa búsqueda" : "No ha llegado ninguna reunión"}
             sugerencia={
               hayFiltro
-                ? "Probá con menos palabras, o sacá el filtro de fechas."
+                ? "Prueba con menos palabras, o quita el filtro de fechas."
                 : "Falta conectar la extensión del navegador al webhook. Está explicado en docs/reuniones.md."
             }
           />

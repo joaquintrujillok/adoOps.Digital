@@ -347,7 +347,7 @@ export default function EscuchaVivo() {
             <p className="text-[13px] text-[var(--d360-muted)]">
               {escuchando
                 ? "Escuchando. El texto debería aparecer en menos de un segundo."
-                : "Apretá empezar."}
+                : "Aprieta empezar."}
             </p>
           ) : (
             <div className="max-h-[600px] space-y-2.5 overflow-y-auto pr-2">
@@ -448,7 +448,7 @@ export default function EscuchaVivo() {
               {/* Se dice acá y no en un tooltip: si alguien no sabe que puede
                   marcarlas, la detección automática es lo único que hay, y se
                   equivoca. */}
-              Se marcan solas cuando el tema se toca. Si se equivoca, hacé clic.
+              Se marcan solas cuando el tema se toca. Si se equivoca, haz clic.
             </p>
 
             {pendientes.length === 0 && hechas.length === 0 ? (

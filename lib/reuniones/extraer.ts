@@ -126,6 +126,7 @@ Reglas que no se negocian:
 3. Un COMPROMISO tiene a alguien que lo asumió. "Habría que revisar eso" no es un compromiso de nadie. Si no quedó claro quién, responsable va en null; NO lo asignes al que habló más.
 4. El responsable se escribe con el nombre tal como aparece en la transcripción.
 5. Escribe en español de Chile, directo, sin relleno. Nada de "en esta reunión se discutieron diversos temas".
+6. Trata de TÚ, nunca de vos. "Tienes que revisarlo", no "tenés que revisarlo": el voseo rioplatense no se usa en Chile y delata que el texto lo escribió una máquina.
 
 Responde siempre llamando a la función 'registrar_reunion'.`;
 
