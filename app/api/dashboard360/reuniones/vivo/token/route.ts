@@ -23,6 +23,17 @@ import { getSession } from "@/lib/dashboard360/session";
 
 export const runtime = "nodejs";
 
+/**
+ * El modelo de transcripción en vivo. US$0,017 el minuto.
+ *
+ * Se elige **acá y no en el navegador**, y eso importa: la credencial efímera
+ * lleva la configuración de la sesión adentro, así que lo que viaja al cliente
+ * solo sirve para transcribir con este modelo. Si la eligiera el navegador,
+ * cualquiera con la credencial podría abrir una sesión de voz completa, que
+ * cuesta veinte veces más.
+ */
+const MODELO = process.env.REUNIONES_MODELO_VIVO || "gpt-live-transcribe";
+
 export async function POST() {
   const sesion = await getSession();
   if (!sesion) return Response.json({ error: "No autenticado" }, { status: 401 });
@@ -38,9 +49,35 @@ export async function POST() {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
-    // Una hora: lo que dura una reunión larga. La credencial se pide al apretar
-    // "empezar", así que su reloj arranca con la sesión.
-    body: JSON.stringify({ expires_in: 3600 }),
+    body: JSON.stringify({
+      // `expires_in` fue lo primero que probé, por una guía desactualizada, y la
+      // API contestó `unknown_parameter`. La forma real es un objeto con ancla y
+      // segundos; el máximo son 7200 y el default 600, que para una reunión se
+      // queda corto.
+      //
+      // Ojo con qué vence: la credencial deja de servir para ABRIR sesiones
+      // pasado ese plazo, pero una sesión ya abierta sigue corriendo. Una hora
+      // es margen para empezar, no un límite de duración.
+      expires_after: { anchor: "created_at", seconds: 3600 },
+
+      // La sesión se declara en la credencial y no por el canal de eventos.
+      // Un solo lugar donde está definida, y del lado que no puede editar quien
+      // recibe la credencial.
+      session: {
+        type: "transcription",
+        audio: {
+          input: {
+            transcription: { model: MODELO },
+            // Que el servidor detecte cuándo alguien dejó de hablar y corte ahí.
+            // La alternativa —`turn_detection: null`— obliga a decidir el corte
+            // desde el cliente, y en una reunión no hay quien lo decida.
+            turn_detection: { type: "server_vad" },
+          },
+        },
+      },
+      // No se manda `format`: con WebRTC el códec lo negocia el propio
+      // transporte. Declarar PCM es cosa de las sesiones por WebSocket.
+    }),
   });
 
   const texto = await res.text();
@@ -70,5 +107,5 @@ export async function POST() {
     );
   }
 
-  return Response.json({ secreto });
+  return Response.json({ secreto, modelo: MODELO });
 }

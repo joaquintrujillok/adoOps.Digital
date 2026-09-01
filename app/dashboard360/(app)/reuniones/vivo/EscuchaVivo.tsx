@@ -123,28 +123,10 @@ export default function EscuchaVivo() {
       const dc = pc.createDataChannel("oai-events");
 
       dc.addEventListener("open", () => {
-        registrar("canal de eventos abierto");
-        // La sesión se configura después de conectar, no al pedir la
-        // credencial: así la credencial no queda atada a una configuración y se
-        // puede cambiar el modelo sin tocar el servidor.
-        dc.send(
-          JSON.stringify({
-            type: "session.update",
-            session: {
-              type: "transcription",
-              audio: {
-                input: {
-                  format: { type: "audio/pcm", rate: 24000 },
-                  transcription: { model: "gpt-live-transcribe" },
-                  // Detección de turnos del lado del servidor: que corte solo
-                  // cuando alguien deja de hablar. Con `null` habría que
-                  // decidirlo acá, y en una reunión no hay quien lo decida.
-                  turn_detection: { type: "server_vad" },
-                },
-              },
-            },
-          }),
-        );
+        // No se manda `session.update`: la sesión ya viene configurada dentro de
+        // la credencial efímera, del lado del servidor. Un solo lugar donde está
+        // definida, y del lado que el navegador no puede cambiar.
+        registrar(`canal de eventos abierto · ${datosToken.modelo ?? "modelo por defecto"}`);
         setEstado("escuchando");
         const arranque = Date.now();
         setDesdeMs(arranque);
