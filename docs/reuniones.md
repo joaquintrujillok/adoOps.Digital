@@ -45,6 +45,33 @@ cortó, queda a medias. Y ante la duda deja la palabra como está: una palabra m
 reconocida que sigue mal reconocida es un error del reconocedor, pero una que se
 "corrige" mal es un error del modelo, y ese es peor porque suena convincente.
 
+### El glosario, que es lo que la hace servir
+
+`REUNIONES_GLOSARIO` es una lista de términos separados por comas: nombres de
+clientes, de sistemas, de personas, jerga del negocio. Viaja en cada tramo y
+cuesta unas decenas de tokens.
+
+**No es un extra, es la diferencia entre que corrija y que arruine.** Se descubrió
+probándola en producción el 01-09-2026. Sin glosario:
+
+| Lo que entregó Meet | Lo que hizo la IA | Lo correcto |
+|---|---|---|
+| `el sistema tú niche` | `el sistema. Tú, nicho,` | el sistema **Tuniche** |
+| `los itos del lote` | `los ITOS del lote` | los **hitos** |
+
+El modelo no se abstuvo: armó algo plausible con las palabras que sí conocía. Es
+la forma más dañina de equivocarse, porque el resultado se lee bien y nadie lo va
+a revisar. Los nombres propios de un negocio no están en el mundo del modelo;
+dárselos convierte una adivinanza en un calce.
+
+A la lista se le suman solos los nombres de quienes hablaron en esa reunión: si
+habló Camila Rojas, "camila roja" en el texto es ella.
+
+Junto con el glosario se endurecieron tres reglas del prompt, cada una por un
+error observado: no partir una palabra desconocida en dos palabras conocidas, no
+convertir una palabra en sigla poniéndola en mayúsculas, y ante la duda dejarla
+literalmente igual.
+
 ### Las dos defensas del diseño
 
 **Se corrige línea por línea, y se cuentan las líneas.** El modelo devuelve un
@@ -325,6 +352,7 @@ queda en null: "no sé cuánto costó" es mejor que un número inventado.
 | `REUNIONES_WEBHOOK_TOKEN` | Lista de `token:Nombre:ámbito`. Autentica, identifica y separa. | Sí |
 | `OPENAI_API_KEY` | El resumen. Ya la usan las actas y el STT de Tuniche. | Sí |
 | `REUNIONES_MODEL` | Modelo de la corrección y el resumen. Default `gpt-4o-mini`. Ver la tabla de tarifas. | No |
+| `REUNIONES_GLOSARIO` | Vocabulario propio, separado por comas. Sin esto la corrección inventa nombres propios. | En la práctica, sí |
 
 `REUNIONES_MODEL` es propia y no la `EXTRACT_MODEL` de las actas por la misma
 razón que `lib/stt.ts` acepta un modelo por módulo: cambiar el modelo de un demo

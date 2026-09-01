@@ -75,7 +75,7 @@ export type ResultadoCorreccion = {
 const SYSTEM = `Corriges transcripciones automáticas de reuniones en español de Chile.
 
 El texto que recibes lo generó el reconocedor de voz de Google Meet. Tiene tres tipos de error, y son los únicos que debes tocar:
-1. PALABRAS MAL RECONOCIDAS. Sobre todo nombres de personas, empresas, lugares y términos técnicos. Si una palabra no calza con el contexto de la frase, casi seguro está mal reconocida: corrígela por la que tiene sentido.
+1. PALABRAS MAL RECONOCIDAS. Sobre todo nombres de personas, empresas, lugares y términos técnicos. Si una palabra no calza con el contexto de la frase, casi seguro está mal reconocida.
 2. PUNTUACIÓN Y MAYÚSCULAS. El reconocedor puntúa mal y corta frases donde no va. Arréglalo para que se pueda leer.
 3. TARTAMUDEOS DEL RECONOCEDOR. Palabras repetidas de corrido que son artefacto del reconocimiento, no de la persona.
 
@@ -84,9 +84,35 @@ Reglas absolutas:
 - NO inventes contenido que no esté. Si una frase quedó incompleta porque la persona se cortó, déjala incompleta.
 - NO cambies el nombre del hablante ni la marca de tiempo que aparecen al principio de una línea. Corrige solo lo que se dijo.
 - Si una línea ya está bien, devuélvela EXACTAMENTE igual.
-- Si no estás seguro de una palabra, DÉJALA COMO ESTÁ. Una palabra mal reconocida que queda mal reconocida es un error del reconocedor; una que "corriges" mal es un error tuyo, y ese es peor porque suena convincente.
+
+Sobre las palabras que no reconoces, que es donde más te vas a equivocar:
+- Si no estás seguro de una palabra, DÉJALA COMO ESTÁ, tal cual, sin tocar. Una palabra mal reconocida que queda mal reconocida es un error del reconocedor; una que "corriges" mal es un error tuyo, y ese es peor porque suena convincente y nadie lo va a revisar.
+- NO partas una palabra rara en dos palabras que conoces. Si dice "tuniche" y no sabes qué es, es una palabra que no conoces, NO es "tú niche".
+- NO conviertas una palabra en sigla poniéndola en mayúsculas. Si dice "itos" y no sabes qué es, déjalo "itos"; no lo escribas "ITOS".
+- Si te dan una lista de vocabulario conocido, esa lista manda: cuando una palabra mal reconocida se parece a un término de la lista, usa el de la lista. Fuera de la lista, abstente.
 
 Devuelves SIEMPRE la misma cantidad de líneas que recibes, en el mismo orden, llamando a la función 'devolver_lineas'. Una línea de entrada, una línea de salida. Si recibes 23 líneas, devuelves 23.`;
+
+/**
+ * Vocabulario propio, desde `REUNIONES_GLOSARIO` (términos separados por comas).
+ *
+ * **Es lo que hace que la corrección sirva de verdad**, y se descubrió
+ * probándola: sin glosario, "el sistema Tuniche" —que el reconocedor había
+ * escrito "el sistema tú niche"— salió corregido como "el sistema. Tú, nicho,",
+ * y "los hitos del lote" salió como "los ITOS del lote". El modelo no se abstuvo:
+ * inventó algo plausible con las palabras que sí conocía, que es la forma más
+ * dañina de equivocarse porque el resultado se lee bien.
+ *
+ * Los nombres propios de un negocio no están en el mundo del modelo. Dárselos es
+ * barato —viajan en cada tramo, son unas decenas de tokens— y convierte una
+ * adivinanza en un calce.
+ */
+function glosario(): string[] {
+  return (process.env.REUNIONES_GLOSARIO ?? "")
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
 
 const PARAMETERS = {
   type: "object" as const,
@@ -186,7 +212,17 @@ export async function corregirTranscripcion(
   if (contexto?.titulo) cabeceraPartes.push(`Título de la reunión: ${contexto.titulo}`);
   if (contexto?.participantes?.length)
     cabeceraPartes.push(`Personas que hablaron: ${contexto.participantes.join(", ")}`);
-  const cabecera = cabeceraPartes.join("\n");
+
+  // Los nombres de quienes hablaron entran al vocabulario junto con el glosario:
+  // si en la reunión habló Camila Rojas, "camila roja" en el texto es ella.
+  const vocabulario = [...new Set([...(contexto?.participantes ?? []), ...glosario()])];
+  if (vocabulario.length) {
+    cabeceraPartes.push(
+      `Vocabulario conocido de este equipo. Si una palabra mal reconocida se parece a alguno de estos términos, es ese término. Fuera de esta lista, abstente:\n${vocabulario.join(", ")}`,
+    );
+  }
+
+  const cabecera = cabeceraPartes.join("\n\n");
 
   // El contexto de cada tramo sale del tramo anterior ORIGINAL. Ver la
   // defensa 2 en la cabecera de este archivo.
