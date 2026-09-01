@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { d360Users } from "@/db/dashboard360";
 import { cuentaPorId, resolverCuenta } from "@/lib/cuentas";
+import { rutaInicialDe } from "./nav";
 import {
   clearSession,
   createSession,
@@ -110,8 +111,9 @@ export async function cambiarCuentaAction(formData: FormData): Promise<void> {
 
   await createSession({ ...sesion, cuenta: destino.id });
 
-  // A la raíz del tablero y no a la pantalla actual: la sección donde estabas
-  // puede no existir en la cuenta nueva, y aterrizar en un 404 al cambiar de
-  // contexto se lee como que el cambio falló.
-  redirect("/dashboard360");
+  // A la primera sección de la cuenta de destino, no a la raíz del tablero.
+  // Mandar siempre a `/dashboard360` dejaba a quien entraba a Soho parado sobre
+  // el Panel 360 —una pantalla que esa cuenta no tiene y que su menú no
+  // muestra—, así que el menú decía una cosa y la pantalla otra.
+  redirect(rutaInicialDe(destino));
 }

@@ -28,6 +28,8 @@
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { resolverCuenta, tieneModulo } from "@/lib/cuentas";
+import { moduloDeRuta, rutaInicialDe } from "@/lib/dashboard360/nav";
 
 interface Credencial {
   cookie: string;
@@ -136,9 +138,18 @@ function utf8(s: string): Uint8Array<ArrayBuffer> {
   return bytes;
 }
 
-async function tokenValido(token: string, secreto: string): Promise<boolean> {
+/**
+ * El contenido de un token válido, o `null`.
+ *
+ * Antes esto devolvía solo un booleano. Ahora hace falta el payload: la cuenta
+ * activa viaja adentro de la sesión y decide a qué secciones se puede entrar.
+ */
+async function leerToken(
+  token: string,
+  secreto: string,
+): Promise<{ exp?: number; cuenta?: string; cuentas?: string[] } | null> {
   const [body, mac] = token.split(".");
-  if (!body || !mac) return false;
+  if (!body || !mac) return null;
 
   try {
     const key = await crypto.subtle.importKey(
@@ -154,14 +165,15 @@ async function tokenValido(token: string, secreto: string): Promise<boolean> {
       b64urlToBytes(mac),
       utf8(body),
     );
-    if (!ok) return false;
+    if (!ok) return null;
 
     const payload = JSON.parse(
       new TextDecoder().decode(b64urlToBytes(body)),
-    ) as { exp?: number };
-    return typeof payload.exp === "number" && Date.now() < payload.exp;
+    ) as { exp?: number; cuenta?: string; cuentas?: string[] };
+    if (typeof payload.exp !== "number" || Date.now() >= payload.exp) return null;
+    return payload;
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -192,10 +204,13 @@ export async function proxy(request: NextRequest) {
   }
 
   let autorizado = false;
+  let sesion: { cuenta?: string; cuentas?: string[] } | null = null;
   for (const c of utilizables) {
     const t = request.cookies.get(c.cookie)?.value;
-    if (t && (await tokenValido(t, process.env[c.env]!))) {
+    const payload = t ? await leerToken(t, process.env[c.env]!) : null;
+    if (payload) {
       autorizado = true;
+      sesion = payload;
       break;
     }
   }
@@ -207,6 +222,40 @@ export async function proxy(request: NextRequest) {
     const login = new URL(area.login, request.url);
     login.searchParams.set("from", pathname);
     return NextResponse.redirect(login);
+  }
+
+  // ── Secciones que la cuenta activa no tiene ────────────────────────────────
+  //
+  // El menú ya no las pinta, pero esconder un enlace no impide llegar por URL —y
+  // ni siquiera impedía llegar por redirección: cambiar de cuenta mandaba a
+  // `/dashboard360` y dejaba a quien entraba a Soho parado sobre el Panel 360.
+  // Un filtro que solo esconde el enlace es decoración.
+  //
+  // Va acá y no en cada página por lo mismo que va acá la sesión: es una regla
+  // que vale para todas las rutas del tablero, y repartida por diez archivos
+  // basta que alguien agregue el once para que se rompa. Sigue siendo un control
+  // optimista, igual que el resto de este proxy: las cuentas declaran intención,
+  // no aíslan datos. Ver la cabecera de `lib/cuentas.ts`.
+  if (pathname.startsWith("/dashboard360") && !pathname.startsWith("/api")) {
+    const modulo = moduloDeRuta(pathname);
+    if (modulo) {
+      const cuenta = resolverCuenta(sesion?.cuenta, sesion?.cuentas);
+      if (!tieneModulo(cuenta, modulo)) {
+        const inicio = rutaInicialDe(cuenta);
+        // Comparación EXACTA, no por prefijo. Con `startsWith` esto se rompía en
+        // silencio: la ruta de aterrizaje de adoOps es `/dashboard360`, y toda
+        // ruta del tablero empieza con `/dashboard360`, así que la guarda
+        // anti-bucle suprimía todas las redirecciones de esa cuenta. Se vio
+        // probando: adoOps abría `/dashboard360/informe`, que no tiene.
+        //
+        // Sin `startsWith` no hay bucle posible: `inicio` sale de las secciones
+        // que la cuenta sí tiene, así que nunca es una ruta que esta misma
+        // condición vuelva a rechazar.
+        if (pathname !== inicio) {
+          return NextResponse.redirect(new URL(inicio, request.url));
+        }
+      }
+    }
   }
 
   return NextResponse.next();

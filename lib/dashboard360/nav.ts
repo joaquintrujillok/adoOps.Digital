@@ -34,8 +34,45 @@ const RUTAS: [string, ModuloCuenta][] = [
   ["/dashboard360", "panel"],
 ];
 
-function moduloDeRuta(href: string): ModuloCuenta | undefined {
+/**
+ * A qué sección pertenece una ruta. `undefined` si no está en el mapa.
+ *
+ * Se exporta porque la usan dos consumidores con exigencias distintas: el menú
+ * —que recorta lo que se pinta— y `proxy.ts`, que impide llegar por URL. Tener
+ * dos copias del mapa sería garantizar que algún día discrepen, y el síntoma
+ * sería una pantalla que no aparece en el menú pero se abre igual.
+ */
+export function moduloDeRuta(href: string): ModuloCuenta | undefined {
   return RUTAS.find(([prefijo]) => href.startsWith(prefijo))?.[1];
+}
+
+/**
+ * Orden canónico de las secciones. Es el del menú, y se escribe una vez acá para
+ * que "la primera sección de una cuenta" signifique siempre lo mismo.
+ */
+const ORDEN: ModuloCuenta[] = [
+  "panel",
+  "canales",
+  "mercado",
+  "motor",
+  "informe",
+  "fuentes",
+  "contenido",
+  "reuniones",
+];
+
+/**
+ * Dónde aterrizar al entrar a una cuenta.
+ *
+ * Existe por un error que se vio en pantalla: cambiar de cuenta mandaba siempre
+ * a `/dashboard360`, o sea al Panel 360. En adoOps está bien; en Soho, que solo
+ * tiene reuniones, dejaba a la persona parada sobre una pantalla que su cuenta
+ * no tiene y que el menú no muestra. El menú decía una cosa y la pantalla otra.
+ */
+export function rutaInicialDe(cuenta: Cuenta): string {
+  const primera = ORDEN.find((m) => tieneModulo(cuenta, m));
+  if (!primera) return "/dashboard360";
+  return RUTAS.find(([, m]) => m === primera)?.[0] ?? "/dashboard360";
 }
 
 export function filtrarPorCuenta(grupos: GrupoNav[], cuenta: Cuenta): GrupoNav[] {
