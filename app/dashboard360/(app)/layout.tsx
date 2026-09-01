@@ -13,6 +13,7 @@ import {
   disponible as reunionesDisponible,
   sinResumen,
 } from "@/lib/dashboard360/reuniones";
+import { disponible as crmDisponible, frias } from "@/lib/venta/consultas";
 import ChipModuloAuto from "@/components/ChipModuloAuto";
 import SelectorCuenta from "@/components/dashboard360/SelectorCuenta";
 import { resolverCuenta } from "@/lib/cuentas";
@@ -23,7 +24,8 @@ import { filtrarPorCuenta } from "@/lib/dashboard360/nav";
 export const dynamic = "force-dynamic";
 
 async function contadores() {
-  const [problemas, borradores, hayMotor, hayContenido, hayReuniones] = await Promise.all([
+  const [problemas, borradores, hayMotor, hayContenido, hayReuniones, hayCrm] =
+    await Promise.all([
     db
       .select({ id: d360Fuentes.id })
       .from(d360Fuentes)
@@ -35,6 +37,7 @@ async function contadores() {
     disponible(),
     contenidoDisponible(),
     reunionesDisponible(),
+    crmDisponible(),
   ]);
 
   // Los contadores del motor solo se piden si el motor existe. Encadenarlos en
@@ -54,6 +57,10 @@ async function contadores() {
   // `reunion_*` y no debe pagar una consulta fallida por cada carga.
   const reunionesPendientes = hayReuniones ? await sinResumen() : 0;
 
+  // Mismo cuidado: el badge del CRM es el número de oportunidades que llevan dos
+  // semanas sin que nadie las toque, y no se pregunta si las tablas no existen.
+  const crmFrias = hayCrm ? await frias() : 0;
+
   return {
     fuentes: problemas.length,
     informes: borradores.length,
@@ -64,6 +71,8 @@ async function contadores() {
     perfiles,
     hayReuniones,
     reunionesPendientes,
+    hayCrm,
+    crmFrias,
   };
 }
 
@@ -83,6 +92,8 @@ export default async function Dashboard360AppLayout({
     perfiles,
     hayReuniones,
     reunionesPendientes,
+    hayCrm,
+    crmFrias,
   } = await contadores();
 
   const grupos: GrupoNav[] = [
@@ -103,6 +114,15 @@ export default async function Dashboard360AppLayout({
       // a salir del tablero para operarlo.
       titulo: "Prospección",
       items: [
+        // El CRM va primero del grupo: el motor consigue conversaciones y el CRM
+        // las administra, así que la pregunta "¿cómo va la cartera?" pesa más
+        // que "¿qué mandó el cron anoche?".
+        ...(hayCrm
+          ? [
+              { href: "/dashboard360/crm", etiqueta: "Pipeline", icono: "⛁", badge: crmFrias },
+              { href: "/dashboard360/crm/contactos", etiqueta: "Contactos", icono: "☰" },
+            ]
+          : []),
         { href: "/dashboard360/prospeccion", etiqueta: "Mercado", icono: "◎" },
         // El motor es un módulo aparte y puede no estar desplegado. Cuando no
         // está, estas entradas no se pintan: un menú con pestañas muertas es

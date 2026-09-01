@@ -45,7 +45,8 @@ export type ModuloCuenta =
   | "informe"
   | "fuentes"
   | "contenido"
-  | "reuniones";
+  | "reuniones"
+  | "crm";
 
 export type CuentaId = "demo" | "adoops" | "soho" | "personal";
 
@@ -70,10 +71,11 @@ export const CUENTAS: Cuenta[] = [
     id: "adoops",
     nombre: "adoOps",
     descripcion: "El negocio propio: prospección, contenido y las reuniones del equipo.",
-    // La lectura de "un CRM más clásico de prospección" es el motor + mercado +
-    // fuentes, que es lo que hoy hace ese trabajo. NO es `/crm`, que es el
-    // sistema de un cliente montado como demo y no tiene nada que ver.
-    modulos: ["panel", "mercado", "motor", "fuentes", "contenido", "reuniones"],
+    // El motor prospecta y el CRM administra lo que el motor consigue. Son dos
+    // mitades del mismo trabajo: uno le escribe a desconocidos, el otro lleva la
+    // relación desde que alguien contesta. `/crm` no está en esta lista y nunca
+    // va a estar: ese es el sistema de un cliente montado como demo.
+    modulos: ["panel", "crm", "mercado", "motor", "fuentes", "contenido", "reuniones"],
     color: "#2fa36b",
   },
   {
@@ -106,6 +108,7 @@ export const CUENTAS: Cuenta[] = [
       "fuentes",
       "contenido",
       "reuniones",
+      "crm",
     ],
     color: "#c9a227",
   },
