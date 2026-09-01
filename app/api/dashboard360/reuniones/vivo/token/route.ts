@@ -68,10 +68,14 @@ export async function POST() {
         audio: {
           input: {
             transcription: { model: MODELO },
-            // Que el servidor detecte cuándo alguien dejó de hablar y corte ahí.
-            // La alternativa —`turn_detection: null`— obliga a decidir el corte
-            // desde el cliente, y en una reunión no hay quien lo decida.
-            turn_detection: { type: "server_vad" },
+            // Sin `turn_detection`, y no por omisión: la API lo rechaza con
+            // "Turn detection is not supported for this transcription model".
+            //
+            // Tiene sentido y conviene anotarlo, porque invita a "arreglarlo":
+            // el VAD del servidor existe para decidir cuándo termina el turno de
+            // un usuario y le toca responder al modelo. Acá nadie responde —esto
+            // solo escucha— y `gpt-live-transcribe` corta las frases por su
+            // cuenta, que es justamente para lo que está hecho.
           },
         },
       },
