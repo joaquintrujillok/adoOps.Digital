@@ -1,11 +1,24 @@
 /**
- * Speech-to-text con OpenAI Whisper.
+ * Speech-to-text con OpenAI.
  * Recibe la URL pública del audio (la que devuelve WaSender al desencriptar),
  * lo descarga y lo transcribe.
+ *
+ * Decía "con OpenAI Whisper" y hacía años que no era cierto: Whisper quedó
+ * atrás y el modelo se elige abajo. Un encabezado que nombra la tecnología
+ * equivocada manda a buscar el problema al lugar equivocado.
  */
 import OpenAI from "openai";
 
-const STT_MODEL = process.env.STT_MODEL || "gpt-4o-transcribe";
+// `gpt-transcribe` y no `gpt-4o-transcribe`: es el modelo que OpenAI recomienda
+// hoy para audio grabado y cuesta US$0,0045 el minuto contra US$0,006, un 25%
+// menos. Verificado el 01-09-2026 en developers.openai.com/api/docs/pricing.
+//
+// El argumento que decide no es el precio —son décimas de centavo por nota de
+// voz—: es que el Sistema Tuniche ya se movió a este modelo el 27-08-2026 y
+// lleva desde entonces transcribiendo audio real en producción. El default de
+// acá era lo único que seguía en la generación anterior, así que esto no
+// estrena un modelo, alinea el demo con lo que ya está probado.
+const STT_MODEL = process.env.STT_MODEL || "gpt-transcribe";
 
 let _client: OpenAI | null = null;
 function client(): OpenAI {

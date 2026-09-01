@@ -34,11 +34,11 @@ const speech = await client.audio.speech.create({
 const buf = Buffer.from(await speech.arrayBuffer());
 console.log(`   audio: ${(buf.length / 1024).toFixed(1)} KB`);
 
-console.log(`2) Transcribiendo con ${process.env.STT_MODEL || "gpt-4o-transcribe"}…`);
+console.log(`2) Transcribiendo con ${process.env.STT_MODEL || "gpt-transcribe"}…`);
 const file = new File([buf], "test.mp3", { type: "audio/mpeg" });
 const out = await client.audio.transcriptions.create({
   file,
-  model: process.env.STT_MODEL || "gpt-4o-transcribe",
+  model: process.env.STT_MODEL || "gpt-transcribe",
   language: "es",
 });
 
