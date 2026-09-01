@@ -29,7 +29,8 @@ import Link from "next/link";
 import { Badge, Card, PageHeader, Vacio, btnPrimario, btnSecundario } from "@/components/dashboard360/ui";
 import { requireSession } from "@/lib/dashboard360/auth.actions";
 import { disponible, gasto, huerfanas, listar } from "@/lib/dashboard360/reuniones";
-import { resolverCuenta } from "@/lib/cuentas";
+import { asignarCuentaAction } from "@/lib/reuniones/acciones";
+import { CUENTAS, resolverCuenta } from "@/lib/cuentas";
 
 export const dynamic = "force-dynamic";
 
@@ -113,7 +114,7 @@ export default async function ReunionesPage({
       {rescate ? (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--d360-border)] bg-white p-3 text-[12.5px] text-[var(--d360-ink-2)]">
           <span>
-            Reuniones sin cuenta. Se asignan desde el detalle de cada una.
+            Reuniones sin cuenta. Elige una en cada tarjeta y desaparece de acá.
           </span>
           <Link className={btnSecundario} href="/dashboard360/reuniones">
             Volver a {cuenta.nombre}
@@ -250,6 +251,36 @@ export default async function ReunionesPage({
                     Descargar .txt
                   </a>
                 </div>
+
+                {/* Asignar la cuenta se hace ACÁ y no solo en el detalle.
+                    Estaba solo allá y era una vuelta de más: quien entra a esta
+                    vista viene a hacer exactamente esto, y mandarlo a abrir cada
+                    reunión para un clic que cabe en la tarjeta es fricción sin
+                    ninguna ganancia. */}
+                {rescate ? (
+                  <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[var(--d360-border)] pt-3">
+                    <span className="text-[11.5px] text-[var(--d360-muted)]">
+                      Asignar a:
+                    </span>
+                    {CUENTAS.map((c) => (
+                      <form key={c.id} action={asignarCuentaAction}>
+                        <input type="hidden" name="id" value={r.id} />
+                        <input type="hidden" name="cuenta" value={c.id} />
+                        <button
+                          type="submit"
+                          className="flex items-center gap-1.5 rounded-md border border-[var(--d360-border)] bg-white px-2.5 py-1 text-[12px] text-[var(--d360-ink-2)] transition-colors hover:border-[var(--d360-brand)] hover:text-[var(--d360-brand-dark)]"
+                        >
+                          <span
+                            aria-hidden
+                            className="h-1.5 w-1.5 rounded-full"
+                            style={{ backgroundColor: c.color }}
+                          />
+                          {c.nombre}
+                        </button>
+                      </form>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>
