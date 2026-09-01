@@ -14,16 +14,22 @@
 // va contra la transcripción completa. Un buscador que solo mirara el título
 // sería un buscador que nunca encuentra nada.
 //
-// ── Por qué el ámbito es una pestaña y no una casilla más ────────────────────
+// ── La cuenta activa es el filtro, y no hay pestañas ─────────────────────────
 //
-// Separar el trabajo de lo personal no es orden por gusto: son dos conjuntos de
-// personas distintas, y leerlos mezclados es el problema que este filtro existe
-// para evitar. Una pestaña obliga a estar siempre parado en uno de los dos.
+// Acá hubo pestañas de ámbito y duraron poco: eran un segundo eje que decía casi
+// lo mismo que la cuenta del tablero. Ahora el selector de la barra lateral
+// manda —ver `lib/cuentas.ts`— y esta pantalla muestra solo las reuniones de la
+// cuenta en la que estás parado.
+//
+// Es más estricto que unas pestañas, y a propósito: con pestañas, mostrar el
+// tablero en una reunión de venta dejaba las conversaciones personales a un clic
+// de distancia. Con cuentas, para verlas hay que cambiarse de mundo.
 
 import Link from "next/link";
 import { Badge, Card, PageHeader, Vacio, btnPrimario, btnSecundario } from "@/components/dashboard360/ui";
 import { requireSession } from "@/lib/dashboard360/auth.actions";
-import { ambitos, disponible, gasto, listar } from "@/lib/dashboard360/reuniones";
+import { disponible, gasto, huerfanas, listar } from "@/lib/dashboard360/reuniones";
+import { resolverCuenta } from "@/lib/cuentas";
 
 export const dynamic = "force-dynamic";
 
@@ -51,32 +57,31 @@ const campo =
 export default async function ReunionesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; desde?: string; hasta?: string; ambito?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    desde?: string;
+    hasta?: string;
+    sinCuenta?: string;
+  }>;
 }) {
-  await requireSession();
-  const { q, desde, hasta, ambito } = await searchParams;
+  const sesion = await requireSession();
+  const { q, desde, hasta, sinCuenta } = await searchParams;
+  const cuenta = resolverCuenta(sesion.cuenta, sesion.cuentas);
+  const rescate = sinCuenta === "1";
 
-  const [hay, reuniones, plata, listaAmbitos] = await Promise.all([
+  const [hay, reuniones, plata, sueltas] = await Promise.all([
     disponible(),
-    listar({ q, desde, hasta, ambito }),
-    gasto(),
-    ambitos(),
+    listar(
+      rescate
+        ? { q, desde, hasta, sinCuenta: true }
+        : { q, desde, hasta, ambito: cuenta.id },
+    ),
+    gasto(cuenta.id),
+    huerfanas(),
   ]);
 
-  const hayFiltro = Boolean(q || desde || hasta || ambito);
+  const hayFiltro = Boolean(q || desde || hasta);
   const pendientes = reuniones.filter((r) => r.estado !== "resumida").length;
-
-  // Los enlaces de las pestañas conservan lo que ya está escrito en el
-  // buscador: cambiar de ámbito no debería borrar la búsqueda.
-  const conAmbito = (a?: string) => {
-    const p = new URLSearchParams();
-    if (q) p.set("q", q);
-    if (desde) p.set("desde", desde);
-    if (hasta) p.set("hasta", hasta);
-    if (a) p.set("ambito", a);
-    const s = p.toString();
-    return `/dashboard360/reuniones${s ? `?${s}` : ""}`;
-  };
 
   return (
     <>
@@ -90,25 +95,35 @@ export default async function ReunionesPage({
         }
       />
 
-      {listaAmbitos.length > 0 ? (
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <Link
-            href={conAmbito()}
-            className={!ambito ? btnPrimario : btnSecundario}
-          >
-            Todas
+      {/* Las huérfanas se avisan y no se esconden. La lista filtra por cuenta,
+          así que una fila sin cuenta no aparece en ninguna: sin este aviso se
+          perdería en silencio, que es la peor forma de perder algo. */}
+      {sueltas > 0 && !rescate ? (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#e6d9b0] bg-[#fdf8e9] p-3 text-[12.5px] text-[#7a6417]">
+          <span>
+            Hay {sueltas} {sueltas === 1 ? "reunión" : "reuniones"} sin cuenta
+            asignada, de antes de que existieran las cuentas.
+          </span>
+          <Link className={btnSecundario} href="/dashboard360/reuniones?sinCuenta=1">
+            Verlas
           </Link>
-          {listaAmbitos.map((a) => (
-            <Link key={a} href={conAmbito(a)} className={ambito === a ? btnPrimario : btnSecundario}>
-              {a}
-            </Link>
-          ))}
+        </div>
+      ) : null}
+
+      {rescate ? (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--d360-border)] bg-white p-3 text-[12.5px] text-[var(--d360-ink-2)]">
+          <span>
+            Reuniones sin cuenta. Se asignan desde el detalle de cada una.
+          </span>
+          <Link className={btnSecundario} href="/dashboard360/reuniones">
+            Volver a {cuenta.nombre}
+          </Link>
         </div>
       ) : null}
 
       <Card className="mb-4" titulo="Buscar" descripcion="El texto se busca adentro de la transcripción, no solo en el título">
         <form method="get" className="flex flex-wrap items-end gap-3">
-          {ambito ? <input type="hidden" name="ambito" value={ambito} /> : null}
+          {rescate ? <input type="hidden" name="sinCuenta" value="1" /> : null}
           <label className="text-[12px] text-[var(--d360-ink-2)]">
             <span className="mb-1 block">Qué se dijo</span>
             <input
@@ -130,7 +145,10 @@ export default async function ReunionesPage({
             Buscar
           </button>
           {hayFiltro ? (
-            <Link className={btnSecundario} href={`/dashboard360/reuniones${ambito ? `?ambito=${encodeURIComponent(ambito)}` : ""}`}>
+            <Link
+              className={btnSecundario}
+              href={`/dashboard360/reuniones${rescate ? "?sinCuenta=1" : ""}`}
+            >
               Limpiar
             </Link>
           ) : null}
@@ -147,7 +165,9 @@ export default async function ReunionesPage({
       ) : null}
 
       <Card
-        titulo={hayFiltro ? "Resultados" : "Últimas reuniones"}
+        titulo={
+          rescate ? "Sin cuenta" : hayFiltro ? "Resultados" : `Reuniones de ${cuenta.nombre}`
+        }
         descripcion={
           reuniones.length === 0
             ? hayFiltro
@@ -165,11 +185,15 @@ export default async function ReunionesPage({
           />
         ) : reuniones.length === 0 ? (
           <Vacio
-            mensaje={hayFiltro ? "Nada calza con esa búsqueda" : "No ha llegado ninguna reunión"}
+            mensaje={
+              hayFiltro
+                ? "Nada calza con esa búsqueda"
+                : `Ninguna reunión en ${cuenta.nombre} todavía`
+            }
             sugerencia={
               hayFiltro
                 ? "Prueba con menos palabras, o quita el filtro de fechas."
-                : "Falta conectar la extensión del navegador al webhook. Está explicado en docs/reuniones.md."
+                : `Las reuniones llegan con el token cuyo ámbito es "${cuenta.id}". Está explicado en docs/reuniones.md.`
             }
           />
         ) : (
@@ -186,7 +210,7 @@ export default async function ReunionesPage({
                         la reunión, y no lo es. */}
                     {r.inicioEn ? FMT.format(r.inicioEn) : `recibida ${FMT.format(r.createdAt)}`}
                     {r.duracionMin !== null ? ` · ${r.duracionMin} min` : ""}
-                    {r.ambito ? ` · ${r.ambito}` : ""}
+                    {rescate && r.ambito ? ` · ${r.ambito}` : ""}
                   </div>
                   {r.estado !== "resumida" ? (
                     <Badge tono={r.estado === "error" ? "critico" : "alerta"}>

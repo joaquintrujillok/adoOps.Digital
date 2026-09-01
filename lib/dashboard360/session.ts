@@ -25,6 +25,22 @@ export interface SessionData {
   username: string;
   nombre: string;
   rol: Role;
+  /**
+   * En qué cuenta está parada esta sesión. Ver `lib/cuentas.ts`.
+   *
+   * Va **dentro de la cookie firmada** y no en una cookie aparte, por una razón
+   * concreta: la cuenta decide qué secciones se pintan, y una cookie sin firma
+   * la puede editar cualquiera desde la consola del navegador. No es hoy una
+   * frontera de seguridad —hay una sola base—, pero una etiqueta que dice en qué
+   * mundo estás parado no puede ser editable por quien la mira.
+   *
+   * Opcional porque las sesiones emitidas antes de que existieran las cuentas no
+   * la traen. `resolverCuenta()` las cae a la de por defecto en vez de dejar a
+   * alguien mirando un tablero vacío.
+   */
+  cuenta?: string;
+  /** A qué cuentas tiene acceso esta persona. Vacío o ausente = todas. */
+  cuentas?: string[];
 }
 
 interface SignedPayload extends SessionData {

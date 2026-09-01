@@ -6,10 +6,11 @@
 // registro de lo que se dijo y no se edita desde una pantalla. Lo que sí se
 // puede rehacer es la lectura que la IA hizo de él.
 
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { reunionRegistros } from "@/db/reuniones";
+import { cuentaPorId } from "@/lib/cuentas";
 import { getSession } from "@/lib/dashboard360/session";
 import { procesar } from "@/lib/reuniones/registro";
 
@@ -73,4 +74,29 @@ export async function alternarCompromisoAction(formData: FormData) {
   if (Number.isInteger(reunionId)) {
     revalidatePath(`/dashboard360/reuniones/${reunionId}`);
   }
+}
+
+/**
+ * Asigna una cuenta a una reunión que no la tiene.
+ *
+ * Solo existe para las huérfanas: las que entraron antes de que existieran las
+ * cuentas, o por un token que no declara ámbito. **No permite cambiar la cuenta
+ * de una que ya la tiene**, y esa restricción es deliberada: la cuenta la
+ * declara el token con el que se posteó, o sea el navegador desde donde se
+ * grabó, y eso es un hecho de cómo ocurrió la reunión. Dejarlo editable
+ * convertiría un hecho en una opinión.
+ */
+export async function asignarCuentaAction(formData: FormData) {
+  await exigirSesion();
+  const id = Number(formData.get("id"));
+  const cuenta = cuentaPorId(String(formData.get("cuenta") ?? ""));
+  if (!Number.isInteger(id) || !cuenta) return;
+
+  await db
+    .update(reunionRegistros)
+    .set({ ambito: cuenta.id })
+    .where(and(eq(reunionRegistros.id, id), isNull(reunionRegistros.ambito)));
+
+  revalidatePath(`/dashboard360/reuniones/${id}`);
+  revalidatePath("/dashboard360/reuniones");
 }

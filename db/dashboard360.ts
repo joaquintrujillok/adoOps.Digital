@@ -21,6 +21,7 @@ import {
   boolean,
   index,
   integer,
+  jsonb,
   pgTable,
   serial,
   smallint,
@@ -45,6 +46,18 @@ export const d360Users = pgTable(
     // scrypt$sal$hash — ver lib/dashboard360/session.ts
     passwordHash: text("password_hash").notNull(),
     rol: varchar("rol", { length: 20 }).notNull().default("analista"),
+    /**
+     * A qué cuentas tiene acceso. Ver `lib/cuentas.ts`.
+     *
+     * Null significa **todas**, y es distinto de un arreglo vacío, que significa
+     * ninguna. La diferencia importa: la columna se agregó cuando ya había
+     * usuarios, y dejarlos en null los mantiene como estaban en vez de dejarlos
+     * afuera de su propio tablero el día del despliegue.
+     *
+     * Es ortogonal al rol: el rol dice qué puedes hacer, esto dice en qué mundo
+     * estás parado. Alguien puede ser gerente en adoOps y no ver Soho.
+     */
+    cuentas: jsonb("cuentas").$type<string[]>(),
     activo: boolean("activo").notNull().default(true),
     ultimoIngreso: timestamp("ultimo_ingreso"),
     createdAt: timestamp("created_at").defaultNow().notNull(),

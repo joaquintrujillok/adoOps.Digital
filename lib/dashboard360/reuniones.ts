@@ -51,8 +51,13 @@ export type FiltrosReunion = {
   desde?: string;
   /** `YYYY-MM-DD`, inclusive: se compara contra el final de ese día. */
   hasta?: string;
-  /** `soho`, `personal`… `undefined` es "todos". */
+  /**
+   * Id de cuenta. `undefined` es "todas" —solo se usa para el rescate de
+   * huérfanas—, y el string vacío es el filtro explícito de "sin cuenta".
+   */
   ambito?: string;
+  /** Solo las que no tienen cuenta asignada. Ver `huerfanas()`. */
+  sinCuenta?: boolean;
 };
 
 /**
@@ -106,7 +111,11 @@ export async function listar(
     if (filtros.hasta)
       condiciones.push(sql`${FECHA} < (${filtros.hasta}::date + interval '1 day')`);
 
-    if (filtros.ambito) condiciones.push(eq(reunionRegistros.ambito, filtros.ambito));
+    if (filtros.sinCuenta) {
+      condiciones.push(sql`${reunionRegistros.ambito} IS NULL`);
+    } else if (filtros.ambito) {
+      condiciones.push(eq(reunionRegistros.ambito, filtros.ambito));
+    }
 
     const base = db
       .select({
@@ -133,23 +142,25 @@ export async function listar(
 }
 
 /**
- * Los ámbitos que existen en la base, no los que declara la configuración.
+ * Cuántas reuniones quedaron sin cuenta asignada.
  *
- * Se pregunta a los datos y no a `REUNIONES_WEBHOOK_TOKEN` a propósito: si
- * alguien saca un token, sus reuniones no desaparecen, y la pestaña para
- * encontrarlas tiene que seguir ahí.
+ * **Existe para que no desaparezcan.** La lista filtra por la cuenta activa, así
+ * que una fila sin cuenta no aparece en ninguna: sin este contador se perdería
+ * en silencio, que es la peor forma de perder algo. Son las que entraron antes
+ * de que las cuentas existieran, o por un token que no declara ámbito.
+ *
+ * No se les asigna una a ciegas. Adivinar de qué mundo era una conversación es
+ * justo el error que las cuentas existen para evitar.
  */
-export async function ambitos(): Promise<string[]> {
+export async function huerfanas(): Promise<number> {
   try {
     const filas = await db
-      .selectDistinct({ ambito: reunionRegistros.ambito })
-      .from(reunionRegistros);
-    return filas
-      .map((f) => f.ambito)
-      .filter((a): a is string => Boolean(a))
-      .sort();
+      .select({ id: reunionRegistros.id })
+      .from(reunionRegistros)
+      .where(sql`${reunionRegistros.ambito} IS NULL`);
+    return filas.length;
   } catch {
-    return [];
+    return 0;
   }
 }
 
@@ -200,15 +211,22 @@ export type Gasto = {
  * reuniones que nunca se resumieron) no suman y tampoco cuentan: un promedio
  * repartido entre reuniones que no se pagaron sería más bajo que el real.
  */
-export async function gasto(): Promise<Gasto> {
+export async function gasto(cuenta?: string): Promise<Gasto> {
   try {
-    const filas = await db
+    const base = db
       .select({
         total: sql<string>`coalesce(sum(${reunionRegistros.costoUsd}), 0)`,
         n: sql<number>`count(${reunionRegistros.costoUsd})::int`,
         aprox: sql<number>`count(*) filter (where ${reunionRegistros.costoAproximado} = 1 and ${reunionRegistros.costoUsd} is not null)::int`,
       })
       .from(reunionRegistros);
+
+    // Por cuenta y no global: un total que mezcla lo personal con lo de la
+    // empresa no responde ninguna de las dos preguntas que uno se hace.
+    const filas = cuenta
+      ? await base.where(eq(reunionRegistros.ambito, cuenta))
+      : await base;
+
     // `sum()` de un numeric vuelve como string. Number() acá y no en la
     // pantalla: que el tipo mienta una sola vez, lo más cerca posible del SQL.
     return {

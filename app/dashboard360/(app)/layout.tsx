@@ -14,6 +14,9 @@ import {
   sinResumen,
 } from "@/lib/dashboard360/reuniones";
 import ChipModuloAuto from "@/components/ChipModuloAuto";
+import SelectorCuenta from "@/components/dashboard360/SelectorCuenta";
+import { resolverCuenta } from "@/lib/cuentas";
+import { filtrarPorCuenta } from "@/lib/dashboard360/nav";
 
 // Cada request revalida la sesión y los contadores del menú. Un tablero que
 // dice "todo al día" cuando hay dos fuentes caídas es peor que no decir nada.
@@ -194,6 +197,12 @@ export default async function Dashboard360AppLayout({
     if (despacho) despacho.badge = responder;
   }
 
+  // El menú se arma completo arriba —con sus contadores y sus condiciones de
+  // despliegue— y recién acá se recorta a lo que la cuenta activa tiene
+  // encendido. Ver `lib/dashboard360/nav.ts`.
+  const cuenta = resolverCuenta(sesion.cuenta, sesion.cuentas);
+  const visibles = filtrarPorCuenta(grupos, cuenta);
+
   return (
     <div className="flex min-h-screen">
       <aside className="d360-no-print sticky top-0 hidden h-screen w-60 shrink-0 flex-col justify-between bg-[var(--d360-sidebar)] px-3 py-5 lg:flex">
@@ -214,7 +223,8 @@ export default async function Dashboard360AppLayout({
               360
             </span>
           </Link>
-          <Nav grupos={grupos} />
+          <SelectorCuenta activa={cuenta} permitidas={sesion.cuentas} />
+          <Nav grupos={visibles} />
         </div>
 
         <div className="border-t border-white/10 pt-3">
@@ -244,7 +254,7 @@ export default async function Dashboard360AppLayout({
           >
             ado<span className="text-[var(--d360-accent)]">Ops</span>
           </Link>
-          {grupos
+          {visibles
             .flatMap((g) => g.items)
             .map((it) => (
               <Link

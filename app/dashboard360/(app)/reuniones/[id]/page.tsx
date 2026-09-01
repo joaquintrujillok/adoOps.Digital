@@ -24,8 +24,10 @@ import { requireSession } from "@/lib/dashboard360/auth.actions";
 import { detalle } from "@/lib/dashboard360/reuniones";
 import {
   alternarCompromisoAction,
+  asignarCuentaAction,
   reintentarResumenAction,
 } from "@/lib/reuniones/acciones";
+import { CUENTAS } from "@/lib/cuentas";
 
 export const dynamic = "force-dynamic";
 
@@ -117,6 +119,27 @@ export default async function ReunionDetalle({
         ) : null}
         {r.ambito ? <Badge tono="neutro">{r.ambito}</Badge> : null}
       </div>
+
+      {/* Solo cuando falta. Una reunión que ya tiene cuenta no se re-asigna: la
+          declaró el token con el que se posteó, y eso es un hecho de cómo
+          ocurrió, no una opinión editable. */}
+      {!r.ambito ? (
+        <div className="mb-6 rounded-lg border border-[#e6d9b0] bg-[#fdf8e9] p-4">
+          <p className="mb-3 text-[13px] text-[#7a6417]">
+            Esta reunión no tiene cuenta, así que no aparece en ninguna lista.
+            Entró antes de que las cuentas existieran, o por un token que no
+            declara ámbito.
+          </p>
+          <form action={asignarCuentaAction} className="flex flex-wrap gap-2">
+            <input type="hidden" name="id" value={r.id} />
+            {CUENTAS.map((c) => (
+              <button key={c.id} name="cuenta" value={c.id} className={btnSecundario}>
+                {c.nombre}
+              </button>
+            ))}
+          </form>
+        </div>
+      ) : null}
 
       <div className="mb-6 flex flex-wrap gap-2">
         <a className={btnPrimario} href={`/api/dashboard360/reuniones/${r.id}/txt`} download>
