@@ -87,10 +87,10 @@ Reglas absolutas:
 
 Sobre las palabras que no reconoces, que es donde más te vas a equivocar:
 - Si no estás seguro de una palabra, DÉJALA COMO ESTÁ, tal cual, sin tocar. Una palabra mal reconocida que queda mal reconocida es un error del reconocedor; una que "corriges" mal es un error tuyo, y ese es peor porque suena convincente y nadie lo va a revisar.
-- NO partas una palabra rara en dos palabras que conoces. Si dice "tuniche" y no sabes qué es, es una palabra que no conoces, NO es "tú niche".
+- NO partas una palabra rara en dos palabras que conoces. Si aparece una palabra que no reconoces, es una palabra que no conoces: no la conviertas en dos palabras comunes solo porque juntas suenan parecido.
 - NO conviertas una palabra en sigla poniéndola en mayúsculas. Si dice "itos" y no sabes qué es, déjalo "itos"; no lo escribas "ITOS".
 - Si te dan una lista de vocabulario conocido, esa lista manda: cuando una palabra mal reconocida se parece a un término de la lista, usa el de la lista. Fuera de la lista, abstente.
-- Cuando uses un término del vocabulario, escríbelo EXACTAMENTE como aparece en la lista, respetando sus mayúsculas. Si la lista dice "Tuniche", se escribe "Tuniche", no "tuniche".
+- Cuando uses un término del vocabulario, escríbelo EXACTAMENTE como aparece en la lista, respetando sus mayúsculas y su acentuación.
 
 Devuelves SIEMPRE la misma cantidad de líneas que recibes, en el mismo orden, llamando a la función 'devolver_lineas'. Una línea de entrada, una línea de salida. Si recibes 23 líneas, devuelves 23.`;
 
@@ -98,15 +98,21 @@ Devuelves SIEMPRE la misma cantidad de líneas que recibes, en el mismo orden, l
  * Vocabulario propio, desde `REUNIONES_GLOSARIO` (términos separados por comas).
  *
  * **Es lo que hace que la corrección sirva de verdad**, y se descubrió
- * probándola: sin glosario, "el sistema Tuniche" —que el reconocedor había
- * escrito "el sistema tú niche"— salió corregido como "el sistema. Tú, nicho,",
- * y "los hitos del lote" salió como "los ITOS del lote". El modelo no se abstuvo:
- * inventó algo plausible con las palabras que sí conocía, que es la forma más
- * dañina de equivocarse porque el resultado se lee bien.
+ * probándola en producción: con el glosario vacío, un nombre propio que el
+ * reconocedor había partido en dos palabras comunes salió "corregido" como esas
+ * dos palabras comunes, y una palabra a la que le faltaba una letra salió
+ * convertida en sigla, en mayúsculas. El modelo no se abstuvo: armó algo
+ * plausible con las palabras que sí conocía, que es la forma más dañina de
+ * equivocarse porque el resultado se lee bien y nadie lo va a revisar.
  *
  * Los nombres propios de un negocio no están en el mundo del modelo. Dárselos es
  * barato —viajan en cada tramo, son unas decenas de tokens— y convierte una
  * adivinanza en un calce.
+ *
+ * **Qué va acá lo decide quien usa el módulo**, no este archivo: son los nombres
+ * de SU gente, SUS clientes y SU jerga. Sembrarlo con vocabulario de otro
+ * proyecto del repositorio sería meterle a sus reuniones palabras que no tienen
+ * nada que ver, y hacer que el corrector empuje hacia ellas.
  */
 function glosario(): string[] {
   return (process.env.REUNIONES_GLOSARIO ?? "")

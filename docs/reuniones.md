@@ -56,8 +56,14 @@ probándola en producción el 01-09-2026. Sin glosario:
 
 | Lo que entregó Meet | Lo que hizo la IA | Lo correcto |
 |---|---|---|
-| `el sistema tú niche` | `el sistema. Tú, nicho,` | el sistema **Tuniche** |
+| un nombre propio partido en dos | lo dejó partido en dos palabras comunes | el nombre propio, entero |
 | `los itos del lote` | `los ITOS del lote` | los **hitos** |
+
+(La prueba se hizo con un payload sintético. **El glosario de este módulo lo
+define quien lo usa**: son los nombres de su gente, sus clientes y su jerga. No
+se siembra con vocabulario de otros proyectos del repositorio — eso metería en
+las transcripciones palabras que no tienen nada que ver y empujaría al corrector
+hacia ellas.)
 
 El modelo no se abstuvo: armó algo plausible con las palabras que sí conocía. Es
 la forma más dañina de equivocarse, porque el resultado se lee bien y nadie lo va
@@ -352,7 +358,7 @@ queda en null: "no sé cuánto costó" es mejor que un número inventado.
 | `REUNIONES_WEBHOOK_TOKEN` | Lista de `token:Nombre:ámbito`. Autentica, identifica y separa. | Sí |
 | `OPENAI_API_KEY` | El resumen. Ya la usan las actas y el STT de Tuniche. | Sí |
 | `REUNIONES_MODEL` | Modelo de la corrección y el resumen. Default `gpt-4o-mini`. Ver la tabla de tarifas. | No |
-| `REUNIONES_GLOSARIO` | Vocabulario propio, separado por comas. Sin esto la corrección inventa nombres propios. | En la práctica, sí |
+| `REUNIONES_GLOSARIO` | Vocabulario **de quien usa el módulo**, separado por comas. Sin esto la corrección inventa nombres propios. | En la práctica, sí |
 
 `REUNIONES_MODEL` es propia y no la `EXTRACT_MODEL` de las actas por la misma
 razón que `lib/stt.ts` acepta un modelo por módulo: cambiar el modelo de un demo
