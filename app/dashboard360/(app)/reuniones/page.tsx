@@ -57,7 +57,8 @@ export default async function ReunionesPage() {
 
       {plata.reuniones > 0 ? (
         <p className="d360-num mb-4 text-[12px] text-[var(--d360-muted)]">
-          Costo de los resúmenes: {USD.format(plata.totalUsd)} en {plata.reuniones}{" "}
+          Costo de los resúmenes: {USD.format(plata.totalUsd)}
+          {plata.aproximado ? " aprox." : ""} en {plata.reuniones}{" "}
           {plata.reuniones === 1 ? "reunión" : "reuniones"} ·{" "}
           {USD.format(plata.totalUsd / plata.reuniones)} cada una en promedio
         </p>

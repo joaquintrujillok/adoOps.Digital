@@ -152,8 +152,12 @@ export default async function ReunionDetalle({
               {r.tokensEntradaCache ? ` (${r.tokensEntradaCache.toLocaleString("es-CL")} en caché)` : ""}
               {" · "}
               {(r.tokensSalida ?? 0).toLocaleString("es-CL")} de salida ·{" "}
+              {/* El "aprox." no es coquetería: los modelos gpt-5.6 cobran el
+                  doble pasado cierto largo de contexto, la página de precios no
+                  dice dónde está el corte y la API no informa qué tramo aplicó.
+                  Ese número es un piso, no una certeza. */}
               {r.costoUsd !== null
-                ? USD.format(Number(r.costoUsd))
+                ? `${USD.format(Number(r.costoUsd))}${r.costoAproximado ? " aprox." : ""}`
                 : "costo desconocido: el modelo no está en la tabla de tarifas"}
             </p>
           ) : null}

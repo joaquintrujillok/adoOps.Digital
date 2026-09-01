@@ -50,6 +50,7 @@ await sql`
     tokens_entrada_cache INTEGER,
     tokens_salida INTEGER,
     costo_usd NUMERIC(12,6),
+    costo_aproximado SMALLINT NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     resumida_en TIMESTAMPTZ
   )

@@ -207,6 +207,14 @@ export const reunionRegistros = pgTable(
      * `Number()`; sumarlos como texto sería un error silencioso.
      */
     costoUsd: numeric("costo_usd", { precision: 12, scale: 6 }),
+    /**
+     * 1 si el costo asume el tramo de contexto corto de un modelo que cobra por
+     * tramos. Se guarda y no se deduce del nombre del modelo al mostrarlo, por
+     * la misma razón que el costo se congela: si mañana cambia la tabla de
+     * tarifas, esta fila tiene que seguir diciendo qué se supo cuando se cobró.
+     * Ver `lib/reuniones/costo.ts`.
+     */
+    costoAproximado: smallint("costo_aproximado").notNull().default(0),
 
     // Mismo criterio que `inicioEn`: la lista cae en `createdAt` cuando no hay
     // fecha de reunión, así que tiene que ser tan confiable como ella.

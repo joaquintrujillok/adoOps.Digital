@@ -119,6 +119,7 @@ export async function resumir(id: number): Promise<void> {
         // `numeric` viaja como string. `toFixed(6)` fija la escala de la
         // columna en vez de dejar que Postgres redondee un float largo.
         costoUsd: uso.costoUsd === null ? null : uso.costoUsd.toFixed(6),
+        costoAproximado: uso.costoAproximado ? 1 : 0,
         intentos: fila.intentos + 1,
         resumidaEn: new Date(),
       })

@@ -103,6 +103,12 @@ export type Gasto = {
   totalUsd: number;
   /** Sobre cuántas reuniones se calculó. Sin esto el total no dice nada. */
   reuniones: number;
+  /**
+   * `true` si alguna de las reuniones sumadas tiene el costo estimado al tramo
+   * de contexto corto. Un total que mezcla cifras exactas con pisos no se puede
+   * presentar como exacto: basta una fila aproximada para que el total lo sea.
+   */
+  aproximado: boolean;
 };
 
 /**
@@ -119,13 +125,18 @@ export async function gasto(): Promise<Gasto> {
       .select({
         total: sql<string>`coalesce(sum(${reunionRegistros.costoUsd}), 0)`,
         n: sql<number>`count(${reunionRegistros.costoUsd})::int`,
+        aprox: sql<number>`count(*) filter (where ${reunionRegistros.costoAproximado} = 1 and ${reunionRegistros.costoUsd} is not null)::int`,
       })
       .from(reunionRegistros);
     // `sum()` de un numeric vuelve como string. Number() acá y no en la
     // pantalla: que el tipo mienta una sola vez, lo más cerca posible del SQL.
-    return { totalUsd: Number(filas[0]?.total ?? 0), reuniones: filas[0]?.n ?? 0 };
+    return {
+      totalUsd: Number(filas[0]?.total ?? 0),
+      reuniones: filas[0]?.n ?? 0,
+      aproximado: (filas[0]?.aprox ?? 0) > 0,
+    };
   } catch {
-    return { totalUsd: 0, reuniones: 0 };
+    return { totalUsd: 0, reuniones: 0, aproximado: false };
   }
 }
 
