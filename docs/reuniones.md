@@ -57,18 +57,54 @@ despliegue.
 
 ### 3. La extensión, en el navegador de cada persona
 
+Los pasos están en orden de lo que rompe primero. Los dos primeros son los que
+hacen que la extensión exista para Meet; sin ellos, configurar el webhook no
+sirve de nada.
+
 1. Instalar TranscripTonic:
    <https://chromewebstore.google.com/detail/ciepnfnceimjehngolkijpnbappkkiag>
-2. Abrir sus opciones → **Webhooks**.
-3. **Webhook URL**: `https://<dominio>/api/reuniones/webhook?token=<el token>`
-4. **Body type**: `advanced`. Importa: en `simple` la transcripción llega como
-   un solo bloque de texto y **la fecha de la reunión se pierde** — viene
+
+2. **Encender el interruptor de Google Meet en el popup, y aceptar el permiso de
+   notificaciones que pide Chrome.** Este paso no es cosmético y es el que más
+   se salta. La configuración interna de la extensión exige el permiso
+   `notifications` para dar Google Meet por habilitado, y ese permiso **no viene
+   en su manifiesto**: hay que concederlo. Mientras no esté, la extensión no
+   registra sus content scripts, o sea que en `meet.google.com` no hay nadie
+   leyendo nada. El síntoma es el peor posible: la reunión pasa entera, y
+   después no aparece **ni en la tabla de la extensión ni acá**.
+
+3. En el popup, dejar **Auto mode** (es el default). En auto, la extensión
+   **aprieta el botón `CC` sola** al entrar a la reunión. En modo manual no, y
+   ahí sí hay que prenderlo a mano.
+
+4. Opciones → **Webhooks** → **Webhook URL**:
+   `https://<dominio>/api/reuniones/webhook?token=<el token>`
+   Al guardar, Chrome vuelve a pedir permiso, esta vez para el dominio del
+   webhook. También hay que aceptarlo.
+
+5. **Body type: `advanced`.** No es un detalle. En `simple` la transcripción
+   llega como un bloque de texto y **la fecha de la reunión se pierde** — viene
    formateada en el idioma del navegador y no se puede parsear sin adivinar si
-   `08/03` es marzo o agosto. El módulo acepta los dos modos, pero en `simple`
-   la reunión queda sin fecha y se ordena por hora de llegada.
-5. Activar **Auto post webhook after meeting**.
-6. En Meet, activar los subtítulos (`CC`). Sin subtítulos no hay transcripción:
-   la extensión lee lo que Google escribe en pantalla, no el audio.
+   `08/03` es marzo o agosto. La primera reunión real que entró acá vino en
+   `simple` y quedó sin fecha ni duración. El módulo acepta los dos modos, pero
+   con `simple` la reunión se ordena por hora de llegada y nada más.
+
+6. Activar **Auto post webhook after meeting**.
+
+### La señal de que está funcionando
+
+Al entrar a una reunión con todo bien configurado, **la extensión muestra un
+aviso dentro de la interfaz de Meet**. Si ese aviso no aparece, no está
+corriendo, y no vale la pena hablar media hora para descubrirlo al colgar.
+
+### Que Meet *pueda* generar subtítulos
+
+Aparte de que la extensión los prenda, Meet tiene que estar efectivamente
+generando subtítulos. Se verificó en terreno el 01-09-2026: las dos primeras
+pruebas no capturaron nada porque Meet no estaba produciendo captions, aunque el
+botón estuviera activado. La comprobación que sirve es mirar la pantalla y ver
+si aparece texto abajo cuando alguien habla, **antes** de confiar en que la
+reunión se está guardando.
 
 ### 4. Probar
 
@@ -83,9 +119,16 @@ Responde `{"ok":true,"id":N,"duplicada":false}`. La reunión aparece en
 
 ## Lo que hay que saber antes de confiar en esto
 
-**Sin subtítulos activados no queda nada.** Es el modo de falla más probable y
-es silencioso: la reunión ocurre, nadie prende el `CC`, y al colgar no llega
-ningún webhook. No hay forma de recuperarlo después.
+**Si Meet no genera subtítulos, no queda nada.** Es el modo de falla más
+probable y es silencioso: la reunión ocurre, no se produce ni una línea de
+caption, y al colgar no llega ningún webhook ni queda registro en la propia
+extensión. No hay forma de recuperarlo después. Pasó en las dos primeras
+pruebas reales.
+
+**El que grabó aparece como "Tú".** Meet rotula al usuario local así en su
+interfaz en español, y eso es lo que la extensión lee. En una reunión de varios,
+todos salen con su nombre menos quien capturó. Para una nota que alguien lee un
+mes después, "Tú se comprometió a mandar la propuesta" no sirve de nada.
 
 **Son dos capas de error antes de la primera palabra en pantalla.** El
 reconocedor de voz de Google se equivoca —sobre todo con nombres propios y
