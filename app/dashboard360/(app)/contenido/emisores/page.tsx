@@ -42,12 +42,12 @@ const AVISOS: Record<string, { texto: string; tono: "ok" | "err" }> = {
   ok: { texto: "Perfil conectado.", tono: "ok" },
   cancelado: { texto: "La persona canceló en la pantalla de permisos.", tono: "err" },
   "estado-invalido": {
-    texto: "La respuesta no corresponde a esta sesión. Volvé a intentarlo desde acá.",
+    texto: "La respuesta no corresponde a esta sesión. Vuelve a intentarlo desde acá.",
     tono: "err",
   },
   "no-autorizado": { texto: "Conectar un perfil requiere permisos de gerencia.", tono: "err" },
   "emisor-inexistente": { texto: "Ese emisor ya no existe.", tono: "err" },
-  error: { texto: "LinkedIn rechazó el canje. Revisá el client id y la redirect URL.", tono: "err" },
+  error: { texto: "LinkedIn rechazó el canje. Revisa el client id y la redirect URL.", tono: "err" },
 };
 
 export default async function EmisoresContenido({
@@ -93,12 +93,12 @@ export default async function EmisoresContenido({
         {!disponible ? (
           <Vacio
             mensaje="La máquina de contenido no está desplegada acá"
-            sugerencia="Faltan las tablas contenido_*. Corré node scripts/contenido-setup.mjs."
+            sugerencia="Faltan las tablas contenido_*. Corre node scripts/contenido-setup.mjs."
           />
         ) : emisores.length === 0 ? (
           <Vacio
             mensaje="No hay perfiles conectados"
-            sugerencia="Agregá uno abajo. Cada persona autoriza por separado: el permiso para publicar es por miembro, no por empresa."
+            sugerencia="Agrega uno abajo. Cada persona autoriza por separado: el permiso para publicar es por miembro, no por empresa."
           />
         ) : (
           <div className="space-y-3">

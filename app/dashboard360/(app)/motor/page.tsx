@@ -251,7 +251,7 @@ export default async function Despacho() {
             mensaje="No hay nada agendado para hoy"
             sugerencia={
               p.frenados.length > 0
-                ? "Mirá la banda de abajo: hay acciones que el motor descartó y dicen por qué."
+                ? "Mira la banda de abajo: hay acciones que el motor descartó y dicen por qué."
                 : "Cargá una señal y inscribí a los contactos de esa empresa."
             }
           />

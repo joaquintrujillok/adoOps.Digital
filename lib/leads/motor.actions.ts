@@ -173,10 +173,10 @@ export async function crearSenalAction(
   const fecha = String(formData.get("fechaHecho") ?? "").trim();
 
   if (!Number.isInteger(empresaId) || empresaId <= 0) {
-    return { error: "Elegí una empresa de la lista" };
+    return { error: "Elige una empresa de la lista" };
   }
   const t = tipoSenal(tipo);
-  if (!t) return { error: "Elegí un tipo de señal" };
+  if (!t) return { error: "Elige un tipo de señal" };
 
   // El resumen es lo que termina EN EL MENSAJE, así que se valida como texto y
   // no como campo. Un resumen de tres palabras produce una frase absurda.
@@ -325,7 +325,7 @@ export async function crearEmisorAction(
   const identificador = String(formData.get("identificador") ?? "").trim();
   if (!["linkedin", "email", "whatsapp"].includes(tipo)) return { error: "Tipo no válido" };
   if (identificador.length < 3) {
-    return { error: "Poné el perfil de LinkedIn o el buzón que va a emitir" };
+    return { error: "Ingresa el perfil de LinkedIn o el buzón que va a emitir" };
   }
 
   // Nace en warm-up con 5 al día. No es un default conservador por prudencia
