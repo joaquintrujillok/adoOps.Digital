@@ -72,6 +72,17 @@ export async function subirConocimientoAction(
         (r.reemplazados ? ` · ${r.reemplazados} anteriores reemplazados` : ""),
     };
   } catch (e) {
-    return { error: e instanceof Error ? e.message : String(e) };
+    const mensaje = e instanceof Error ? e.message : String(e);
+    // El error crudo de Postgres cuando falta la tabla es una consulta SQL
+    // entera, ilegible para quien solo quería subir un archivo. Se traduce al
+    // único arreglo que existe. Es el mismo criterio que `disponible()` en el
+    // resto del repo: un módulo que no está desplegado lo dice, no revienta.
+    if (/conocimiento_trozos/.test(mensaje) && /does not exist|no existe/i.test(mensaje)) {
+      return {
+        error:
+          "La tabla de conocimiento no está creada en esta base. Corre: node scripts/conocimiento-setup.mjs",
+      };
+    }
+    return { error: mensaje };
   }
 }
