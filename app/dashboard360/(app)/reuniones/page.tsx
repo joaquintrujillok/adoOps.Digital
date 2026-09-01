@@ -83,6 +83,11 @@ export default async function ReunionesPage({
       <PageHeader
         titulo="Reuniones"
         bajada="Lo que se dijo en cada Meet, corregido y buscable. Entra solo cuando la reunión termina."
+        acciones={
+          <Link className={btnSecundario} href="/dashboard360/reuniones/vivo">
+            Escuchar en vivo
+          </Link>
+        }
       />
 
       {listaAmbitos.length > 0 ? (

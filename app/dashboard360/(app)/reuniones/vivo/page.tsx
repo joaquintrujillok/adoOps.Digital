@@ -1,18 +1,13 @@
-// Escucha en vivo — prueba de humo.
+// Escucha en vivo — el copiloto de reunión.
 //
-// No es todavía el copiloto de reuniones: es el instrumento que decide si el
-// copiloto se puede construir. Tres preguntas que no se contestan desde un
-// escritorio, y esta pantalla las contesta en cinco minutos con una reunión de
-// verdad:
+// Tres paneles: la transcripción a la izquierda, el contexto que se construye
+// solo arriba a la derecha, y debajo las preguntas que convendría hacer ahora.
 //
-//   1. ¿Esta cuenta de OpenAI tiene habilitada la Realtime API?
-//   2. ¿Cuánta latencia hay entre hablar y ver el texto?
-//   3. ¿El micrófono del Mac capta a la otra persona saliendo por el parlante,
-//      con calidad suficiente para transcribir?
-//
-// La tercera es la que manda. Si la respuesta es no, todo el diseño de captura
-// acústica —celular, ESP32, el micrófono del propio Mac— se cae junto, y hay que
-// volver a capturar el audio de la pestaña.
+// La prueba de humo que fue esta pantalla ya se pasó: la Realtime API responde,
+// el micrófono capta la sala y el texto llega en menos de un segundo. Lo que
+// falta por medir es lo que ninguna prueba corta puede decir — si las preguntas
+// sirven de verdad en una reunión real, que es otra cosa que si el sistema
+// funciona.
 
 import { Card, PageHeader } from "@/components/dashboard360/ui";
 import { requireSession } from "@/lib/dashboard360/auth.actions";
@@ -27,7 +22,7 @@ export default async function VivoPage() {
     <>
       <PageHeader
         titulo="Escucha en vivo"
-        bajada="Prueba de humo: transcripción en tiempo real desde el micrófono. Todavía no construye contexto ni sugiere preguntas."
+        bajada="Transcribe la reunión mientras ocurre, arma el contexto solo y sugiere qué preguntar. Cuesta ~US$1 la hora."
       />
 
       <Card className="mb-4" titulo="Cómo probarla bien">
@@ -52,23 +47,25 @@ export default async function VivoPage() {
 
       <EscuchaVivo />
 
-      <Card className="mt-4" titulo="Qué se pierde por escuchar la sala en vez de la pestaña">
+      <Card className="mt-4" titulo="Los límites de este carril">
         <ul className="ml-4 list-disc space-y-1.5 text-[13px] leading-relaxed text-[var(--d360-ink-2)]">
           <li>
-            <strong>Quién dijo qué.</strong> Todo entra por un solo micrófono, así
-            que el transcript en vivo es una sola voz corrida. Para construir
-            contexto y sugerir preguntas alcanza; para un acta, no.
+            <strong>Quién dijo qué se pierde.</strong> Todo entra por un solo
+            micrófono, así que el transcript es una sola voz corrida. Para armar
+            contexto y sugerir preguntas alcanza; para un acta, no — para eso está
+            el carril de los subtítulos, y los dos pueden convivir.
           </li>
           <li>
-            <strong>Calidad.</strong> El parlante manda el sonido al aire y el aire
-            se lo devuelve al micrófono con la reverberación de la pieza. Es peor
-            que tomar el audio digital de la pestaña, y cuánto peor solo se sabe
-            probándolo.
+            <strong>El contexto va 20 segundos atrás, y es a propósito.</strong> Un
+            modelo razonando sobre cada palabra devolvería un panel que cambia cada
+            dos segundos, ilegible justo cuando hay que mirarlo de reojo mientras
+            uno habla.
           </li>
           <li>
-            <strong>Cuesta plata mientras está abierta.</strong> US$0,017 por
-            minuto, unos US$1 la hora. Cien veces el carril de los subtítulos. El
-            contador de arriba lo muestra en vivo por eso.
+            <strong>Cuesta mientras está abierta.</strong> US$0,017 el minuto de
+            transcripción más unos diez centavos por hora de razonamiento: cerca de
+            US$1,10 la hora, cien veces el carril de los subtítulos. Por eso el
+            contador está arriba y no al final.
           </li>
         </ul>
       </Card>
