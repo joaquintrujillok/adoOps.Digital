@@ -5,6 +5,10 @@ import { d360Fuentes, d360Informes } from "@/db/dashboard360";
 import Nav, { type GrupoNav } from "@/components/dashboard360/Nav";
 import { logoutAction, requireSession } from "@/lib/dashboard360/auth.actions";
 import { disponible, emisoresConProblema, sinResponder } from "@/lib/dashboard360/motor";
+import {
+  disponible as reunionesDisponible,
+  sinResumen,
+} from "@/lib/dashboard360/reuniones";
 import ChipModuloAuto from "@/components/ChipModuloAuto";
 
 // Cada request revalida la sesión y los contadores del menú. Un tablero que
@@ -12,7 +16,7 @@ import ChipModuloAuto from "@/components/ChipModuloAuto";
 export const dynamic = "force-dynamic";
 
 async function contadores() {
-  const [problemas, borradores, hayMotor] = await Promise.all([
+  const [problemas, borradores, hayMotor, hayReuniones] = await Promise.all([
     db
       .select({ id: d360Fuentes.id })
       .from(d360Fuentes)
@@ -22,6 +26,7 @@ async function contadores() {
       .from(d360Informes)
       .where(eq(d360Informes.estado, "borrador")),
     disponible(),
+    reunionesDisponible(),
   ]);
 
   // Los contadores del motor solo se piden si el motor existe. Encadenarlos en
@@ -32,12 +37,18 @@ async function contadores() {
     ? await Promise.all([sinResponder(), emisoresConProblema()])
     : [0, 0];
 
+  // Mismo cuidado que con el motor: el tablero se despliega sin las tablas
+  // `reunion_*` y no debe pagar una consulta fallida por cada carga.
+  const reunionesPendientes = hayReuniones ? await sinResumen() : 0;
+
   return {
     fuentes: problemas.length,
     informes: borradores.length,
     hayMotor,
     responder,
     emisores,
+    hayReuniones,
+    reunionesPendientes,
   };
 }
 
@@ -47,7 +58,15 @@ export default async function Dashboard360AppLayout({
   children: React.ReactNode;
 }) {
   const sesion = await requireSession();
-  const { fuentes, informes, hayMotor, responder, emisores } = await contadores();
+  const {
+    fuentes,
+    informes,
+    hayMotor,
+    responder,
+    emisores,
+    hayReuniones,
+    reunionesPendientes,
+  } = await contadores();
 
   const grupos: GrupoNav[] = [
     {
@@ -97,6 +116,19 @@ export default async function Dashboard360AppLayout({
           icono: "▤",
           badge: informes,
         },
+        // Las reuniones van en Dirección y no en Datos: no responden "¿hay algo
+        // caído?" sino "¿en qué quedamos?". El badge cuenta las que llegaron
+        // sin resumen, que es el único caso en que alguien tiene que hacer algo.
+        ...(hayReuniones
+          ? [
+              {
+                href: "/dashboard360/reuniones",
+                etiqueta: "Reuniones",
+                icono: "✎",
+                badge: reunionesPendientes,
+              },
+            ]
+          : []),
       ],
     },
     {

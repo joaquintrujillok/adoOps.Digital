@@ -82,6 +82,21 @@ export const MODULOS: Modulo[] = [
     nota: "Prospecta personas reales con un cron cada 15 minutos, de lunes a viernes.",
   },
   {
+    id: "reuniones",
+    nombre: "Reuniones",
+    ruta: "/dashboard360/reuniones",
+    // `interno` y no `demo`, y la diferencia no es de matiz: adentro hay la
+    // transcripción literal de una reunión de trabajo, con el nombre de cada
+    // persona al lado de lo que dijo. Es el módulo con el material más sensible
+    // del repo después de los tokens de contenido, y no se muestra en ninguna
+    // reunión de venta.
+    estado: "interno",
+    datos: "reales",
+    audiencia: "el equipo de adOps",
+    tablas: ["reunion_"],
+    nota: "Transcripciones literales de reuniones del equipo. Cada línea tiene el nombre de quien la dijo.",
+  },
+  {
     id: "dashboard360",
     nombre: "Dashboard 360",
     ruta: "/dashboard360",
