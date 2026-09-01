@@ -28,35 +28,29 @@
 // cookie de sesión. La autenticación es la de acá, y es la única.
 
 import { NextResponse, after } from "next/server";
-import { timingSafeEqual } from "crypto";
 import { normalizar, type CuerpoWebhook } from "@/lib/reuniones/payload";
-import { recibir, resumir } from "@/lib/reuniones/registro";
+import { procesar, recibir } from "@/lib/reuniones/registro";
+import { hayEmisores, identificar } from "@/lib/reuniones/tokens";
 
 export const runtime = "nodejs";
 
 /**
- * El resumen corre en un `after()`, y ese trabajo cuenta dentro de la duración
- * de la función igual que la respuesta. Con el default de 10 segundos, una
- * reunión larga se quedaría a medias: la fila guardada en `recibida` y el
- * resumen muerto sin que nadie se entere. Dos minutos es el mismo techo que
- * usan los crons del repo.
+ * La corrección y el resumen corren en un `after()`, y ese trabajo cuenta dentro
+ * de la duración de la función igual que la respuesta. Con el default de 10
+ * segundos, una reunión larga se quedaría a medias: la fila guardada en
+ * `recibida` y el procesamiento muerto sin que nadie se entere.
+ *
+ * Dos minutos alcanzan porque la corrección pide los tramos de a cuatro en
+ * paralelo: una reunión de una hora son unos ocho tramos, o sea dos vueltas.
+ * Es el mismo techo que usan los crons del repo.
  */
 export const maxDuration = 120;
 
-/** Comparación en tiempo constante. Distinta longitud ya es distinto token. */
-function tokenValido(recibido: string | null, esperado: string): boolean {
-  if (!recibido) return false;
-  const a = Buffer.from(recibido);
-  const b = Buffer.from(esperado);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
-
 export async function POST(req: Request) {
-  const esperado = process.env.REUNIONES_WEBHOOK_TOKEN;
-  // Sin token configurado el endpoint se cierra, no se abre. Un fallback
+  // Sin ningún token configurado el endpoint se cierra, no se abre. Un fallback
   // permisivo acá sería una ruta pública que escribe en la base y llama a una
   // API que se paga.
-  if (!esperado || esperado.length < 24) {
+  if (!hayEmisores()) {
     return NextResponse.json(
       { error: "REUNIONES_WEBHOOK_TOKEN no configurada" },
       { status: 500 },
@@ -64,7 +58,10 @@ export async function POST(req: Request) {
   }
 
   const url = new URL(req.url);
-  if (!tokenValido(url.searchParams.get("token"), esperado)) {
+  // El token no solo autentica: dice de quién es el navegador que posteó y a
+  // qué ámbito pertenece la reunión. Ver `lib/reuniones/tokens.ts`.
+  const emisor = identificar(url.searchParams.get("token"));
+  if (!emisor) {
     return NextResponse.json({ error: "token inválido" }, { status: 401 });
   }
 
@@ -75,7 +72,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "json inválido" }, { status: 400 });
   }
 
-  const reunion = normalizar(cuerpo);
+  const reunion = normalizar(cuerpo, emisor.nombre);
   if (!reunion) {
     // La extensión no debería llegar acá: se niega a postear cuando el
     // transcript y el chat están vacíos (su error 014). Si igual llega, se
@@ -84,13 +81,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "sin transcripción" }, { status: 422 });
   }
 
-  const { id, duplicada } = await recibir(reunion, cuerpo);
+  const { id, duplicada } = await recibir(reunion, cuerpo, {
+    capturadaPor: emisor.nombre,
+    ambito: emisor.ambito,
+  });
 
-  // El resumen va fuera del ciclo de la respuesta. La extensión trata cualquier
-  // respuesta que no sea `ok` como fallo y le muestra una notificación a la
-  // persona; esperar a OpenAI acá sería arriesgar ese fallo por algo que no
-  // tiene nada que ver con haber recibido bien la reunión.
-  if (!duplicada) after(() => resumir(id));
+  // Las pasadas de IA van fuera del ciclo de la respuesta. La extensión trata
+  // cualquier respuesta que no sea `ok` como fallo y le muestra una
+  // notificación a la persona; esperar a OpenAI acá —que ahora son varias
+  // llamadas, no una— sería arriesgar ese fallo por algo que no tiene nada que
+  // ver con haber recibido bien la reunión.
+  if (!duplicada) after(() => procesar(id));
 
-  return NextResponse.json({ ok: true, id, duplicada });
+  return NextResponse.json({ ok: true, id, duplicada, ambito: emisor.ambito });
 }

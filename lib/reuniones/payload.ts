@@ -49,6 +49,20 @@ export type CuerpoWebhook = {
   chatMessages?: MensajeChat[] | string;
 };
 
+/**
+ * Cómo rotula Meet a quien tiene la extensión corriendo.
+ *
+ * "Tú" en interfaz en español, "You" en inglés. No es un dato del payload: es
+ * literalmente lo que Google escribe en el subtítulo, así que llega adentro del
+ * texto y hay que reemplazarlo antes de guardarlo. Ver `lib/reuniones/tokens.ts`
+ * para de dónde sale el nombre real.
+ */
+const YO = new Set(["tú", "tu", "you"]);
+
+function esYo(nombre: string): boolean {
+  return YO.has(nombre.trim().toLowerCase());
+}
+
 export type ReunionNormalizada = {
   clave: string;
   plataforma: string | null;
@@ -95,6 +109,23 @@ function participantesDe(bloques: BloqueTranscripcion[]): string[] {
 }
 
 /**
+ * En modo simple no hay bloques: el nombre viene adentro del texto, en su propia
+ * línea con la forma `Nombre (FECHA)`. Para reemplazar "Tú" hay que tocar el
+ * texto, y solo esas líneas de cabecera — nunca lo que la persona dijo, donde
+ * "tú" es una palabra normal del español.
+ */
+function reemplazarYoEnTexto(texto: string, nombre: string): string {
+  return texto
+    .split("\n")
+    .map((linea) => {
+      const m = linea.match(/^(.+?)(\s+\([^)]*\)\s*)$/);
+      if (m && esYo(m[1])) return `${nombre}${m[2]}`;
+      return linea;
+    })
+    .join("\n");
+}
+
+/**
  * En modo simple el nombre queda dentro del texto, con la forma
  * `Nombre (FECHA)` en su propia línea. Se rescatan de ahí, sin inventar: si el
  * formato cambia, la lista queda vacía y la pantalla lo dice.
@@ -130,15 +161,34 @@ function claveDe(cuerpo: CuerpoWebhook): string {
  * Normaliza el cuerpo. Devuelve `null` si no hay transcripción utilizable: sin
  * texto no hay nada que resumir y guardar la fila solo ensucia la pantalla.
  */
-export function normalizar(cuerpo: CuerpoWebhook): ReunionNormalizada | null {
-  const bloques = Array.isArray(cuerpo.transcript) ? cuerpo.transcript : null;
+export function normalizar(
+  cuerpo: CuerpoWebhook,
+  /** Nombre de quien grabó, para reemplazar el "Tú" de Meet. */
+  quienGrabo?: string | null,
+): ReunionNormalizada | null {
+  const crudos = Array.isArray(cuerpo.transcript) ? cuerpo.transcript : null;
+
+  // El reemplazo se hace acá, antes de armar el texto, y no en la pantalla: el
+  // rótulo queda escrito adentro de lo que se guarda, y una fila vieja con "Tú"
+  // ya no se puede desambiguar después.
+  const bloques =
+    crudos && quienGrabo
+      ? crudos.map((b) =>
+          esYo(b.personName || "") ? { ...b, personName: quienGrabo } : b,
+        )
+      : crudos;
+
   const chat = Array.isArray(cuerpo.chatMessages) ? cuerpo.chatMessages : null;
 
-  const transcripcion = bloques
+  let transcripcion = bloques
     ? textoDeBloques(bloques)
     : typeof cuerpo.transcript === "string"
       ? cuerpo.transcript.trim()
       : "";
+
+  if (!bloques && quienGrabo && transcripcion) {
+    transcripcion = reemplazarYoEnTexto(transcripcion, quienGrabo);
+  }
 
   if (!transcripcion) return null;
 

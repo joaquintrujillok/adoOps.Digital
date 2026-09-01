@@ -1,6 +1,13 @@
 // Orquestación de una reunión que entra por webhook:
 //   recibir()  → guarda el transcript y devuelve el id. No llama a la IA.
-//   resumir()  → le pide a la IA el resumen y actualiza la fila.
+//   procesar() → las dos pasadas de IA, en orden, y actualiza la fila.
+//
+// **El orden de las dos pasadas no es casual.** Primero se corrige la
+// transcripción y después se resume la versión corregida, no la original. El
+// resumen hereda así todo lo que arregló la corrección: si el reconocedor
+// escribió mal el nombre de una persona, el compromiso sale a nombre de la
+// persona correcta. Al revés —resumir el texto crudo— sería tirar a la basura
+// la pasada más cara.
 //
 // **Por qué son dos pasos y no uno.** Ver la invariante en la cabecera de
 // `db/reuniones.ts`: el transcript existe una sola vez, en el navegador de
@@ -15,6 +22,8 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { reunionCompromisos, reunionRegistros } from "@/db/reuniones";
+import { corregirTranscripcion } from "@/lib/reuniones/corregir";
+import { sumarUsos, type UsoModelo } from "@/lib/reuniones/costo";
 import { extraerReunion } from "@/lib/reuniones/extraer";
 import type { ReunionNormalizada } from "@/lib/reuniones/payload";
 
@@ -35,6 +44,8 @@ export type ResultadoRecepcion = {
 export async function recibir(
   reunion: ReunionNormalizada,
   crudo: unknown,
+  /** De dónde vino: el nombre y el ámbito que declara el token. */
+  origen: { capturadaPor: string | null; ambito: string | null },
 ): Promise<ResultadoRecepcion> {
   const insertada = await db
     .insert(reunionRegistros)
@@ -50,6 +61,8 @@ export async function recibir(
       bloques: reunion.bloques,
       chat: reunion.chat,
       crudo,
+      capturadaPor: origen.capturadaPor,
+      ambito: origen.ambito,
       estado: "recibida",
     })
     .onConflictDoNothing({ target: reunionRegistros.clave })
@@ -67,12 +80,12 @@ export async function recibir(
 }
 
 /**
- * Pide el resumen y actualiza la fila. Nunca lanza: el llamador es un
- * `after()` de un webhook que ya respondió 200, así que una excepción acá no
- * llega a ninguna parte. El error se guarda en la fila, que es donde alguien lo
- * va a ver.
+ * Corrige, resume y actualiza la fila. Nunca lanza: el llamador es un `after()`
+ * de un webhook que ya respondió 200, así que una excepción acá no llega a
+ * ninguna parte. El error se guarda en la fila, que es donde alguien lo va a
+ * ver.
  */
-export async function resumir(id: number): Promise<void> {
+export async function procesar(id: number): Promise<void> {
   const [fila] = await db
     .select()
     .from(reunionRegistros)
@@ -82,13 +95,24 @@ export async function resumir(id: number): Promise<void> {
   if (!fila) return;
   if (fila.estado === "resumida") return;
 
+  const usos: UsoModelo[] = [];
+
   try {
-    const { extraccion, resumen, uso } = await extraerReunion(fila.transcripcion, {
+    // ── Pasada 1: corregir ───────────────────────────────────────────────────
+    const correccion = await corregirTranscripcion(fila.transcripcion, {
       titulo: fila.titulo,
       participantes: fila.participantes ?? [],
     });
+    usos.push(...correccion.usos);
 
-    // Los compromisos se rehacen desde cero en cada resumen. Si esto es un
+    // ── Pasada 2: resumir lo corregido ───────────────────────────────────────
+    const { extraccion, resumen, uso } = await extraerReunion(correccion.texto, {
+      titulo: fila.titulo,
+      participantes: fila.participantes ?? [],
+    });
+    usos.push(uso);
+
+    // Los compromisos se rehacen desde cero en cada corrida. Si esto es un
     // reintento, los de la corrida fallida anterior no deben quedar mezclados
     // con los nuevos.
     await db.delete(reunionCompromisos).where(eq(reunionCompromisos.reunionId, id));
@@ -105,27 +129,35 @@ export async function resumir(id: number): Promise<void> {
       );
     }
 
+    const total = sumarUsos(usos);
+
     await db
       .update(reunionRegistros)
       .set({
         estado: "resumida",
+        transcripcionCorregida: correccion.texto,
+        tramosSinCorregir: correccion.tramosSinCorregir,
         resumen,
         extraccion,
         error: null,
-        modelo: uso.modelo,
-        tokensEntrada: uso.tokensEntrada,
-        tokensEntradaCache: uso.tokensEntradaCache,
-        tokensSalida: uso.tokensSalida,
+        modelo: total.modelo,
+        tokensEntrada: total.tokensEntrada,
+        tokensEntradaCache: total.tokensEntradaCache,
+        tokensSalida: total.tokensSalida,
         // `numeric` viaja como string. `toFixed(6)` fija la escala de la
         // columna en vez de dejar que Postgres redondee un float largo.
-        costoUsd: uso.costoUsd === null ? null : uso.costoUsd.toFixed(6),
-        costoAproximado: uso.costoAproximado ? 1 : 0,
+        costoUsd: total.costoUsd === null ? null : total.costoUsd.toFixed(6),
+        costoAproximado: total.costoAproximado ? 1 : 0,
         intentos: fila.intentos + 1,
         resumidaEn: new Date(),
       })
       .where(eq(reunionRegistros.id, id));
   } catch (e) {
     const mensaje = e instanceof Error ? e.message : String(e);
+    // Los tokens de lo que alcanzó a correr antes de fallar se guardan igual:
+    // una llamada que se pagó y no quedó registrada es plata que no aparece en
+    // ninguna suma.
+    const total = sumarUsos(usos);
     await db
       .update(reunionRegistros)
       .set({
@@ -133,6 +165,10 @@ export async function resumir(id: number): Promise<void> {
         // El mensaje se guarda entero salvo que sea absurdo: un stack de 8 KB
         // en la pantalla no ayuda a nadie.
         error: mensaje.slice(0, 2000),
+        modelo: total.modelo || null,
+        tokensEntrada: total.tokensEntrada || null,
+        tokensSalida: total.tokensSalida || null,
+        costoUsd: total.costoUsd === null ? null : total.costoUsd.toFixed(6),
         intentos: fila.intentos + 1,
       })
       .where(eq(reunionRegistros.id, id));

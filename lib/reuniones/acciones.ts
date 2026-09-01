@@ -11,7 +11,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { reunionRegistros } from "@/db/reuniones";
 import { getSession } from "@/lib/dashboard360/session";
-import { resumir } from "@/lib/reuniones/registro";
+import { procesar } from "@/lib/reuniones/registro";
 
 async function exigirSesion() {
   const s = await getSession();
@@ -22,29 +22,30 @@ async function exigirSesion() {
 }
 
 /**
- * Vuelve a pedirle el resumen a la IA.
+ * Vuelve a correr las dos pasadas de IA: corregir y resumir.
  *
  * Ignora `MAX_INTENTOS` a propósito: ese tope frena los reintentos automáticos,
  * y esto es una persona apretando un botón porque sabe algo que el contador no
  * —que la cuota de OpenAI ya se recargó, por ejemplo—.
  *
  * Corre en línea y no en un `after()`: acá sí hay alguien mirando la pantalla, y
- * que la página vuelva ya con el resumen es la única forma de que el botón se
- * sienta como un botón. Una reunión de una hora tarda unos segundos.
+ * que la página vuelva ya con el resultado es la única forma de que el botón se
+ * sienta como un botón. Una reunión de una hora tarda algunas decenas de
+ * segundos, porque la corrección reescribe el texto entero.
  */
 export async function reintentarResumenAction(formData: FormData) {
   await exigirSesion();
   const id = Number(formData.get("id"));
   if (!Number.isInteger(id)) return;
 
-  // `resumir()` no reprocesa lo que ya está resumido. Para un reintento a mano
+  // `procesar()` no reprocesa lo que ya está resumido. Para un reintento a mano
   // eso sería un botón que no hace nada, así que se devuelve a `recibida`.
   await db
     .update(reunionRegistros)
     .set({ estado: "recibida" })
     .where(eq(reunionRegistros.id, id));
 
-  await resumir(id);
+  await procesar(id);
 
   revalidatePath(`/dashboard360/reuniones/${id}`);
   revalidatePath("/dashboard360/reuniones");

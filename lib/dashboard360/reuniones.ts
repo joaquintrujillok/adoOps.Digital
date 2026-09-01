@@ -5,7 +5,7 @@
 // no están creadas en un despliegue, nada revienta — todo devuelve vacío,
 // `disponible()` responde `false`, y el menú no pinta la entrada.
 
-import { desc, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   reunionCompromisos,
@@ -39,20 +39,76 @@ export type FilaReunion = Pick<
   | "participantes"
   | "estado"
   | "resumen"
+  | "ambito"
+  | "capturadaPor"
   | "createdAt"
 >;
 
+export type FiltrosReunion = {
+  /** Texto libre. Busca en el título y adentro de la transcripción. */
+  q?: string;
+  /** `YYYY-MM-DD`, inclusive. */
+  desde?: string;
+  /** `YYYY-MM-DD`, inclusive: se compara contra el final de ese día. */
+  hasta?: string;
+  /** `soho`, `personal`… `undefined` es "todos". */
+  ambito?: string;
+};
+
 /**
- * La lista, más reciente primero.
+ * La fecha por la que se ordena y se filtra.
  *
- * Ordena por `inicioEn` y desempata con `createdAt` porque `inicioEn` puede ser
- * null: la extensión en modo `simple` manda la fecha ya formateada para
- * humanos y no se parsea (ver `lib/reuniones/payload.ts`). `NULLS LAST` deja
- * esas reuniones donde corresponde en vez de arriba de todo.
+ * Es `inicio_en` cuando existe, y si no la hora en que llegó. `inicio_en` es
+ * null cuando la extensión está configurada en modo `simple` —manda la fecha
+ * formateada para humanos y no se puede parsear, ver `lib/reuniones/payload.ts`—
+ * y una reunión sin fecha no puede desaparecer de un filtro por fechas solo
+ * porque su emisor tenía mal una casilla.
  */
-export async function listar(limite = 50): Promise<FilaReunion[]> {
+const FECHA = sql`coalesce(${reunionRegistros.inicioEn}, ${reunionRegistros.createdAt})`;
+
+/**
+ * La lista, más reciente primero, con filtros.
+ *
+ * **La búsqueda entra al texto de la reunión, no solo al título.** Es lo que la
+ * hace servir: el título que manda Meet es el código de la sala —"Meet -
+ * ppb-cxec-ujo"— y nadie recuerda una reunión por ahí. Se recuerda por una
+ * palabra que se dijo adentro.
+ *
+ * Se busca con `ILIKE` y no con búsqueda de texto completo de Postgres. Con
+ * cientos de reuniones la diferencia no se nota, y `ILIKE '%palabra%'` encuentra
+ * fragmentos y palabras a medias, que es como busca alguien que no se acuerda
+ * bien. Si algún día son miles, esto se cambia por un índice `tsvector` y la
+ * pantalla no se entera.
+ */
+export async function listar(
+  filtros: FiltrosReunion = {},
+  limite = 100,
+): Promise<FilaReunion[]> {
   try {
-    return await db
+    const condiciones = [];
+
+    const q = filtros.q?.trim();
+    if (q) {
+      const patron = `%${q}%`;
+      condiciones.push(
+        sql`(
+          ${reunionRegistros.titulo} ILIKE ${patron}
+          OR ${reunionRegistros.transcripcion} ILIKE ${patron}
+          OR coalesce(${reunionRegistros.transcripcionCorregida}, '') ILIKE ${patron}
+          OR coalesce(${reunionRegistros.resumen}, '') ILIKE ${patron}
+        )`,
+      );
+    }
+
+    if (filtros.desde) condiciones.push(sql`${FECHA} >= ${filtros.desde}::date`);
+    // El "hasta" incluye el día entero: quien escribe una fecha de término
+    // quiere ese día adentro, no hasta su medianoche inicial.
+    if (filtros.hasta)
+      condiciones.push(sql`${FECHA} < (${filtros.hasta}::date + interval '1 day')`);
+
+    if (filtros.ambito) condiciones.push(eq(reunionRegistros.ambito, filtros.ambito));
+
+    const base = db
       .select({
         id: reunionRegistros.id,
         titulo: reunionRegistros.titulo,
@@ -62,11 +118,36 @@ export async function listar(limite = 50): Promise<FilaReunion[]> {
         participantes: reunionRegistros.participantes,
         estado: reunionRegistros.estado,
         resumen: reunionRegistros.resumen,
+        ambito: reunionRegistros.ambito,
+        capturadaPor: reunionRegistros.capturadaPor,
         createdAt: reunionRegistros.createdAt,
       })
-      .from(reunionRegistros)
-      .orderBy(sql`${reunionRegistros.inicioEn} DESC NULLS LAST`, desc(reunionRegistros.createdAt))
-      .limit(limite);
+      .from(reunionRegistros);
+
+    const conFiltros = condiciones.length > 0 ? base.where(and(...condiciones)) : base;
+
+    return await conFiltros.orderBy(sql`${FECHA} DESC`).limit(limite);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Los ámbitos que existen en la base, no los que declara la configuración.
+ *
+ * Se pregunta a los datos y no a `REUNIONES_WEBHOOK_TOKEN` a propósito: si
+ * alguien saca un token, sus reuniones no desaparecen, y la pestaña para
+ * encontrarlas tiene que seguir ahí.
+ */
+export async function ambitos(): Promise<string[]> {
+  try {
+    const filas = await db
+      .selectDistinct({ ambito: reunionRegistros.ambito })
+      .from(reunionRegistros);
+    return filas
+      .map((f) => f.ambito)
+      .filter((a): a is string => Boolean(a))
+      .sort();
   } catch {
     return [];
   }

@@ -1,16 +1,21 @@
-// El detalle de una reunión: el resumen arriba, la transcripción al fondo.
+// El detalle de una reunión: la transcripción es el contenido, no un anexo.
 //
-// ── Por qué la transcripción va plegada y no en otra pantalla ────────────────
+// ── Por qué la transcripción está abierta y el original plegado ──────────────
 //
-// Porque la pregunta que la hace falta es siempre la misma —"¿de verdad dijo
-// eso?"— y aparece justo mientras se lee el resumen. Un clic para abrirla, en
-// la misma página, es la distancia correcta: lejos para no estorbar, cerca para
-// poder desconfiar del resumen sin perder el hilo.
+// El resumen es útil pero no es el activo: el activo es el texto completo de lo
+// que se dijo, que es lo que después se lee entero o se le pasa a otra
+// herramienta. Así que la versión corregida va desplegada, ocupando la pantalla,
+// y el resumen queda arriba como entrada.
 //
-// Y hay que poder desconfiar. Esto es un modelo leyendo lo que el reconocedor
-// de voz de Google creyó escuchar: dos capas de error antes de la primera
-// palabra en pantalla. El texto original es la única forma de verificar, y por
-// eso nunca se borra ni se edita.
+// El texto original —el que entregó Google Meet, sin tocar— va plegado abajo. No
+// se esconde: se guarda a un clic, porque la pregunta que lo hace falta es
+// siempre la misma, "¿esto lo dijo de verdad o lo arregló el modelo?", y aparece
+// justo mientras se lee lo corregido.
+//
+// Y hay que poder preguntárselo. Lo que se lee arriba pasó por dos capas de
+// interpretación: el reconocedor de voz de Google primero, y un modelo
+// corrigiéndolo después. Por eso el original nunca se borra ni se edita, y por
+// eso se puede bajar por separado.
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -96,18 +101,35 @@ export default async function ReunionDetalle({
           r.inicioEn ? FMT.format(r.inicioEn) : `Recibida el ${FMT.format(r.createdAt)}`,
           r.duracionMin !== null ? `${r.duracionMin} min` : null,
           r.plataforma,
+          r.capturadaPor ? `capturada por ${r.capturadaPor}` : null,
         ]
           .filter(Boolean)
           .join(" · ")}
       />
 
-      {r.participantes && r.participantes.length > 0 ? (
-        <p className="mb-5 text-[12.5px] text-[var(--d360-muted)]">
-          Hablaron: {r.participantes.join(", ")}
-          {/* Se dice "hablaron" y no "participantes" porque es lo único que el
-              transcript puede afirmar: quien estuvo callado no aparece. */}
-        </p>
-      ) : null}
+      {/* Se dice "hablaron" y no "participantes" porque es lo único que el
+          transcript puede afirmar: quien estuvo callado no aparece. */}
+      <div className="mb-5 flex flex-wrap items-center gap-3">
+        {r.participantes && r.participantes.length > 0 ? (
+          <p className="text-[12.5px] text-[var(--d360-muted)]">
+            Hablaron: {r.participantes.join(", ")}
+          </p>
+        ) : null}
+        {r.ambito ? <Badge tono="neutro">{r.ambito}</Badge> : null}
+      </div>
+
+      <div className="mb-6 flex flex-wrap gap-2">
+        <a className={btnPrimario} href={`/api/dashboard360/reuniones/${r.id}/txt`} download>
+          Descargar .txt
+        </a>
+        <a
+          className={btnSecundario}
+          href={`/api/dashboard360/reuniones/${r.id}/txt?v=original`}
+          download
+        >
+          Descargar el original
+        </a>
+      </div>
 
       {r.estado !== "resumida" ? (
         <div
@@ -119,8 +141,8 @@ export default async function ReunionDetalle({
         >
           <p className="mb-3">
             {r.estado === "error"
-              ? "La IA no pudo resumir esta reunión. La transcripción está guardada completa, así que no se perdió nada."
-              : "El resumen todavía no está listo. Si lleva más de un par de minutos así, el proceso se cortó."}
+              ? "La IA no pudo procesar esta reunión. La transcripción original está guardada completa, así que no se perdió nada."
+              : "Todavía se está corrigiendo y resumiendo. Si lleva más de un par de minutos así, el proceso se cortó."}
           </p>
           {r.error ? (
             <p className="d360-num mb-3 break-words text-[11.5px] opacity-80">
@@ -131,7 +153,7 @@ export default async function ReunionDetalle({
           <form action={reintentarResumenAction}>
             <input type="hidden" name="id" value={r.id} />
             <button className={btnPrimario} type="submit">
-              Reintentar el resumen
+              Reintentar
             </button>
           </form>
         </div>
@@ -223,17 +245,44 @@ export default async function ReunionDetalle({
       <Card
         className="mt-6"
         titulo="Transcripción"
-        descripcion="El texto literal. Es lo que la IA leyó."
+        descripcion={
+          r.transcripcionCorregida
+            ? "Corregida con IA sobre lo que entregó Google Meet"
+            : "Tal como la entregó Google Meet, sin corregir"
+        }
       >
-        <details>
-          <summary className="cursor-pointer text-[13px] text-[var(--d360-brand-dark)]">
-            Ver la transcripción completa
-          </summary>
-          <pre className="mt-3 max-h-[600px] overflow-y-auto whitespace-pre-wrap rounded-lg bg-[#f6f8fa] p-4 text-[12.5px] leading-relaxed text-[var(--d360-ink-2)]">
-            {r.transcripcion}
-          </pre>
-        </details>
+        {r.tramosSinCorregir ? (
+          <p className="mb-3 rounded-lg border border-[#e6d9b0] bg-[#fdf8e9] p-3 text-[12.5px] text-[#7a6417]">
+            {r.tramosSinCorregir}{" "}
+            {r.tramosSinCorregir === 1 ? "tramo quedó" : "tramos quedaron"} sin
+            corregir y se muestran con el texto original. Pasa cuando el modelo
+            devuelve un tramo con distinta cantidad de líneas que las que
+            recibió: se descarta su versión antes que pegar un texto
+            desalineado.
+          </p>
+        ) : null}
+
+        <pre className="max-h-[700px] overflow-y-auto whitespace-pre-wrap rounded-lg bg-[#f6f8fa] p-4 text-[12.5px] leading-relaxed text-[var(--d360-ink-2)]">
+          {r.transcripcionCorregida ?? r.transcripcion}
+        </pre>
       </Card>
+
+      {r.transcripcionCorregida ? (
+        <Card
+          className="mt-6"
+          titulo="Original"
+          descripcion="Lo que entregó Google Meet, sin pasar por ningún modelo"
+        >
+          <details>
+            <summary className="cursor-pointer text-[13px] text-[var(--d360-brand-dark)]">
+              Ver el texto original
+            </summary>
+            <pre className="mt-3 max-h-[600px] overflow-y-auto whitespace-pre-wrap rounded-lg bg-[#f6f8fa] p-4 text-[12.5px] leading-relaxed text-[var(--d360-ink-2)]">
+              {r.transcripcion}
+            </pre>
+          </details>
+        </Card>
+      ) : null}
     </>
   );
 }

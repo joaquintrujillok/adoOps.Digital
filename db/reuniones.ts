@@ -53,7 +53,7 @@ import {
 export type EstadoReunion =
   /** Llegó el transcript. Todavía no pasó por la IA. */
   | "recibida"
-  /** Tiene resumen, decisiones y compromisos. */
+  /** Tiene transcripción corregida, resumen, decisiones y compromisos. */
   | "resumida"
   /** La IA falló. El transcript está intacto y se puede reintentar. */
   | "error";
@@ -111,6 +111,26 @@ export const reunionRegistros = pgTable(
     plataforma: varchar("plataforma", { length: 40 }),
     titulo: varchar("titulo", { length: 300 }),
 
+    // ── De dónde vino ────────────────────────────────────────────────────────
+    //
+    // El payload de la extensión no dice ni quién grabó ni para qué contexto.
+    // Las dos cosas salen del token con que se posteó: un token por navegador,
+    // ver `lib/reuniones/tokens.ts`.
+
+    /**
+     * `soho`, `personal`, o lo que declare el token. Null si el token no
+     * declara ámbito. **Es el filtro principal de la pantalla**: separar el
+     * trabajo de lo personal no es una preferencia estética, es que son dos
+     * conjuntos de personas distintas y no deberían leerse mezclados.
+     */
+    ambito: varchar("ambito", { length: 40 }),
+    /**
+     * Quién tenía la extensión corriendo. Es también el nombre con que se
+     * reemplazó "Tú" en la transcripción — ver la nota de `capturadaPor` en
+     * `lib/reuniones/payload.ts`.
+     */
+    capturadaPor: varchar("capturada_por", { length: 160 }),
+
     /**
      * Inicio y fin. Nullable a propósito: en modo `simple` la extensión manda
      * las fechas ya formateadas para humanos y no siempre se pueden parsear.
@@ -144,6 +164,29 @@ export const reunionRegistros = pgTable(
     /** Los turnos con hablante y hora. Null si la extensión mandó modo `simple`. */
     bloques: jsonb("bloques").$type<BloqueTranscripcion[]>(),
     chat: jsonb("chat").$type<MensajeChat[]>(),
+
+    /**
+     * La transcripción corregida por la IA. **Nunca reemplaza a la original**:
+     * es una columna al lado.
+     *
+     * El reconocedor de voz de Google se equivoca de forma predecible —nombres
+     * propios, términos técnicos, frases cortadas— y un modelo que ve el
+     * contexto completo puede arreglar casi todo eso. Pero también puede
+     * "arreglar" algo que estaba bien y cambiarle el sentido a una frase, y esa
+     * posibilidad es exactamente la razón por la que el texto original se
+     * guarda entero y a un clic: **la corrección es una lectura, no la fuente**.
+     *
+     * Null mientras no se haya corregido, o si la corrección falló.
+     */
+    transcripcionCorregida: text("transcripcion_corregida"),
+    /**
+     * Cuántos tramos de la transcripción no se pudieron corregir y quedaron con
+     * el texto original. Pasa cuando el modelo devuelve un tramo con distinta
+     * cantidad de líneas que el que recibió: ahí se descarta su salida en vez
+     * de pegar un texto desalineado. Cero es lo normal; un número alto dice que
+     * esa corrección no hay que creerle mucho.
+     */
+    tramosSinCorregir: smallint("tramos_sin_corregir"),
 
     /**
      * El cuerpo entero, tal como llegó.
@@ -191,6 +234,13 @@ export const reunionRegistros = pgTable(
     // El modelo también se guarda: el día que se cambie, las reuniones viejas
     // tienen que seguir diciendo con qué se hicieron.
 
+    // Las cifras de abajo son la SUMA de las dos pasadas de IA que recibe una
+    // reunión: la corrección de la transcripción y la extracción del resumen.
+    // Se guardan sumadas y no por pasada porque la pregunta que se hace es
+    // "¿cuánto costó esta reunión?", no "¿cuánto costó cada paso?". La
+    // corrección pesa mucho más: reescribe el texto entero, así que sus tokens
+    // de salida son del orden de los de entrada.
+
     /** El nombre exacto que devolvió OpenAI, con sufijo de versión. */
     modelo: varchar("modelo", { length: 80 }),
     tokensEntrada: integer("tokens_entrada"),
@@ -224,6 +274,7 @@ export const reunionRegistros = pgTable(
   (t) => [
     index("reunion_registros_inicio_idx").on(t.inicioEn),
     index("reunion_registros_estado_idx").on(t.estado),
+    index("reunion_registros_ambito_idx").on(t.ambito),
   ],
 );
 

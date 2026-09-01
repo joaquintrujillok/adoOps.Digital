@@ -32,12 +32,16 @@ await sql`
     clave VARCHAR(200) NOT NULL UNIQUE,
     plataforma VARCHAR(40),
     titulo VARCHAR(300),
+    ambito VARCHAR(40),
+    capturada_por VARCHAR(160),
     inicio_en TIMESTAMPTZ,
     fin_en TIMESTAMPTZ,
     duracion_min INTEGER,
     participantes JSONB,
     transcripcion TEXT NOT NULL,
     bloques JSONB,
+    transcripcion_corregida TEXT,
+    tramos_sin_corregir SMALLINT,
     chat JSONB,
     crudo JSONB,
     estado VARCHAR(20) NOT NULL DEFAULT 'recibida',
@@ -57,6 +61,22 @@ await sql`
 `;
 await sql`CREATE INDEX IF NOT EXISTS reunion_registros_inicio_idx ON reunion_registros (inicio_en)`;
 await sql`CREATE INDEX IF NOT EXISTS reunion_registros_estado_idx ON reunion_registros (estado)`;
+
+// Columnas que se agregaron después de la primera versión. Van como ALTER y no
+// solo dentro del CREATE de arriba porque en el entorno donde esto ya corrió la
+// tabla existe y tiene reuniones adentro: recrearla las borraría. `IF NOT
+// EXISTS` las hace inofensivas en una instalación nueva, donde el CREATE ya las
+// puso.
+//
+// Y van ANTES del índice sobre `ambito`, no después: en una base que ya tenía la
+// tabla vieja, indexar una columna que todavía no existe falla y deja el setup a
+// medias. Se descubrió corriéndolo.
+await sql`ALTER TABLE reunion_registros ADD COLUMN IF NOT EXISTS ambito VARCHAR(40)`;
+await sql`ALTER TABLE reunion_registros ADD COLUMN IF NOT EXISTS capturada_por VARCHAR(160)`;
+await sql`ALTER TABLE reunion_registros ADD COLUMN IF NOT EXISTS transcripcion_corregida TEXT`;
+await sql`ALTER TABLE reunion_registros ADD COLUMN IF NOT EXISTS tramos_sin_corregir SMALLINT`;
+
+await sql`CREATE INDEX IF NOT EXISTS reunion_registros_ambito_idx ON reunion_registros (ambito)`;
 
 await sql`
   CREATE TABLE IF NOT EXISTS reunion_compromisos (

@@ -118,3 +118,38 @@ export function medirUso(modelo: string, usage?: CompletionUsage | null): UsoMod
     costoAproximado: tarifa.tramos === true,
   };
 }
+
+/**
+ * Suma las llamadas que costó una reunión: la corrección son varios tramos y la
+ * extracción una más. La pantalla muestra un número por reunión, no por
+ * llamada.
+ *
+ * Si **alguna** de las llamadas tiene costo desconocido, el total queda en null.
+ * Sumar solo las que se pudieron calcular daría una cifra más baja que la real
+ * con cara de exacta, que es peor que no dar ninguna.
+ */
+export function sumarUsos(usos: UsoModelo[]): UsoModelo {
+  if (usos.length === 0) {
+    return {
+      modelo: "",
+      tokensEntrada: 0,
+      tokensEntradaCache: 0,
+      tokensSalida: 0,
+      costoUsd: null,
+      costoAproximado: false,
+    };
+  }
+
+  const alguoNulo = usos.some((u) => u.costoUsd === null);
+
+  return {
+    // Todas las llamadas de una reunión usan el mismo modelo; se toma el
+    // primero que haya devuelto nombre.
+    modelo: usos.find((u) => u.modelo)?.modelo ?? "",
+    tokensEntrada: usos.reduce((a, u) => a + u.tokensEntrada, 0),
+    tokensEntradaCache: usos.reduce((a, u) => a + u.tokensEntradaCache, 0),
+    tokensSalida: usos.reduce((a, u) => a + u.tokensSalida, 0),
+    costoUsd: alguoNulo ? null : usos.reduce((a, u) => a + (u.costoUsd ?? 0), 0),
+    costoAproximado: usos.some((u) => u.costoAproximado),
+  };
+}

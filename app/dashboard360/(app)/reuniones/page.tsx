@@ -1,22 +1,29 @@
-// Reuniones: lo que se conversó, guardado y resumido.
+// Reuniones: lo que se conversó, guardado, corregido y buscable.
 //
 // La entrada de este módulo no es una pantalla sino un webhook: una extensión
 // de navegador (TranscripTonic) manda la transcripción de Google Meet al
-// colgar, y acá se lee el resultado. No hay ningún bot que se una a la reunión
-// —la captura la hace el navegador de quien ya está adentro—, así que en la
-// llamada no aparece un participante extra.
+// colgar. No hay ningún bot que se una a la reunión —la captura la hace el
+// navegador de quien ya está adentro—, así que en la llamada no aparece un
+// participante extra.
 //
-// ── Por qué la lista muestra el resumen y no el título ───────────────────────
+// ── Por qué el buscador entra al texto y no solo al título ───────────────────
 //
-// El título que manda Meet es casi siempre inútil: "Reunión de Joaquín" o el
-// código de la sala. Lo que permite reconocer una reunión un mes después es de
-// qué se trató, y eso está en la primera línea del resumen. El título queda,
-// pero como dato secundario.
+// El título que manda Meet es el código de la sala: "Meet - ppb-cxec-ujo".
+// Nadie recuerda una reunión por eso. Se recuerda por una palabra que se dijo
+// adentro —el nombre de un cliente, un número, una idea—, y por eso la búsqueda
+// va contra la transcripción completa. Un buscador que solo mirara el título
+// sería un buscador que nunca encuentra nada.
+//
+// ── Por qué el ámbito es una pestaña y no una casilla más ────────────────────
+//
+// Separar el trabajo de lo personal no es orden por gusto: son dos conjuntos de
+// personas distintas, y leerlos mezclados es el problema que este filtro existe
+// para evitar. Una pestaña obliga a estar siempre parado en uno de los dos.
 
 import Link from "next/link";
-import { Badge, Card, PageHeader, Vacio } from "@/components/dashboard360/ui";
+import { Badge, Card, PageHeader, Vacio, btnPrimario, btnSecundario } from "@/components/dashboard360/ui";
 import { requireSession } from "@/lib/dashboard360/auth.actions";
-import { disponible, gasto, listar } from "@/lib/dashboard360/reuniones";
+import { ambitos, disponible, gasto, listar } from "@/lib/dashboard360/reuniones";
 
 export const dynamic = "force-dynamic";
 
@@ -31,33 +38,103 @@ const FMT = new Intl.DateTimeFormat("es-CL", {
   timeZone: "America/Santiago",
 });
 
-export default async function ReunionesPage() {
-  await requireSession();
-  const [hay, reuniones, plata] = await Promise.all([disponible(), listar(), gasto()]);
+const USD = new Intl.NumberFormat("es-CL", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 4,
+  maximumFractionDigits: 4,
+});
 
+const campo =
+  "rounded-md border border-[var(--d360-border)] px-3 py-2 text-[13px] text-[var(--d360-ink)]";
+
+export default async function ReunionesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; desde?: string; hasta?: string; ambito?: string }>;
+}) {
+  await requireSession();
+  const { q, desde, hasta, ambito } = await searchParams;
+
+  const [hay, reuniones, plata, listaAmbitos] = await Promise.all([
+    disponible(),
+    listar({ q, desde, hasta, ambito }),
+    gasto(),
+    ambitos(),
+  ]);
+
+  const hayFiltro = Boolean(q || desde || hasta || ambito);
   const pendientes = reuniones.filter((r) => r.estado !== "resumida").length;
 
-  // Cuatro decimales y no dos: un resumen cuesta del orden de dos milésimas de
-  // dólar, y redondear a centavos mostraría "US$0,00" para siempre. El promedio
-  // va al lado del total porque el total solo crece y no dice nada por sí solo
-  // —lo que permite decidir es cuánto cuesta una reunión más—.
-  const USD = new Intl.NumberFormat("es-CL", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 4,
-    maximumFractionDigits: 4,
-  });
+  // Los enlaces de las pestañas conservan lo que ya está escrito en el
+  // buscador: cambiar de ámbito no debería borrar la búsqueda.
+  const conAmbito = (a?: string) => {
+    const p = new URLSearchParams();
+    if (q) p.set("q", q);
+    if (desde) p.set("desde", desde);
+    if (hasta) p.set("hasta", hasta);
+    if (a) p.set("ambito", a);
+    const s = p.toString();
+    return `/dashboard360/reuniones${s ? `?${s}` : ""}`;
+  };
 
   return (
     <>
       <PageHeader
         titulo="Reuniones"
-        bajada="Lo que se dijo en cada Meet, resumido. Entra solo cuando la reunión termina."
+        bajada="Lo que se dijo en cada Meet, corregido y buscable. Entra solo cuando la reunión termina."
       />
+
+      {listaAmbitos.length > 0 ? (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <Link
+            href={conAmbito()}
+            className={!ambito ? btnPrimario : btnSecundario}
+          >
+            Todas
+          </Link>
+          {listaAmbitos.map((a) => (
+            <Link key={a} href={conAmbito(a)} className={ambito === a ? btnPrimario : btnSecundario}>
+              {a}
+            </Link>
+          ))}
+        </div>
+      ) : null}
+
+      <Card className="mb-4" titulo="Buscar" descripcion="El texto se busca adentro de la transcripción, no solo en el título">
+        <form method="get" className="flex flex-wrap items-end gap-3">
+          {ambito ? <input type="hidden" name="ambito" value={ambito} /> : null}
+          <label className="text-[12px] text-[var(--d360-ink-2)]">
+            <span className="mb-1 block">Qué se dijo</span>
+            <input
+              name="q"
+              defaultValue={q ?? ""}
+              placeholder="una palabra, un nombre, un número"
+              className={`${campo} w-72`}
+            />
+          </label>
+          <label className="text-[12px] text-[var(--d360-ink-2)]">
+            <span className="mb-1 block">Desde</span>
+            <input type="date" name="desde" defaultValue={desde ?? ""} className={campo} />
+          </label>
+          <label className="text-[12px] text-[var(--d360-ink-2)]">
+            <span className="mb-1 block">Hasta</span>
+            <input type="date" name="hasta" defaultValue={hasta ?? ""} className={campo} />
+          </label>
+          <button className={btnPrimario} type="submit">
+            Buscar
+          </button>
+          {hayFiltro ? (
+            <Link className={btnSecundario} href={`/dashboard360/reuniones${ambito ? `?ambito=${encodeURIComponent(ambito)}` : ""}`}>
+              Limpiar
+            </Link>
+          ) : null}
+        </form>
+      </Card>
 
       {plata.reuniones > 0 ? (
         <p className="d360-num mb-4 text-[12px] text-[var(--d360-muted)]">
-          Costo de los resúmenes: {USD.format(plata.totalUsd)}
+          Costo de la IA: {USD.format(plata.totalUsd)}
           {plata.aproximado ? " aprox." : ""} en {plata.reuniones}{" "}
           {plata.reuniones === 1 ? "reunión" : "reuniones"} ·{" "}
           {USD.format(plata.totalUsd / plata.reuniones)} cada una en promedio
@@ -65,13 +142,15 @@ export default async function ReunionesPage() {
       ) : null}
 
       <Card
-        titulo="Últimas reuniones"
+        titulo={hayFiltro ? "Resultados" : "Últimas reuniones"}
         descripcion={
           reuniones.length === 0
-            ? "Ninguna todavía"
+            ? hayFiltro
+              ? "Ninguna calza con el filtro"
+              : "Ninguna todavía"
             : pendientes > 0
-              ? `${reuniones.length} guardadas · ${pendientes} sin resumen`
-              : `${reuniones.length} guardadas y resumidas`
+              ? `${reuniones.length} · ${pendientes} sin procesar`
+              : `${reuniones.length} guardadas`
         }
       >
         {!hay ? (
@@ -81,62 +160,68 @@ export default async function ReunionesPage() {
           />
         ) : reuniones.length === 0 ? (
           <Vacio
-            mensaje="No ha llegado ninguna reunión"
-            sugerencia="Falta conectar la extensión del navegador al webhook. Está explicado en docs/reuniones.md."
+            mensaje={hayFiltro ? "Nada calza con esa búsqueda" : "No ha llegado ninguna reunión"}
+            sugerencia={
+              hayFiltro
+                ? "Probá con menos palabras, o sacá el filtro de fechas."
+                : "Falta conectar la extensión del navegador al webhook. Está explicado en docs/reuniones.md."
+            }
           />
         ) : (
           <div className="space-y-3">
             {reuniones.map((r) => (
-              <Link
+              <div
                 key={r.id}
-                href={`/dashboard360/reuniones/${r.id}`}
-                className="block rounded-lg border border-[var(--d360-border)] p-4 transition-colors hover:border-[var(--d360-brand)]"
+                className="rounded-lg border border-[var(--d360-border)] p-4 transition-colors hover:border-[var(--d360-brand)]"
               >
                 <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
                   <div className="d360-num text-[11.5px] text-[var(--d360-muted)]">
                     {/* Sin fecha parseable se muestra cuándo llegó, y se dice
                         que es eso. Una hora sin etiqueta se lee como la hora de
                         la reunión, y no lo es. */}
-                    {r.inicioEn
-                      ? FMT.format(r.inicioEn)
-                      : `recibida ${FMT.format(r.createdAt)}`}
+                    {r.inicioEn ? FMT.format(r.inicioEn) : `recibida ${FMT.format(r.createdAt)}`}
                     {r.duracionMin !== null ? ` · ${r.duracionMin} min` : ""}
-                    {r.plataforma ? ` · ${r.plataforma}` : ""}
+                    {r.ambito ? ` · ${r.ambito}` : ""}
                   </div>
-                  <Badge
-                    tono={
-                      r.estado === "resumida"
-                        ? "bueno"
-                        : r.estado === "error"
-                          ? "critico"
-                          : "alerta"
-                    }
-                  >
-                    {r.estado === "resumida"
-                      ? "resumida"
-                      : r.estado === "error"
-                        ? "falló el resumen"
-                        : "resumiendo"}
-                  </Badge>
+                  {r.estado !== "resumida" ? (
+                    <Badge tono={r.estado === "error" ? "critico" : "alerta"}>
+                      {r.estado === "error" ? "falló el procesamiento" : "procesando"}
+                    </Badge>
+                  ) : null}
                 </div>
 
-                <div className="mb-1 text-[14px] font-semibold text-[var(--d360-ink)]">
+                <Link
+                  href={`/dashboard360/reuniones/${r.id}`}
+                  className="mb-1 block text-[14px] font-semibold text-[var(--d360-ink)] hover:text-[var(--d360-brand-dark)]"
+                >
                   {r.titulo || "Reunión sin título"}
-                </div>
+                </Link>
 
                 <p className="line-clamp-2 text-[13px] leading-relaxed text-[var(--d360-ink-2)]">
                   {r.resumen ||
                     (r.estado === "error"
-                      ? "La IA no pudo resumirla. La transcripción está guardada: se puede reintentar."
-                      : "El resumen se está generando.")}
+                      ? "La IA no pudo procesarla. La transcripción está guardada: se puede reintentar."
+                      : "Se está corrigiendo y resumiendo.")}
                 </p>
 
-                {r.participantes && r.participantes.length > 0 ? (
-                  <div className="mt-2 text-[11.5px] text-[var(--d360-muted)]">
-                    {r.participantes.join(" · ")}
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-[11.5px] text-[var(--d360-muted)]">
+                    {r.participantes && r.participantes.length > 0
+                      ? r.participantes.join(" · ")
+                      : "sin hablantes identificados"}
                   </div>
-                ) : null}
-              </Link>
+                  {/* Enlace y no botón: es una descarga, o sea una navegación.
+                      Va en la lista además del detalle porque bajar el txt es la
+                      acción más frecuente y no debería costar dos pantallas. */}
+                  <a
+                    className={btnSecundario}
+                    href={`/api/dashboard360/reuniones/${r.id}/txt`}
+                    download
+                  >
+                    Descargar .txt
+                  </a>
+                </div>
+              </div>
             ))}
           </div>
         )}
