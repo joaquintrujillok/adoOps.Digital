@@ -90,6 +90,7 @@ Sobre las palabras que no reconoces, que es donde más te vas a equivocar:
 - NO partas una palabra rara en dos palabras que conoces. Si dice "tuniche" y no sabes qué es, es una palabra que no conoces, NO es "tú niche".
 - NO conviertas una palabra en sigla poniéndola en mayúsculas. Si dice "itos" y no sabes qué es, déjalo "itos"; no lo escribas "ITOS".
 - Si te dan una lista de vocabulario conocido, esa lista manda: cuando una palabra mal reconocida se parece a un término de la lista, usa el de la lista. Fuera de la lista, abstente.
+- Cuando uses un término del vocabulario, escríbelo EXACTAMENTE como aparece en la lista, respetando sus mayúsculas. Si la lista dice "Tuniche", se escribe "Tuniche", no "tuniche".
 
 Devuelves SIEMPRE la misma cantidad de líneas que recibes, en el mismo orden, llamando a la función 'devolver_lineas'. Una línea de entrada, una línea de salida. Si recibes 23 líneas, devuelves 23.`;
 
