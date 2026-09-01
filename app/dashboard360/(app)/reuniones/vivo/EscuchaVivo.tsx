@@ -136,6 +136,13 @@ export default function EscuchaVivo() {
       if (typeof datos.costoUsd === "number") {
         setCostoCopiloto((c) => c + datos.costoUsd);
       }
+      // Qué material se consultó queda en el registro. Una búsqueda semántica
+      // que nadie puede inspeccionar es una caja negra adentro de otra: si el
+      // copiloto propone algo raro, lo primero que hay que poder ver es de qué
+      // sección lo sacó.
+      if (Array.isArray(datos.fuentes) && datos.fuentes.length) {
+        registrar(`base: ${datos.fuentes.join(" | ")}`);
+      }
     } catch (e) {
       registrar(`ERROR copiloto: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
