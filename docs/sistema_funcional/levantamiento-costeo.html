@@ -69,13 +69,13 @@
   }
   .p { font-size:16.5px; }
   .por-que { font-size:14.5px; color:var(--ink-2); margin-top:6px; max-width:66ch; }
-  .por-que::before { content:"Por qué lo preguntamos — "; color:var(--muted); }
+  
 
   li.clave { background:var(--clave-soft); margin:0 -18px; padding-left:64px;
     padding-right:18px; border-radius:6px; border-bottom-color:transparent; }
   li.clave::before { left:18px; color:var(--clave); font-weight:600; }
   li.clave .p::after {
-    content:"mueve el número"; margin-left:10px; font-family:"Familjen Grotesk",sans-serif;
+    content:"necesario para costear"; margin-left:10px; font-family:"Familjen Grotesk",sans-serif;
     font-size:10.5px; font-weight:600; letter-spacing:.09em; text-transform:uppercase;
     color:var(--clave); border:1px solid var(--clave-line); padding:2px 7px; border-radius:99px;
     white-space:nowrap;
@@ -103,234 +103,255 @@
 <header class="top">
   <p class="eyebrow">Semillas Tuniche · Sistema de visitas a campo</p>
   <h1>SaaS o servidor propio</h1>
-  <p class="lede">Lo que hay que saber para poner precio a las dos opciones. Las
-  preguntas están hechas sobre lo que este sistema realmente usa, no sobre una
-  lista genérica: cada una corresponde a una pieza que hoy funciona y que habría
-  que resolver de otra forma adentro de su ecosistema.</p>
+  <p class="lede">Necesitamos entender cómo funciona hoy su infraestructura y su
+  operación para dimensionar bien las dos alternativas: mantener el sistema como
+  servicio mensual, o instalarlo en sus servidores.</p>
 </header>
 
 <hr class="rule">
 
 <div class="nota" style="margin-top:32px">
-  <p><strong>Quince preguntas marcadas mueven el número.</strong> El resto afina la
-  estimación, pero sin esas doce cualquier cifra sería inventada. Si el tiempo
-  alcanza para poco, esas primero.</p>
-  <p>Las respuestas vienen de tres lados distintos y por eso van en tres bloques:
-  TI responde el primero, jefatura el segundo y el tercero, y ninguno necesita
-  esperar a los otros.</p>
+  <p><strong>Tres bloques, 52 preguntas.</strong> Los responde gente distinta y
+  ninguno necesita esperar a los otros: el primero lo contesta TI, el segundo y el
+  tercero jefatura.</p>
+  <p>Las 16 marcadas <strong>«Necesario para costear»</strong> son las que pueden
+  cambiar el alcance o el esfuerzo. Las demás ayudan a diseñar mejor, pero no
+  bloquean una primera estimación. Si algo no lo saben todavía, dejarlo en blanco
+  es más útil que una aproximación.</p>
 </div>
 
+<h2 style="font-size:22px;font-weight:600;margin:52px 0 4px">Qué habría que definir si va a sus servidores</h2>
 <div class="tabla-envoltorio">
 <table>
-  <thead><tr><th>Hoy funciona con</th><th>Adentro habría que resolverlo con</th></tr></thead>
+  <thead><tr><th>Cómo funciona hoy</th><th>Qué habría que definir</th></tr></thead>
   <tbody>
-    <tr><td>Node.js sobre Vercel</td><td>Un servidor o contenedor que ejecute Node</td></tr>
-    <tr><td>PostgreSQL</td><td>PostgreSQL propio, o portar a SQL Server</td></tr>
-    <tr><td>Almacenamiento de archivos en la nube</td><td>Recurso compartido, Azure Blob o similar</td></tr>
-    <tr><td>Transcripción y extracción con IA</td><td>Azure OpenAI, o salida a internet</td></tr>
-    <tr><td>WhatsApp vía un proveedor</td><td>WhatsApp Business API — no existe en local</td></tr>
-    <tr><td>Usuario y contraseña propios</td><td>Entra ID, si quieren inicio de sesión único</td></tr>
-    <tr><td>Maestra cargada desde Excel</td><td>Integración con el SIA</td></tr>
+    <tr><td>Aplicación web sobre Node.js</td><td>Dónde se instala y quién la opera</td></tr>
+    <tr><td>Base de datos PostgreSQL</td><td>Qué motor usan ustedes</td></tr>
+    <tr><td>Archivos en almacenamiento en la nube</td><td>Dónde guardar fotos y PDF</td></tr>
+    <tr><td>Transcripción y lectura del audio con IA</td><td>Qué servicio de IA usar y desde dónde</td></tr>
+    <tr><td>WhatsApp a través de un proveedor</td><td>Qué número usar y bajo qué cuenta</td></tr>
+    <tr><td>Usuario y contraseña propios</td><td>Si prefieren cuenta corporativa</td></tr>
+    <tr><td>Agricultores y lotes cargados desde Excel</td><td>Cómo conectarlo al SIA</td></tr>
   </tbody>
 </table>
 </div>
 
-<!-- ─────────────────────────────────────────────────────────── -->
 <section class="bloque">
-  <h2>Bloque 1 · Llevarlo a su ecosistema</h2>
-  <p class="sub">Qué tan lejos está lo que hoy funciona de lo que ustedes operan.
-  De acá sale el costo de migrar y el de mantenerlo después.</p>
-  <span class="quien">Responde TI</span>
-
-  <h3>Dónde se ejecuta <span class="pista">— el sistema es una aplicación web Node.js</span></h3>
+  <h2>Tecnología</h2>
+  <p class="sub">Cómo funciona hoy su infraestructura, para saber qué implicaría instalar el sistema en sus servidores.</p>
+  <span class="quien">Responde: TI</span>
+  <h3>Servidores</h3>
   <ol class="preguntas">
     <li class="clave">
-      <div class="p">¿Los servidores son físicos en sus oficinas, máquinas virtuales en su datacenter, o tienen ya suscripción de Azure con cargas productivas?</div>
-      <div class="por-que">Cambia por completo el trabajo: publicar en Azure App Service se parece a lo que ya está; un servidor físico en oficina agrega red, certificados, respaldos y monitoreo que hoy no existen.</div>
+      <div class="p">¿Dónde correrían una aplicación web como esta?</div>
+      <div class="por-que">Servidores propios, máquinas virtuales, Azure u otro.</div>
     </li>
     <li>
-      <div class="p">¿Corren contenedores hoy (Docker, Kubernetes) o despliegan aplicaciones directo sobre el sistema operativo?</div>
+      <div class="p">¿Usan contenedores o instalan las aplicaciones directo en el servidor?</div>
+      <div class="por-que">Docker, Kubernetes u otro.</div>
     </li>
     <li>
-      <div class="p">¿Qué sistema operativo y qué versión de Node.js tienen disponible? ¿Pueden instalar una versión distinta si hace falta?</div>
+      <div class="p">¿Qué sistema operativo usan en esos servidores?</div>
+    </li>
+    <li>
+      <div class="p">¿Pueden instalar Node.js, o ya lo tienen disponible?</div>
+      <div class="por-que">Si ya lo tienen, indicar la versión.</div>
     </li>
     <li class="clave">
-      <div class="p">El sistema tiene que ser alcanzable desde internet para recibir los mensajes de WhatsApp. ¿Cómo publican hoy una aplicación hacia afuera, y qué exige pasar por seguridad?</div>
-      <div class="por-que">WhatsApp le avisa al sistema mediante una llamada entrante desde internet. Si la política es que nada se publica hacia afuera, hay que diseñar un intermediario — y eso es trabajo, no configuración.</div>
+      <div class="p">¿Cómo publican hoy una aplicación para que sea accesible desde internet?</div>
+      <div class="por-que">El sistema recibe los mensajes de WhatsApp por una llamada entrante, así que necesita una dirección pública.</div>
+    </li>
+    <li>
+      <div class="p">¿Qué revisiones o autorizaciones piden para publicar algo hacia afuera?</div>
     </li>
   </ol>
-
-  <h3>La base de datos <span class="pista">— hoy PostgreSQL</span></h3>
+  <h3>Base de datos</h3>
   <ol class="preguntas">
     <li class="clave">
-      <div class="p">¿Tienen PostgreSQL en producción, o su motor estándar es SQL Server?</div>
-      <div class="por-que">Es la pregunta más cara del cuestionario. Con PostgreSQL, mover la base es cuestión de horas. Con SQL Server hay que reescribir toda la capa de datos y volver a probarla entera.</div>
+      <div class="p">¿Qué motor de base de datos usan?</div>
+      <div class="por-que">SQL Server, PostgreSQL, Oracle u otro.</div>
     </li>
     <li>
-      <div class="p">¿Quién administra las bases: un equipo interno, un proveedor, o el mismo equipo de desarrollo?</div>
+      <div class="p">¿Quién administra las bases de datos?</div>
+      <div class="por-que">Equipo interno, proveedor externo, el mismo equipo de desarrollo.</div>
     </li>
     <li>
-      <div class="p">¿Qué política de respaldo y de recuperación aplican a un sistema como este?</div>
+      <div class="p">¿Qué política de respaldos aplican a un sistema como este?</div>
     </li>
   </ol>
-
-  <h3>Las fotos y los PDF <span class="pista">— hoy almacenamiento de objetos en la nube</span></h3>
+  <h3>Archivos</h3>
   <ol class="preguntas">
     <li>
-      <div class="p">¿Dónde guardarían archivos que la aplicación escribe sola: un recurso compartido de red, Azure Blob Storage, SharePoint?</div>
+      <div class="p">¿Dónde guardan hoy los archivos que genera una aplicación?</div>
+      <div class="por-que">Carpeta de red, Azure Blob, SharePoint u otro.</div>
     </li>
     <li>
-      <div class="p">Cada visita puede traer tres fotos de teléfono. ¿Hay límite de espacio, o política de cuánto tiempo se conservan?</div>
+      <div class="p">¿Hay límite de espacio o tiempo de conservación?</div>
+      <div class="por-que">Cada visita puede traer tres fotos de teléfono.</div>
     </li>
   </ol>
-
-  <h3>La inteligencia artificial <span class="pista">— hoy OpenAI: transcripción y extracción</span></h3>
-  <ol class="preguntas">
-    <li class="clave">
-      <div class="p">¿Tienen Azure OpenAI Service habilitado, o alguna política sobre qué modelos de IA se pueden usar y en qué región deben quedar los datos?</div>
-      <div class="por-que">Es la segunda pregunta más cara. Si Azure OpenAI está disponible, se cambia una configuración. Si no, hay que decidir entre pedir una excepción para salir a internet o buscar otro camino — y todo el sistema depende de que la transcripción funcione.</div>
-    </li>
-    <li class="clave">
-      <div class="p">¿Hay algo que impida que el audio de un zonal y el nombre de un agricultor salgan de la red de la empresa para ser procesados?</div>
-      <div class="por-que">Es exactamente lo que ocurre hoy y hay que saber si es aceptable o si es la razón por la que quieren llevarlo adentro.</div>
-    </li>
-    <li>
-      <div class="p">Si un modelo mejor apareciera en seis meses, ¿quién decide si se cambia y cuánto tarda esa aprobación?</div>
-    </li>
-  </ol>
-
-  <h3>WhatsApp <span class="pista">— hoy un proveedor externo conectado a un número</span></h3>
+  <h3>Inteligencia artificial</h3>
   <ol class="preguntas">
     <li class="clave">
-      <div class="p">¿El número que se use debe ser corporativo? ¿Tienen ya una cuenta de WhatsApp Business verificada a nombre de la empresa?</div>
-      <div class="por-que">WhatsApp no se puede alojar en un servidor propio: siempre pasa por Meta o por un proveedor. Es la única pieza que no se puede llevar adentro, y conviene decirlo antes de que aparezca como sorpresa.</div>
+      <div class="p">¿Tienen Azure OpenAI habilitado?</div>
+    </li>
+    <li class="clave">
+      <div class="p">¿Hay política sobre qué modelos de IA se pueden usar?</div>
     </li>
     <li>
-      <div class="p">¿Existe alguna restricción sobre usar WhatsApp para comunicaciones de la empresa?</div>
+      <div class="p">¿Los datos deben quedar en alguna región en particular?</div>
+    </li>
+    <li class="clave">
+      <div class="p">¿Pueden salir datos de la empresa hacia un servicio externo para ser procesados?</div>
+      <div class="por-que">Hoy el audio del zonal y el nombre del agricultor se procesan fuera de la red.</div>
+    </li>
+    <li>
+      <div class="p">¿Quién autoriza cambiar de modelo, y cuánto suele demorar?</div>
     </li>
   </ol>
-
-  <h3>Quién entra y cómo <span class="pista">— hoy usuario y contraseña propios</span></h3>
+  <h3>WhatsApp</h3>
+  <ol class="preguntas">
+    <li>
+      <div class="p">¿El número debe ser corporativo?</div>
+    </li>
+    <li class="clave">
+      <div class="p">¿Tienen una cuenta de WhatsApp Business verificada a nombre de la empresa?</div>
+      <div class="por-que">WhatsApp siempre pasa por Meta o por un proveedor: no se puede instalar en un servidor propio.</div>
+    </li>
+    <li>
+      <div class="p">¿Hay restricciones internas para usar WhatsApp en comunicaciones de la empresa?</div>
+    </li>
+  </ol>
+  <h3>Usuarios y accesos</h3>
   <ol class="preguntas">
     <li class="clave">
-      <div class="p">¿Quieren que la gente entre con su cuenta corporativa de Microsoft, o está bien un usuario y contraseña propios del sistema?</div>
-      <div class="por-que">Inicio de sesión único con Entra ID es lo que van a pedir tarde o temprano, y es trabajo concreto. Saberlo ahora evita construirlo dos veces.</div>
+      <div class="p">¿Prefieren que entren con su cuenta de Microsoft o con un usuario propio del sistema?</div>
+      <div class="por-que">Hoy el sistema usa usuario y contraseña propios.</div>
     </li>
     <li>
-      <div class="p">¿Los zonales tienen cuenta corporativa y la usan a diario desde el teléfono?</div>
-      <div class="por-que">Si no la usan, el inicio de sesión único agrega fricción justo a quien menos tolera fricción.</div>
+      <div class="p">¿Los zonales tienen cuenta corporativa y la usan desde el teléfono?</div>
     </li>
     <li>
-      <div class="p">¿Hay exigencia de segundo factor para sistemas internos?</div>
+      <div class="p">¿Exigen segundo factor para sistemas internos?</div>
     </li>
   </ol>
-
-  <h3>El SIA <span class="pista">— hoy la maestra se carga desde un Excel</span></h3>
+  <h3>Integración con el SIA</h3>
   <ol class="preguntas">
     <li class="clave">
-      <div class="p">¿El SIA expone una API, una base consultable, o solo permite exportar a Excel?</div>
-      <div class="por-que">Es lo que decide si los agricultores y lotes se sincronizan solos o si alguien va a cargar un archivo cada temporada. Y una carga manual que se olvida es un sistema que se desactualiza sin avisar.</div>
+      <div class="p">¿El SIA tiene API, base consultable, o solo permite exportar a Excel?</div>
+      <div class="por-que">Hoy los agricultores y lotes se cargan desde un Excel exportado.</div>
     </li>
     <li>
-      <div class="p">¿Quién lo mantiene: equipo interno o un proveedor? ¿Cuánto tarda una solicitud de cambio ahí?</div>
+      <div class="p">¿Quién mantiene el SIA?</div>
     </li>
     <li>
-      <div class="p">¿Debería la visita escribirse de vuelta en el SIA, o basta con que viva en este sistema?</div>
+      <div class="p">¿Cuánto suele demorar una solicitud de cambio ahí?</div>
+    </li>
+    <li>
+      <div class="p">¿Necesitan que la visita quede registrada también en el SIA?</div>
     </li>
   </ol>
-
-  <h3>Operarlo en el tiempo</h3>
+  <h3>Soporte y operación</h3>
   <ol class="preguntas">
     <li class="clave">
-      <div class="p">Una vez instalado, ¿quién lo opera y lo mantiene: su equipo, nosotros, o compartido?</div>
-      <div class="por-que">Determina la mitad del costo, y es la pregunta que más se posterga. Un sistema sin dueño declarado se cae un sábado y nadie sabe a quién llamar.</div>
+      <div class="p">¿Quién operaría el sistema una vez instalado?</div>
+      <div class="por-que">Su equipo, nosotros, o compartido.</div>
     </li>
     <li>
-      <div class="p">¿Tienen mesa de ayuda? ¿Qué esperarían que ocurra si un zonal manda un audio y no le llega respuesta?</div>
+      <div class="p">¿Tienen mesa de ayuda?</div>
     </li>
     <li>
-      <div class="p">¿Qué exigen para poner un sistema en producción: pruebas, documentación, revisión de seguridad, ambiente de pruebas separado?</div>
+      <div class="p">Si un zonal manda un audio y no recibe respuesta, ¿a quién debería avisar?</div>
+    </li>
+    <li>
+      <div class="p">¿Qué piden para poner un sistema en producción?</div>
+      <div class="por-que">Pruebas, documentación, revisión de seguridad, ambiente de pruebas separado.</div>
     </li>
   </ol>
-
-  <h3>Datos de personas</h3>
+  <h3>Datos personales</h3>
   <ol class="preguntas">
     <li>
-      <div class="p">El sistema guarda nombre, teléfono y observaciones sobre el campo de agricultores, que son personas naturales. ¿Tienen política de tratamiento de datos personales que debamos cumplir?</div>
+      <div class="p">¿Tienen política de tratamiento de datos personales que debamos cumplir?</div>
+      <div class="por-que">El sistema guarda nombre, teléfono y observaciones del campo de cada agricultor.</div>
     </li>
     <li>
-      <div class="p">¿Cuánto tiempo debe conservarse el historial de un agricultor, y qué pasa cuando termina el contrato?</div>
+      <div class="p">¿Cuánto tiempo debe conservarse el historial de un agricultor?</div>
+    </li>
+    <li>
+      <div class="p">¿Qué pasa con esos datos cuando termina el contrato?</div>
     </li>
   </ol>
 </section>
 
-<!-- ─────────────────────────────────────────────────────────── -->
 <section class="bloque">
-  <h2>Bloque 2 · Cuánta gente lo va a usar</h2>
-  <p class="sub">Para poder proponer un precio si se queda como servicio mensual,
-  y para dimensionar la infraestructura si se va adentro.</p>
-  <span class="quien">Responde jefatura</span>
-
-  <h3>Las personas</h3>
+  <h2>Usuarios y volumen</h2>
+  <p class="sub">Cuánta gente lo usaría y con qué frecuencia.</p>
+  <span class="quien">Responde: Jefatura</span>
+  <h3>Personas</h3>
   <ol class="preguntas">
     <li class="clave">
-      <div class="p">¿Cuántos zonales y supervisores hay hoy en total, contando las dos áreas?</div>
-      <div class="por-que">Es la base de cualquier precio por usuario. Hoy el sistema conoce tres nombres de las planillas; cuántos son de verdad no lo sabemos.</div>
+      <div class="p">¿Cuántos zonales y supervisores hay en total, sumando las dos áreas?</div>
     </li>
     <li>
       <div class="p">¿Cuántas jefaturas revisarían y aprobarían informes?</div>
     </li>
     <li>
-      <div class="p">¿Hay otras áreas o filiales del grupo que hagan visitas a campo y podrían usar esto? En la primera reunión se mencionó Confarm.</div>
+      <div class="p">¿Hay otras áreas o empresas del grupo que hagan visitas a campo?</div>
+      <div class="por-que">En la primera reunión se mencionó Confarm.</div>
     </li>
     <li>
-      <div class="p">¿Cuántos agricultores tienen bajo contrato en total, sumando las áreas?</div>
+      <div class="p">¿Cuántos agricultores tienen bajo contrato?</div>
     </li>
   </ol>
-
-  <h3>El volumen</h3>
+  <h3>Volumen</h3>
   <ol class="preguntas">
     <li class="clave">
-      <div class="p">¿Cuántas visitas a campo hace un zonal en una semana típica de temporada alta?</div>
-      <div class="por-que">Define el costo variable —cada visita consume transcripción y extracción— y es también el numerador del caso de negocio.</div>
+      <div class="p">¿Cuántas visitas a campo hace un zonal en una semana de temporada alta?</div>
     </li>
     <li>
       <div class="p">¿Cuántas fotos suele traer una visita?</div>
     </li>
     <li class="clave">
-      <div class="p">¿En qué meses del año se concentra el trabajo de terreno, y cuántos meses queda prácticamente detenido?</div>
-      <div class="por-que">La agricultura es estacional y el software normalmente no. Un precio mensual plano por doce meses para un sistema que se usa cinco es una discusión que conviene tener ahora y no en la primera renovación.</div>
+      <div class="p">¿En qué meses se concentra el trabajo de terreno?</div>
+    </li>
+    <li>
+      <div class="p">¿Cuántos meses al año queda prácticamente detenido?</div>
     </li>
   </ol>
 </section>
 
-<!-- ─────────────────────────────────────────────────────────── -->
 <section class="bloque">
-  <h2>Bloque 3 · Contra qué se compara</h2>
-  <p class="sub">Lo que hoy cuesta hacerlo a mano. Sin estas cifras el precio queda
-  sin contra qué medirse, y cualquier número parece caro.</p>
-  <span class="quien">Responde jefatura · zonales</span>
-
-  <h3>El tiempo que se va hoy</h3>
+  <h2>Cómo se hace hoy</h2>
+  <p class="sub">Cómo funciona hoy el registro de las visitas, para poder comparar.</p>
+  <span class="quien">Responde: Jefatura y zonales</span>
+  <h3>Registrar una visita</h3>
   <ol class="preguntas">
     <li class="clave">
-      <div class="p">Después de recorrer un campo, ¿cuánto tarda hoy un zonal en dejar registrado lo que vio? ¿Y cuántas veces no alcanza a hacerlo?</div>
-      <div class="por-que">Es el corazón del caso de negocio. En la primera reunión se estimó que alrededor de la mitad de las visitas queda respaldada solo por WhatsApp, y de esa mitad nada queda consultable.</div>
-    </li>
-    <li class="clave">
-      <div class="p">El informe mensual al cliente en el extranjero: ¿cuántas horas toma armarlo, quién lo hace y cuántos se emiten al año?</div>
-      <div class="por-que">Es la tarea más medible de todas. Bajar fotos de los teléfonos, ordenarlas en Drive por agricultor y fecha, y pegarlas una a una en un PowerPoint tiene un número de horas concreto detrás.</div>
+      <div class="p">Después de recorrer un campo, ¿cuánto tarda un zonal en dejar registrado lo que vio?</div>
     </li>
     <li>
-      <div class="p">¿Cuánto tiempo se pierde buscando en conversaciones de WhatsApp qué se conversó con un agricultor?</div>
+      <div class="p">¿Con qué frecuencia no alcanza a registrarlo?</div>
+    </li>
+    <li>
+      <div class="p">¿Cuánto tiempo toma buscar en WhatsApp qué se conversó con un agricultor?</div>
     </li>
   </ol>
-
-  <h3>Lo que cuesta no tener el registro</h3>
+  <h3>Informe mensual al cliente</h3>
   <ol class="preguntas">
     <li class="clave">
-      <div class="p">¿Cuántas veces al año hay una discusión con un agricultor sobre lo que se hizo o no se hizo en su campo, y cómo terminan?</div>
-      <div class="por-que">Es el valor que nadie contabiliza. Cuando a un agricultor le va mal y no recuerda haber hecho algo mal, la trazabilidad es la diferencia entre una conversación y un problema.</div>
+      <div class="p">¿Cuántas horas toma armar el informe mensual?</div>
+    </li>
+    <li>
+      <div class="p">¿Quién lo arma y cuántos se emiten al año?</div>
+    </li>
+  </ol>
+  <h3>Trazabilidad</h3>
+  <ol class="preguntas">
+    <li class="clave">
+      <div class="p">¿Cuántas veces al año hay una discusión con un agricultor sobre lo que se hizo en su campo?</div>
+    </li>
+    <li>
+      <div class="p">¿Cómo se resuelven hoy esas situaciones?</div>
     </li>
     <li>
       <div class="p">¿Ha habido pérdidas de producción que se hubieran evitado detectando antes un problema de riego, maleza o sanidad?</div>
@@ -339,23 +360,19 @@
       <div class="p">Cuando un zonal deja la empresa, ¿qué pasa con lo que sabía de sus campos?</div>
     </li>
   </ol>
-
-  <h3>Lo que valdría ganar</h3>
+  <h3>Qué esperan</h3>
   <ol class="preguntas">
     <li>
-      <div class="p">Si el próximo año pudieran ver la nota agronómica de cada lote a lo largo de la temporada, ¿qué decisión tomarían con eso que hoy no pueden tomar?</div>
+      <div class="p">Si pudieran ver la nota agronómica de cada lote a lo largo de la temporada, ¿qué harían con esa información?</div>
     </li>
     <li>
-      <div class="p">¿Qué tendría que pasar en los próximos tres meses para que esto se considere un éxito y valga la pena seguir?</div>
-      <div class="por-que">Vale más que cualquier respuesta técnica: si no hay acuerdo sobre qué es el éxito, el mejor sistema posible se evalúa contra expectativas distintas.</div>
+      <div class="p">¿Qué tendría que pasar en los próximos tres meses para que valga la pena seguir?</div>
     </li>
   </ol>
 </section>
 
 <footer>
   <p>adoOps · Levantamiento para costear el sistema de visitas a campo · agosto de 2026</p>
-  <p style="margin-top:8px">Las preguntas marcadas son las que cambian la estimación
-  de forma material. El resto la afina.</p>
 </footer>
 
 </div>
