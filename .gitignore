@@ -53,3 +53,7 @@ client_secret*.json
 # Exportaciones de Google Ads. Chrome las descarga acá y traen datos del cliente.
 Informe*.csv
 *.csv
+
+# Python
+__pycache__/
+*.pyc
