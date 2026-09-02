@@ -112,6 +112,51 @@ async function esperarMedia(url: string, etiqueta: string): Promise<string | nul
   return null;
 }
 
+/**
+ * Pide la media desencriptada y no se conforma con el primer intento.
+ *
+ * Sondear la misma URL sirve cuando el archivo viene en camino, que es el caso
+ * documentado —WaSender entrega la dirección antes de terminar—. Pero no cubre
+ * que la desencriptación misma haya fallado: ahí la URL nace muerta y volver a
+ * consultarla es perder el tiempo. Por eso, si la primera ronda no produce
+ * nada, se rehace el `decrypt-media` completo, que genera un archivo nuevo.
+ *
+ * Cuál de las dos cosas mató el audio del 02-09-2026 no se puede saber: para
+ * cuando lo revisamos la URL ya había expirado (duran ~1h) y el sobre del
+ * mensaje no se guarda en ninguna parte. Esta función cubre las dos.
+ */
+async function pedirMedia(sobre: unknown, etiqueta: string): Promise<string | null> {
+  for (let ronda = 1; ronda <= 2; ronda++) {
+    try {
+      const resp = await fetch(`${BASE}/decrypt-media`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey()}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ data: { messages: sobre } }),
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (!resp.ok) {
+        console.error(`WaSender ${etiqueta} error:`, resp.status, await resp.text());
+        return null;
+      }
+      const json = (await resp.json()) as { success?: boolean; publicUrl?: string };
+      if (!json.publicUrl) {
+        console.error(`WaSender ${etiqueta}: la respuesta no trae publicUrl`);
+        return null;
+      }
+      const lista = await esperarMedia(json.publicUrl, etiqueta);
+      if (lista) return lista;
+      if (ronda === 1) console.warn(`WaSender ${etiqueta}: rehaciendo el desencriptado desde cero`);
+    } catch (err) {
+      console.error(`WaSender ${etiqueta} exception:`, err);
+      return null;
+    }
+  }
+  return null;
+}
+
 /** Envía un mensaje de texto. Devuelve true si WaSender lo aceptó. */
 export async function sendText(to: string, text: string): Promise<boolean> {
   return postEnvio({ to, text }, "send-message");
@@ -174,32 +219,10 @@ export async function decryptAudio(msg: WaIncomingMessage): Promise<string | nul
   const audio = msg.message?.audioMessage;
   if (!audio) return null;
 
-  try {
-    const resp = await fetch(`${BASE}/decrypt-media`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey()}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        data: {
-          messages: {
-            key: { id: msg.key.id },
-            message: { audioMessage: audio },
-          },
-        },
-      }),
-    });
-    if (!resp.ok) {
-      console.error("WaSender decrypt-media error:", resp.status, await resp.text());
-      return null;
-    }
-    const json = (await resp.json()) as { success?: boolean; publicUrl?: string };
-    return json.publicUrl ? esperarMedia(json.publicUrl, "decrypt-media (audio)") : null;
-  } catch (err) {
-    console.error("WaSender decrypt-media exception:", err);
-    return null;
-  }
+  return pedirMedia(
+    { key: { id: msg.key.id }, message: { audioMessage: audio } },
+    "decrypt-media (audio)",
+  );
 }
 
 /**
@@ -214,27 +237,10 @@ export async function decryptImage(msg: WaIncomingMessage): Promise<string | nul
   const image = msg.message?.imageMessage;
   if (!image) return null;
 
-  try {
-    const resp = await fetch(`${BASE}/decrypt-media`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey()}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        data: { messages: { key: { id: msg.key.id }, message: { imageMessage: image } } },
-      }),
-    });
-    if (!resp.ok) {
-      console.error("WaSender decrypt-media (imagen) error:", resp.status, await resp.text());
-      return null;
-    }
-    const json = (await resp.json()) as { success?: boolean; publicUrl?: string };
-    return json.publicUrl ? esperarMedia(json.publicUrl, "decrypt-media (imagen)") : null;
-  } catch (err) {
-    console.error("WaSender decrypt-media (imagen) exception:", err);
-    return null;
-  }
+  return pedirMedia(
+    { key: { id: msg.key.id }, message: { imageMessage: image } },
+    "decrypt-media (imagen)",
+  );
 }
 
 /**
@@ -248,27 +254,10 @@ export async function decryptDocument(msg: WaIncomingMessage): Promise<string | 
   const doc = msg.message?.documentMessage;
   if (!doc) return null;
 
-  try {
-    const resp = await fetch(`${BASE}/decrypt-media`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey()}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        data: { messages: { key: { id: msg.key.id }, message: { documentMessage: doc } } },
-      }),
-    });
-    if (!resp.ok) {
-      console.error("WaSender decrypt-media (documento) error:", resp.status, await resp.text());
-      return null;
-    }
-    const json = (await resp.json()) as { success?: boolean; publicUrl?: string };
-    return json.publicUrl ? esperarMedia(json.publicUrl, "decrypt-media (documento)") : null;
-  } catch (err) {
-    console.error("WaSender decrypt-media (documento) exception:", err);
-    return null;
-  }
+  return pedirMedia(
+    { key: { id: msg.key.id }, message: { documentMessage: document } },
+    "decrypt-media (documento)",
+  );
 }
 
 /**
