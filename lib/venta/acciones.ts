@@ -287,3 +287,32 @@ export async function editarOportunidadAction(formData: FormData) {
   revalidatePath(`/dashboard360/crm/oportunidades/${id}`);
   revalidatePath(TABLERO);
 }
+
+// ─── Baja ────────────────────────────────────────────────────────────────────
+
+/**
+ * Borra una oportunidad y su historia.
+ *
+ * **Es lo único de este módulo que destruye información**, y contradice de
+ * frente la regla de arriba —que una actividad es algo que ocurrió y no se
+ * borra—. La contradicción es deliberada y acotada: esa regla protege el
+ * historial de una oportunidad *real*, y lo que esto borra son las que nunca
+ * debieron existir: la de prueba, la duplicada, la que se creó con el nombre
+ * mal escrito.
+ *
+ * Para una oportunidad que sí existió y no se ganó, el camino correcto es
+ * moverla a «Perdido» con su motivo. Ahí el registro vale.
+ *
+ * Las actividades se borran primero por la clave foránea: al revés, Postgres
+ * rechaza la operación y el usuario ve un error sin saber qué hacer.
+ */
+export async function borrarOportunidadAction(formData: FormData) {
+  await exigirSesion();
+  const id = Number(formData.get("id"));
+  if (!Number.isInteger(id) || id <= 0) return;
+
+  await db.delete(ventaActividades).where(eq(ventaActividades.oportunidadId, id));
+  await db.delete(ventaOportunidades).where(eq(ventaOportunidades.id, id));
+
+  revalidatePath(TABLERO);
+}

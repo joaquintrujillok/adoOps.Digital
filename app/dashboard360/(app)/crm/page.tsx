@@ -6,14 +6,20 @@
 // tengo?" sino "¿dónde está atascado esto?", y esa se contesta mirando de qué
 // altura es cada columna. Una tabla ordenada por monto responde otra cosa.
 //
-// ── Por qué no se arrastra ───────────────────────────────────────────────────
+// ── Por qué sí se arrastra, y por qué el botón sigue estando ────────────────
 //
-// Mover una tarjeta es un formulario con un botón por etapa, no un drag and
-// drop. Arrastrar exige JavaScript en el cliente, estado optimista y una forma
-// de deshacer cuando el servidor rechaza; con un pipeline de decenas de
-// oportunidades, un clic en un menú es igual de rápido y no puede quedar en un
-// estado que la base no tenga. Si algún día son cientos y el arrastre se
-// justifica, se agrega encima de estas mismas acciones.
+// Antes esta pantalla movía las tarjetas solo con botones, con el argumento de
+// que arrastrar exige JavaScript, estado optimista y una forma de deshacer. El
+// argumento era cierto y el costo se pagó: el tablero es `TableroPipeline`, un
+// componente cliente. Lo que lo justificó fue el uso real: mover una tarjeta era
+// entrar a la ficha, elegir etapa, volver, y eso se hace decenas de veces al
+// revisar el pipeline.
+//
+// Los botones por etapa siguen en la ficha de la oportunidad, y esa es la ruta
+// que funciona en el teléfono: el arrastre nativo de HTML no responde al tacto.
+// El arrastre es un atajo del escritorio, no el único camino.
+//
+// Los datos siguen calculándose en el servidor. El cliente solo pinta y arrastra.
 
 import Link from "next/link";
 import { Card, PageHeader, Vacio, btnPrimario } from "@/components/dashboard360/ui";
@@ -21,6 +27,7 @@ import { requireSession } from "@/lib/dashboard360/auth.actions";
 import { cerradas, contactos, disponible, tablero } from "@/lib/venta/consultas";
 import { crearOportunidadAction } from "@/lib/venta/acciones";
 import { FUENTES, FUENTE_POR_DEFECTO, nombreEtapa } from "@/lib/venta/etapas";
+import TableroPipeline from "@/components/dashboard360/TableroPipeline";
 
 export const dynamic = "force-dynamic";
 
@@ -88,71 +95,27 @@ export default async function CrmPage() {
         }
       />
 
-      {/* El tablero. Scroll horizontal propio: siete columnas no caben en un
-          portátil, y hacer scroll a la página entera para ver la última pierde
-          de vista los totales. */}
-      <div className="-mx-1 overflow-x-auto pb-2">
-        <div className="flex min-w-max gap-3 px-1">
-          {columnas.map((col) => (
-            <section
-              key={col.etapa}
-              className="flex w-[260px] shrink-0 flex-col rounded-xl border border-[var(--d360-border)] bg-[var(--d360-surface)] p-3"
-            >
-              <header className="mb-3">
-                <h2 className="text-[12.5px] font-semibold text-[var(--d360-ink)]">
-                  {col.nombre}
-                </h2>
-                <p className="d360-num text-[11px] text-[var(--d360-muted)]">
-                  {col.tarjetas.length} · {CLP.format(col.total)}
-                </p>
-              </header>
-
-              <div className="space-y-2">
-                {col.tarjetas.length === 0 ? (
-                  <p className="py-3 text-center text-[11.5px] text-[var(--d360-muted)]">
-                    vacía
-                  </p>
-                ) : (
-                  col.tarjetas.map((t) => {
-                    const dias = diasSin(t.ultimaActividad);
-                    // Catorce días es el umbral de "fría". Se pinta en la tarjeta
-                    // y no solo en un contador, porque el contador dice cuántas
-                    // hay y la tarjeta dice cuál.
-                    const fria = dias !== null && dias >= 14;
-                    return (
-                      <Link
-                        key={t.id}
-                        href={`/dashboard360/crm/oportunidades/${t.id}`}
-                        className={`block rounded-lg border p-3 transition-colors hover:border-[var(--d360-brand)] ${
-                          fria
-                            ? "border-[#e6d9b0] bg-[#fdf8e9]"
-                            : "border-[var(--d360-border)] bg-white"
-                        }`}
-                      >
-                        <p className="text-[13px] font-medium leading-snug text-[var(--d360-ink)]">
-                          {t.titulo}
-                        </p>
-                        <p className="mt-0.5 truncate text-[11.5px] text-[var(--d360-muted)]">
-                          {t.contacto}
-                          {t.empresa ? ` · ${t.empresa}` : ""}
-                        </p>
-                        <p className="d360-num mt-1.5 text-[11.5px] text-[var(--d360-ink-2)]">
-                          {t.monto > 0 ? CLP.format(t.monto) : "sin monto"}
-                          {t.cierreEstimado ? ` · cierra ${t.cierreEstimado}` : ""}
-                        </p>
-                        {fria ? (
-                          <p className="mt-1 text-[11px] font-medium text-[#8a6d1f]">
-                            {dias} días sin actividad
-                          </p>
-                        ) : null}
-                      </Link>
-                    );
-                  })
-                )}
-              </div>
-            </section>
-          ))}
-        </div>
+      {/* El tablero es cliente porque se arrastra. Los datos siguen viniendo
+          del servidor: acá solo se le da la forma que la vista necesita, y
+          `diasSin` se calcula en el servidor para que el «14 días sin
+          actividad» no dependa del reloj del navegador. */}
+      <div className="mb-6">
+        <TableroPipeline
+          columnas={columnas.map((col) => ({
+            id: col.etapa,
+            nombre: col.nombre,
+            tarjetas: col.tarjetas.map((t) => ({
+              id: t.id,
+              titulo: t.titulo,
+              etapa: t.etapa,
+              monto: t.monto,
+              contacto: t.contacto,
+              empresa: t.empresa,
+              cierreEstimado: t.cierreEstimado,
+              dias: diasSin(t.ultimaActividad),
+            })),
+          }))}
+        />
       </div>
 
       <Card
