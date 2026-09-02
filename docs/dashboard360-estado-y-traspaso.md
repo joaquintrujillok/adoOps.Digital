@@ -211,7 +211,15 @@ Ninguna vive en el repositorio.
 | `GOOGLE_ADS_LOGIN_CUSTOMER_ID` | **Vacía a propósito** | Camino A no la usa |
 | `D360_SESSION_SECRET` | Vercel | Firma la cookie del tablero |
 | `D360_SETUP_SECRET` | Vercel | Protege sembrado, importación y purga |
-| `CRON_SECRET` | Vercel | Protege la sincronía diaria |
+| `CRON_SECRET` | Vercel | Protege la sincronía diaria. **Rotado el 31-08**; lo usan también `/api/crm/cron/alertas` y `/api/leads/cron/tick` |
+
+### Dos credenciales que estaban mal y se corrigieron el 31-08
+
+- **El `GOOGLE_ADS_CLIENT_SECRET` de Vercel era el primero**, el que se corrompió
+  al copiarlo de la pantalla partida en dos líneas. Daba `invalid_client` y
+  estaba tapado por otro error. Reemplazado por el que funciona.
+- **Faltaban tres variables en Vercel** —developer token, refresh token y
+  customer ID—. El cron habría fallado en la primera corrida.
 
 ### Pendientes de higiene
 
@@ -252,24 +260,55 @@ curl "https://www.adoops.digital/api/dashboard360/cron/google-ads" \
 
 ## 7. Lo que de verdad falta
 
-### H&Co no mide conversiones
+### H&Co mide conversiones, pero no registra ninguna
 
 **Es el hallazgo más importante de toda la sesión y no es técnico.**
 
-Las tres campañas tienen `Conversiones = 0.00`. El CTR es 7,67% —muy bueno— pero
-no hay forma de saber si esos clics sirvieron.
+> ⚠️ **Corrección.** Durante buena parte de la sesión se dio por hecho que H&Co
+> *no medía* conversiones. Era una suposición a partir de ver ceros. El
+> diagnóstico que ahora corre con cada ingesta lo desmintió.
 
-Consecuencia directa: **la cuadratura de leads queda en cero y el costo por lead
-no se puede calcular.** Con datos reales el panel muestra inversión y alcance,
-pero no resultado — que es la única pregunta que le importa a un directorio.
+La cuenta tiene **tres acciones de conversión activas**: «Enviar formulario de
+clientes potenciales», «Lead form - Submit» y «Formulario enviado | HYCO».
 
-Sin medición de conversiones, Dashboard360 le muestra a H&Co cuánto gasta, no si
-funciona. **Configurársela vale más que cualquier pantalla nueva.**
+Y sin embargo: **457 clics en quince días, cero conversiones registradas.** Con
+tráfico de búsqueda especializada, un 0% sostenido no es un mal resultado — es
+una etiqueta que no dispara.
+
+**Qué hacer:** revisar el sitio de H&Co con el Tag Assistant. Si el tag está
+roto, están comprando tráfico a ciegas desde el 13 de agosto. Ese hallazgo
+justifica solo la relación.
+
+Mientras tanto la cuadratura de leads queda en cero y el costo por lead no se
+puede calcular, pero **la causa es distinta de la que se creía** y la
+conversación con el cliente también.
+
+### Se pierde el 25,4% de las impresiones por presupuesto
+
+Una de cada cuatro personas que buscó lo que H&Co ofrece no vio el anuncio
+porque el presupuesto ya se había agotado ese día.
+
+Es la única cifra del panel que se corrige subiendo un número. Combinada con el
+tag roto, el cuadro es: pierden el 25% del alcance por presupuesto **y** no miden
+el 100% de lo que sí llega.
 
 ### La cuenta es nueva
 
 Solo hay datos desde el 13 de agosto. La comparación contra el período anterior
 va a salir vacía hasta septiembre.
+
+### El pipeline es híbrido y su origen principal no es publicidad
+
+El origen principal declarado del pipeline es **«Referido de Clases»** — un canal
+que no está en Dashboard360. Queda pendiente ordenarlo.
+
+Hay dos lecturas y son muy distintas: que los referidos sean el canal real y la
+publicidad un complemento menor, o que sea un sesgo de atribución —alguien llega
+por búsqueda, no convierte ahí, después va a una clase y se registra como
+referido—. **Con el tag de conversión roto, la publicidad no puede aparecer en la
+atribución aunque esté funcionando**, así que los dos hallazgos encajan.
+
+No está resuelto y no conviene suponerlo.
 
 ### Solo hay una fuente conectada
 
