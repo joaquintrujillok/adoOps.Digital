@@ -105,6 +105,28 @@ export default async function Dashboard360AppLayout({
       ],
     },
     {
+      // El CRM es su propio grupo y no una sección de Prospección.
+      //
+      // Estaban juntos porque el recorrido parecía uno solo: el motor consigue
+      // conversaciones y el CRM las administra. Pero el pipeline de adoOps no
+      // sale del motor —su origen principal es "Referido de Clases"—, así que
+      // colgarlo de Prospección sugería una procedencia que los datos no tienen.
+      //
+      // Son además dos preguntas distintas: prospección es "¿a quién le hablo?"
+      // y CRM es "¿cómo va lo que ya está hablado?". Van antes que Prospección
+      // porque la segunda se hace todos los días y la primera, por tandas.
+      //
+      // El grupo entero desaparece cuando el CRM no está desplegado: los grupos
+      // sin entradas se filtran en `filtrarPorCuenta`.
+      titulo: "CRM",
+      items: hayCrm
+        ? [
+            { href: "/dashboard360/crm", etiqueta: "Pipeline", icono: "⛁", badge: crmFrias },
+            { href: "/dashboard360/crm/contactos", etiqueta: "Contactos", icono: "☰" },
+          ]
+        : [],
+    },
+    {
       // El mercado va antes que el informe: es el dato que enmarca todo lo
       // demás. Un costo por lead no significa nada sin saber de qué universo
       // salieron esos leads.
@@ -114,15 +136,6 @@ export default async function Dashboard360AppLayout({
       // a salir del tablero para operarlo.
       titulo: "Prospección",
       items: [
-        // El CRM va primero del grupo: el motor consigue conversaciones y el CRM
-        // las administra, así que la pregunta "¿cómo va la cartera?" pesa más
-        // que "¿qué mandó el cron anoche?".
-        ...(hayCrm
-          ? [
-              { href: "/dashboard360/crm", etiqueta: "Pipeline", icono: "⛁", badge: crmFrias },
-              { href: "/dashboard360/crm/contactos", etiqueta: "Contactos", icono: "☰" },
-            ]
-          : []),
         { href: "/dashboard360/prospeccion", etiqueta: "Mercado", icono: "◎" },
         // El motor es un módulo aparte y puede no estar desplegado. Cuando no
         // está, estas entradas no se pintan: un menú con pestañas muertas es
