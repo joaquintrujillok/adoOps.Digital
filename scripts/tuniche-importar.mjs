@@ -8,10 +8,20 @@
 // **Es idempotente**: los lotes se identifican por código y los agricultores por
 // (área, razón social). Correrlo de nuevo actualiza, no duplica.
 //
-// Uso: node scripts/tuniche-importar.mjs [--limpiar]
+// Uso: node scripts/tuniche-importar.mjs [--limpiar] [--reemplazar <área>]
 //
-//   --limpiar  borra agricultores y lotes antes de importar. Se niega a hacerlo
-//              si ya hay visitas cargadas: esas visitas apuntan a estos lotes.
+//   --limpiar            borra agricultores y lotes antes de importar.
+//   --reemplazar altue   borra SOLO los de esa área antes de importar.
+//
+// Los dos se niegan si hay visitas cargadas sobre lo que van a borrar: esas
+// visitas apuntan a estos lotes y quedarían huérfanas. Ninguno toca las filas de
+// demostración, que se manejan con `scripts/tuniche-demo.mjs`.
+//
+// `--reemplazar` existe porque una sábana corregida no siempre es una versión
+// más de la anterior. La que mandó René para la prueba con Carlos Mancilla
+// comparte solo 2 lotes con la que había: es un recambio, y actualizar fila por
+// fila habría dejado 21 lotes viejos conviviendo con nombres de agricultor
+// inventados.
 
 import { readFileSync } from "node:fs";
 import { neon } from "@neondatabase/serverless";
@@ -30,6 +40,32 @@ const datos = JSON.parse(
 );
 
 const limpiar = process.argv.includes("--limpiar");
+const iR = process.argv.indexOf("--reemplazar");
+const reemplazar = iR >= 0 ? process.argv[iR + 1] : null;
+if (reemplazar && !["mn", "altue"].includes(reemplazar)) {
+  console.error(`Área inválida: ${reemplazar}. Usa mn o altue.`);
+  process.exit(1);
+}
+
+if (reemplazar) {
+  const [{ n }] = await sql`
+    SELECT count(*)::int AS n FROM tuniche_visitas v
+    JOIN tuniche_lotes l ON l.id = v.lote_id
+    WHERE l.area = ${reemplazar} AND l.demo = FALSE`;
+  if (n > 0) {
+    console.error(`Hay ${n} visitas sobre lotes reales de ${reemplazar}. No borro nada.`);
+    process.exit(1);
+  }
+  const lo = await sql`DELETE FROM tuniche_lotes WHERE area = ${reemplazar} AND demo = FALSE RETURNING id`;
+  // Los agricultores se borran después y solo si quedaron sin lotes: uno que
+  // tenga lotes en otra área no tiene por qué desaparecer.
+  const ag = await sql`
+    DELETE FROM tuniche_agricultores a
+    WHERE a.area = ${reemplazar} AND a.demo = FALSE
+      AND NOT EXISTS (SELECT 1 FROM tuniche_lotes l WHERE l.agricultor_id = a.id)
+    RETURNING a.id`;
+  console.log(`· ${reemplazar}: borrados ${lo.length} lotes y ${ag.length} agricultores`);
+}
 if (limpiar) {
   const [{ n }] = await sql`SELECT count(*)::int AS n FROM tuniche_visitas`;
   if (n > 0) {
@@ -103,7 +139,7 @@ async function lote(agricultorId, area, l) {
 // es una línea de trabajo y no un proyecto de migración.
 
 let nMn = 0;
-for (const [i, f] of datos.mn.entries()) {
+for (const [i, f] of (reemplazar && reemplazar !== "mn" ? [] : datos.mn).entries()) {
   const id = await agricultor("mn", {
     razonSocial: f["Razón Social"],
     nombreContacto: f["Nombre Contacto"],
@@ -138,7 +174,7 @@ for (const [i, f] of datos.mn.entries()) {
 // pagó una vez.
 
 let nAltue = 0;
-for (const f of datos.altue) {
+for (const f of reemplazar && reemplazar !== "altue" ? [] : datos.altue) {
   const localidad = f["LOCALIDAD"] ?? "sin localidad";
   const id = await agricultor("altue", {
     razonSocial: f["AGRICULTOR"] ?? `(agricultor por confirmar) · ${localidad}`,
@@ -205,10 +241,13 @@ const [{ ag }] = await sql`SELECT count(*)::int AS ag FROM tuniche_agricultores`
 const [{ lo }] = await sql`SELECT count(*)::int AS lo FROM tuniche_lotes`;
 const sinContacto = await sql`
   SELECT area, count(*)::int AS n FROM tuniche_agricultores
-  WHERE telefono IS NULL GROUP BY area ORDER BY area
+  WHERE telefono IS NULL AND demo = FALSE GROUP BY area ORDER BY area
 `;
+// Solo filas reales: un zonal inventado por `tuniche-demo.mjs` no es una cuenta
+// que falte crear, y avisarlo enseña a ignorar los avisos.
 const sinZonal = await sql`
-  SELECT DISTINCT zonal_nombre FROM tuniche_agricultores WHERE zonal_id IS NULL AND zonal_nombre IS NOT NULL
+  SELECT DISTINCT zonal_nombre FROM tuniche_agricultores
+  WHERE zonal_id IS NULL AND zonal_nombre IS NOT NULL AND demo = FALSE
 `;
 
 console.log(`✓ ${nMn} filas de MN · ${nAltue} filas de Altué`);
@@ -218,5 +257,7 @@ if (sinZonal.length) {
   console.log(`  ⚠ zonales sin cuenta en el sistema: ${sinZonal.map((z) => z.zonal_nombre).join(", ")}`);
 }
 for (const s of sinContacto) {
-  console.log(`  ⚠ ${s.area}: ${s.n} agricultores sin teléfono — no hay a quién mandarle el informe`);
+  // Ya no bloquea: el informe le llega a quien recibe los de cada área y esa
+  // persona lo reenvía. Hace falta el día que el sistema escriba al agricultor.
+  console.log(`  · ${s.area}: ${s.n} agricultores sin teléfono (no bloquea: el informe va a quien lo reenvía)`);
 }
