@@ -11,26 +11,110 @@ function apiKey(): string {
   return k;
 }
 
-/** Envía un mensaje de texto. Devuelve true si WaSender lo aceptó. */
-export async function sendText(to: string, text: string): Promise<boolean> {
-  try {
-    const resp = await fetch(`${BASE}/send-message`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey()}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ to, text }),
-    });
-    if (!resp.ok) {
-      console.error("WaSender send-message error:", resp.status, await resp.text());
+const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * WaSender acepta **un mensaje cada 5 segundos** cuando la cuenta tiene
+ * "Account Protection" encendido, y rechaza el resto con un 429 que este
+ * cliente traducía a `false` — es decir, a nada. El 02-09-2026 eso se comió el
+ * aviso de error de un audio fallido, cinco de las seis respuestas a unas fotos,
+ * y la confirmación de una foto que sí se había guardado. El zonal quedó mirando
+ * un chat mudo tres veces distintas, con el sistema funcionando por detrás.
+ *
+ * Dos defensas, y las dos hacen falta:
+ *
+ * 1. `ultimoEnvio` espacia las salidas **dentro de este proceso**. Barato y
+ *    evita la mayoría de los 429 antes de provocarlos.
+ * 2. El reintento sobre el 429 es el que de verdad sostiene, porque cada mensaje
+ *    de WhatsApp entra por su propia invocación del webhook y dos invocaciones
+ *    no comparten memoria: el punto 1 no las puede coordinar. WaSender dice en
+ *    `retry_after` cuántos segundos faltan, así que se le hace caso a él en vez
+ *    de adivinar.
+ *
+ * Sigue siendo mejor tener Account Protection apagado, pero el sistema ya no
+ * depende de eso.
+ */
+let ultimoEnvio = 0;
+const SEPARACION_MS = 5_200; // los 5s del proveedor, con un margen
+const REINTENTOS = 3;
+
+async function postEnvio(cuerpo: unknown, etiqueta: string): Promise<boolean> {
+  for (let intento = 0; intento <= REINTENTOS; intento++) {
+    const espera = ultimoEnvio + SEPARACION_MS - Date.now();
+    if (espera > 0) await dormir(espera);
+    ultimoEnvio = Date.now();
+
+    try {
+      const resp = await fetch(`${BASE}/send-message`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey()}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(cuerpo),
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (resp.ok) return true;
+
+      const detalle = await resp.text();
+      if (resp.status === 429 && intento < REINTENTOS) {
+        // `retry_after` viene en segundos y a veces es 0: el proveedor dice
+        // "ya casi", no "reintenta al tiro". El mínimo evita el bucle apretado.
+        let segundos = 5;
+        try {
+          const j = JSON.parse(detalle) as { retry_after?: number };
+          if (typeof j.retry_after === "number") segundos = Math.max(j.retry_after, 1);
+        } catch {
+          /* si no viene JSON, el default de 5s es el límite conocido */
+        }
+        console.warn(`WaSender ${etiqueta}: 429, reintento ${intento + 1}/${REINTENTOS} en ${segundos}s`);
+        await dormir(segundos * 1000);
+        continue;
+      }
+
+      console.error(`WaSender ${etiqueta} error:`, resp.status, detalle);
+      return false;
+    } catch (err) {
+      console.error(`WaSender ${etiqueta} exception:`, err);
       return false;
     }
-    return true;
-  } catch (err) {
-    console.error("WaSender send-message exception:", err);
-    return false;
   }
+  console.error(`WaSender ${etiqueta}: se agotaron los reintentos por 429`);
+  return false;
+}
+
+/**
+ * Espera a que la URL que devolvió `decrypt-media` exista de verdad.
+ *
+ * WaSender entrega la URL **antes** de terminar de dejar el archivo disponible.
+ * Bajarla de una sola vez devuelve 404 y, como el audio es lo único que hay, se
+ * pierde la visita entera: fue lo que mató el audio de las 12:58 del
+ * 02-09-2026. No es un archivo que no exista, es uno que todavía no está.
+ */
+async function esperarMedia(url: string, etiqueta: string): Promise<string | null> {
+  const esperas = [0, 700, 1500, 3000];
+  for (const [i, espera] of esperas.entries()) {
+    if (espera) await dormir(espera);
+    try {
+      const resp = await fetch(url, { method: "HEAD", signal: AbortSignal.timeout(10_000) });
+      if (resp.ok) return url;
+      // Un 404 acá es "todavía no"; cualquier otro código es un problema real.
+      if (resp.status !== 404) {
+        console.error(`WaSender ${etiqueta}: media respondió ${resp.status}`);
+        return null;
+      }
+      console.warn(`WaSender ${etiqueta}: media aún no disponible (404), intento ${i + 1}/${esperas.length}`);
+    } catch (err) {
+      console.warn(`WaSender ${etiqueta}: no se pudo consultar la media`, err);
+    }
+  }
+  console.error(`WaSender ${etiqueta}: la media siguió en 404 tras ${esperas.length} intentos`);
+  return null;
+}
+
+/** Envía un mensaje de texto. Devuelve true si WaSender lo aceptó. */
+export async function sendText(to: string, text: string): Promise<boolean> {
+  return postEnvio({ to, text }, "send-message");
 }
 
 /** Forma del objeto `data.messages` que llega en el webhook. */
@@ -111,7 +195,7 @@ export async function decryptAudio(msg: WaIncomingMessage): Promise<string | nul
       return null;
     }
     const json = (await resp.json()) as { success?: boolean; publicUrl?: string };
-    return json.publicUrl ?? null;
+    return json.publicUrl ? esperarMedia(json.publicUrl, "decrypt-media (audio)") : null;
   } catch (err) {
     console.error("WaSender decrypt-media exception:", err);
     return null;
@@ -146,7 +230,7 @@ export async function decryptImage(msg: WaIncomingMessage): Promise<string | nul
       return null;
     }
     const json = (await resp.json()) as { success?: boolean; publicUrl?: string };
-    return json.publicUrl ?? null;
+    return json.publicUrl ? esperarMedia(json.publicUrl, "decrypt-media (imagen)") : null;
   } catch (err) {
     console.error("WaSender decrypt-media (imagen) exception:", err);
     return null;
@@ -180,7 +264,7 @@ export async function decryptDocument(msg: WaIncomingMessage): Promise<string | 
       return null;
     }
     const json = (await resp.json()) as { success?: boolean; publicUrl?: string };
-    return json.publicUrl ?? null;
+    return json.publicUrl ? esperarMedia(json.publicUrl, "decrypt-media (documento)") : null;
   } catch (err) {
     console.error("WaSender decrypt-media (documento) exception:", err);
     return null;
@@ -258,25 +342,7 @@ export async function sendDocument(
   fileName: string,
   caption: string,
 ): Promise<boolean> {
-  try {
-    const resp = await fetch(`${BASE}/send-message`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey()}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ to, text: caption, documentUrl, fileName }),
-      signal: AbortSignal.timeout(20_000),
-    });
-    if (!resp.ok) {
-      console.error("WaSender send-document error:", resp.status, await resp.text());
-      return false;
-    }
-    return true;
-  } catch (err) {
-    console.error("WaSender send-document exception:", err);
-    return false;
-  }
+  return postEnvio({ to, text: caption, documentUrl, fileName }, "send-document");
 }
 
 /** Extrae el texto plano de un mensaje entrante (si es de texto). */
