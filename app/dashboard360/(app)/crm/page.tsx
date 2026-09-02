@@ -239,6 +239,34 @@ export default async function CrmPage() {
                     otra vez, un piso más abajo. */}
                 <input name="empresaNueva" className={`${campo} w-48`} />
               </label>
+
+              {/* Correo y teléfono se piden acá y no «después, en la ficha».
+                  Este formulario se llena mientras se cuelga el teléfono o se
+                  cierra una clase, que es justo cuando se tiene el dato. Media
+                  hora después nadie vuelve a completarlo, y un contacto sin
+                  forma de contactarlo es una fila que no sirve para nada.
+
+                  Ninguno es obligatorio: exigirlos convertiría el formulario en
+                  un peaje y la gente dejaría de registrar oportunidades, que es
+                  peor que registrarlas incompletas. */}
+              <label className="text-[12px] text-[var(--d360-ink-2)]">
+                <span className="mb-1 block">Correo</span>
+                <input
+                  name="emailNuevo"
+                  type="email"
+                  className={`${campo} w-56`}
+                  placeholder="nombre@empresa.cl"
+                />
+              </label>
+              <label className="text-[12px] text-[var(--d360-ink-2)]">
+                <span className="mb-1 block">Teléfono</span>
+                <input
+                  name="telefonoNuevo"
+                  type="tel"
+                  className={`${campo} w-40`}
+                  placeholder="+56 9 …"
+                />
+              </label>
             </div>
           </div>
 

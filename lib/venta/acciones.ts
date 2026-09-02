@@ -138,7 +138,18 @@ export async function crearOportunidadAction(formData: FormData) {
     empresaId = await empresaPorNombre(texto(formData, "empresaNueva", 200));
     const [nuevo] = await db
       .insert(ventaContactos)
-      .values({ nombre, empresaId, cargo: texto(formData, "cargoNuevo", 160) })
+      // Correo y teléfono se guardan acá y no «después, en la ficha». Este
+      // formulario se llena mientras se cuelga el teléfono o se cierra una
+      // clase, que es justo el momento en que se tiene el dato; media hora
+      // después ya nadie vuelve a completarlo, y un contacto sin forma de
+      // contactarlo es una fila que no sirve para nada.
+      .values({
+        nombre,
+        empresaId,
+        cargo: texto(formData, "cargoNuevo", 160),
+        email: texto(formData, "emailNuevo", 254),
+        telefono: texto(formData, "telefonoNuevo", 40),
+      })
       .returning({ id: ventaContactos.id });
     contactoId = nuevo.id;
   }
