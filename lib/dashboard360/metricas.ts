@@ -79,6 +79,48 @@ export async function rangoReciente(dias = 30): Promise<Rango> {
   return { desde: iso(d), hasta };
 }
 
+/**
+ * El primer y último día con datos, para acotar el selector de fechas.
+ *
+ * El selector se limita a esto a propósito: si alguien pide noventa días y la
+ * ingesta solo trajo treinta, el panel muestra sesenta días en cero y parece que
+ * la inversión se derrumbó. Es preferible no ofrecer el rango que explicar
+ * después por qué el gráfico miente.
+ */
+export async function rangoDisponible(): Promise<Rango | null> {
+  const [f] = await db
+    .select({
+      min: sql<string | null>`min(${d360Metricas.fecha})`,
+      max: sql<string | null>`max(${d360Metricas.fecha})`,
+    })
+    .from(d360Metricas);
+  if (!f?.min || !f?.max) return null;
+  return { desde: f.min, hasta: f.max };
+}
+
+/**
+ * Rango pedido por la URL, acotado a lo que existe.
+ *
+ * Fechas fuera del rango disponible se recortan en vez de rechazarse: un enlace
+ * compartido con un rango viejo debe mostrar lo que haya, no un error.
+ */
+export async function rangoPedido(
+  desde?: string,
+  hasta?: string,
+  diasPorDefecto = 30,
+): Promise<Rango> {
+  const ISO = /^\d{4}-\d{2}-\d{2}$/;
+  if (!desde || !hasta || !ISO.test(desde) || !ISO.test(hasta) || desde > hasta) {
+    return rangoReciente(diasPorDefecto);
+  }
+  const disp = await rangoDisponible();
+  if (!disp) return { desde, hasta };
+  return {
+    desde: desde < disp.desde ? disp.desde : desde,
+    hasta: hasta > disp.hasta ? disp.hasta : hasta,
+  };
+}
+
 /** El rango inmediatamente anterior, del mismo largo. Para comparar contra él. */
 export function rangoPrevio({ desde, hasta }: Rango): Rango {
   const a = new Date(`${desde}T00:00:00Z`);
@@ -107,6 +149,14 @@ export interface Resumen {
   aperturas: number;
   interacciones: number;
   seguidoresNuevos: number;
+  /**
+   * Cuota de impresiones perdida por presupuesto, en porcentaje.
+   *
+   * Se promedia ponderando por impresiones, no aritméticamente: un día con diez
+   * impresiones y otro con diez mil no pesan igual, y el promedio simple deja
+   * que un día muerto mueva la cifra del mes.
+   */
+  cuotaPerdidaPresupuesto: number | null;
 }
 
 export async function resumen({ desde, hasta }: Rango): Promise<Resumen> {
@@ -122,6 +172,15 @@ export async function resumen({ desde, hasta }: Rango): Promise<Resumen> {
       aperturas: sql<number>`coalesce(sum(${d360Metricas.aperturas}), 0)::int`,
       interacciones: sql<number>`coalesce(sum(${d360Metricas.interacciones}), 0)::int`,
       seguidoresNuevos: sql<number>`coalesce(sum(${d360Metricas.seguidoresNuevos}), 0)::int`,
+      cuotaPerdidaPresupuesto: sql<number | null>`
+        case when sum(case when ${d360Metricas.cuotaPerdidaPresupuesto} is not null
+                           then ${d360Metricas.impresiones} else 0 end) > 0
+        then round(
+          sum(${d360Metricas.cuotaPerdidaPresupuesto} * ${d360Metricas.impresiones}) filter
+            (where ${d360Metricas.cuotaPerdidaPresupuesto} is not null)::numeric
+          / nullif(sum(case when ${d360Metricas.cuotaPerdidaPresupuesto} is not null
+                            then ${d360Metricas.impresiones} else 0 end), 0)
+        )::int end`,
     })
     .from(d360Metricas)
     .where(enRango);
@@ -145,6 +204,9 @@ export async function resumen({ desde, hasta }: Rango): Promise<Resumen> {
     seguidoresNuevos: m?.seguidoresNuevos ?? 0,
     leadsReales: l?.leadsReales ?? 0,
     leadsEnCrm: l?.leadsEnCrm ?? 0,
+    // De puntos base a porcentaje.
+    cuotaPerdidaPresupuesto:
+      m?.cuotaPerdidaPresupuesto != null ? m.cuotaPerdidaPresupuesto / 100 : null,
   };
 }
 

@@ -82,9 +82,26 @@ async function accessToken(c: Config): Promise<string> {
 const GAQL = `
 SELECT segments.date, campaign.id, campaign.name,
        metrics.impressions, metrics.clicks,
-       metrics.cost_micros, metrics.conversions
+       metrics.cost_micros, metrics.conversions,
+       metrics.search_impression_share,
+       metrics.search_budget_lost_impression_share,
+       metrics.search_rank_lost_impression_share
 FROM campaign
 WHERE segments.date DURING LAST_30_DAYS`;
+
+/**
+ * Qué acciones de conversión tiene configuradas la cuenta.
+ *
+ * No es una métrica: es un diagnóstico. Cuando los leads salen en cero, esto
+ * distingue «el cliente no mide conversiones» de «mide y no está registrando»,
+ * que son dos conversaciones completamente distintas y hoy se confunden mirando
+ * la misma pantalla vacía.
+ */
+const GAQL_CONVERSIONES = `
+SELECT conversion_action.name, conversion_action.status,
+       conversion_action.type
+FROM conversion_action
+WHERE conversion_action.status = 'ENABLED'`;
 
 interface FilaGoogle {
   segments?: { date?: string };
@@ -94,11 +111,60 @@ interface FilaGoogle {
     clicks?: string | number;
     costMicros?: string | number;
     conversions?: number;
+    /** Decimales entre 0 y 1. Se guardan en puntos base. */
+    searchImpressionShare?: number;
+    searchBudgetLostImpressionShare?: number;
+    searchRankLostImpressionShare?: number;
   };
+}
+
+/** 0,3456 → 3456 puntos base. `null` cuando Google no reporta el dato. */
+function puntosBase(v: number | undefined): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? Math.round(v * 10_000) : null;
 }
 
 /** Los enteros grandes vienen como string en JSON. */
 const num = (v: string | number | undefined): number => (v == null ? 0 : Number(v));
+
+function cabeceras(c: Config, token: string): Record<string, string> {
+  const h: Record<string, string> = {
+    authorization: `Bearer ${token}`,
+    "developer-token": c.developerToken,
+    "content-type": "application/json",
+  };
+  if (c.loginCustomerId) h["login-customer-id"] = c.loginCustomerId;
+  return h;
+}
+
+/**
+ * Resume las acciones de conversión activas en una línea legible.
+ *
+ * Nunca lanza: es un diagnóstico opcional, y que falle no debe tumbar una
+ * ingesta de métricas que sí funcionó.
+ */
+export async function diagnosticoConversiones(c: Config, token: string): Promise<string> {
+  try {
+    const r = await fetch(`${API}/customers/${c.customerId}/googleAds:searchStream`, {
+      method: "POST",
+      headers: cabeceras(c, token),
+      body: JSON.stringify({ query: GAQL_CONVERSIONES.trim() }),
+    });
+    if (!r.ok) return `No se pudo leer las acciones de conversión (HTTP ${r.status})`;
+
+    const bloques = (await r.json()) as { results?: { conversionAction?: { name?: string } }[] }[];
+    const nombres = bloques
+      .flatMap((b) => b.results ?? [])
+      .map((f) => f.conversionAction?.name)
+      .filter((n): n is string => !!n);
+
+    if (!nombres.length) {
+      return "La cuenta no tiene acciones de conversión activas. Sin eso no hay leads que medir y el costo por lead no se puede calcular: es una falla de medición del anunciante, no del tablero.";
+    }
+    return `${nombres.length} acción(es) de conversión activas: ${nombres.slice(0, 6).join(", ")}`;
+  } catch {
+    return "No se pudo leer las acciones de conversión";
+  }
+}
 
 export async function consultarGoogleAds(c: Config, token: string): Promise<FilaGoogle[]> {
   const headers: Record<string, string> = {
@@ -136,12 +202,14 @@ export interface ResultadoIngesta {
   filasLeidas: number;
   filasEscritas: number;
   inversionClp: number;
+  nota: string;
 }
 
 export async function ingestarGoogleAds(): Promise<ResultadoIngesta> {
   const c = leerConfig();
   const token = await accessToken(c);
   const crudas = await consultarGoogleAds(c, token);
+  const nota = await diagnosticoConversiones(c, token);
 
   const filas = crudas
     .filter((f) => f.segments?.date && f.campaign?.name)
@@ -160,6 +228,9 @@ export async function ingestarGoogleAds(): Promise<ResultadoIngesta> {
       // campañas. Se redondea al guardar, y por eso la suma de campañas puede
       // diferir en una unidad del total que muestra la interfaz de Google Ads.
       leads: Math.round(f.metrics?.conversions ?? 0),
+      cuotaImpresiones: puntosBase(f.metrics?.searchImpressionShare),
+      cuotaPerdidaPresupuesto: puntosBase(f.metrics?.searchBudgetLostImpressionShare),
+      cuotaPerdidaRanking: puntosBase(f.metrics?.searchRankLostImpressionShare),
     }));
 
   const fechas = filas.map((f) => f.fecha).sort();
@@ -198,10 +269,17 @@ export async function ingestarGoogleAds(): Promise<ResultadoIngesta> {
       ultimaSync: new Date(),
       frecuenciaMin: 1440,
       ultimoError: null,
+      nota,
     })
     .onConflictDoUpdate({
       target: d360Fuentes.slug,
-      set: { estado: "conectada", cuenta: c.customerId, ultimaSync: new Date(), ultimoError: null },
+      set: {
+        estado: "conectada",
+        cuenta: c.customerId,
+        ultimaSync: new Date(),
+        ultimoError: null,
+        nota,
+      },
     });
 
   return {
@@ -211,6 +289,7 @@ export async function ingestarGoogleAds(): Promise<ResultadoIngesta> {
     filasLeidas: crudas.length,
     filasEscritas: filas.length,
     inversionClp: filas.reduce((s, f) => s + f.costoClp, 0),
+    nota,
   };
 }
 

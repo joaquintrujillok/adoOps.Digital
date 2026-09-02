@@ -101,6 +101,13 @@ export const d360Fuentes = pgTable(
     frecuenciaMin: integer("frecuencia_min").notNull().default(1440),
     /** Texto del último error, si lo hubo. Se muestra tal cual en /fuentes. */
     ultimoError: text("ultimo_error"),
+    /**
+     * Diagnóstico de la última sincronía, para cuando un número correcto igual
+     * se ve mal. Hoy lo usa Google Ads para declarar si la cuenta tiene
+     * acciones de conversión configuradas: sin eso los leads salen en cero y
+     * parece una falla del tablero cuando es una falla de medición del cliente.
+     */
+    nota: text("nota"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [uniqueIndex("d360_fuentes_slug_idx").on(t.slug)],
@@ -155,6 +162,19 @@ export const d360Metricas = pgTable(
      * Para el número honesto está `d360_leads`, que deduplica por persona.
      */
     leads: integer("leads"),
+
+    // ─── Cuota de impresiones (solo Google Ads) ───────────────────────────
+    //
+    // **En puntos base: 3.456 son 34,56%.** La API los entrega como decimal
+    // entre 0 y 1, y guardarlos como `real` obligaría a comparar flotantes en
+    // cada consulta. Un entero por diez mil es exacto y se formatea dividiendo.
+    //
+    // `cuotaPerdidaPresupuesto` es la métrica que más mueve una conversación de
+    // directorio: «perdiste el 34% de las impresiones porque el presupuesto se
+    // acabó» tiene una acción obvia detrás, a diferencia de un CTR.
+    cuotaImpresiones: integer("cuota_impresiones"),
+    cuotaPerdidaPresupuesto: integer("cuota_perdida_presupuesto"),
+    cuotaPerdidaRanking: integer("cuota_perdida_ranking"),
 
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },

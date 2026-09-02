@@ -1,5 +1,6 @@
 import { BarrasH, colorSerie } from "@/components/dashboard360/charts";
 import { Badge, Card, PageHeader, Tabla, Vacio } from "@/components/dashboard360/ui";
+import SelectorRango from "@/components/dashboard360/SelectorRango";
 import { requireSession } from "@/lib/dashboard360/auth.actions";
 import {
   clp,
@@ -7,16 +8,25 @@ import {
   pct,
   porCampania,
   porFuente,
-  rangoReciente,
+  rangoDisponible,
+  rangoPedido,
   resumen,
 } from "@/lib/dashboard360/metricas";
 
 export const dynamic = "force-dynamic";
 
-export default async function CanalesPage() {
+export default async function CanalesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ desde?: string; hasta?: string }>;
+}) {
   await requireSession();
 
-  const rango = await rangoReciente(30);
+  const { desde, hasta } = await searchParams;
+  const [rango, disponible] = await Promise.all([
+    rangoPedido(desde, hasta),
+    rangoDisponible(),
+  ]);
   const [fuentes, campanias, r] = await Promise.all([
     porFuente(rango),
     porCampania(rango),
@@ -45,6 +55,10 @@ export default async function CanalesPage() {
         titulo="Canales"
         bajada={`Detalle por canal y campaña. Período del ${rango.desde} al ${rango.hasta}.`}
       />
+
+      <div className="mb-5">
+        <SelectorRango desde={rango.desde} hasta={rango.hasta} disponible={disponible} />
+      </div>
 
       <div className="mb-5 grid gap-4 lg:grid-cols-2">
         <Card

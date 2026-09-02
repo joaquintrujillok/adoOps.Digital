@@ -77,6 +77,15 @@ export default async function FuentesPage() {
                   {f.ultimoError && (
                     <div className="mt-0.5 text-[12px] text-[#96201f]">{f.ultimoError}</div>
                   )}
+                  {/* La nota es diagnóstico, no error: explica por qué un número
+                      correcto igual se ve mal. Hoy dice si la cuenta tiene
+                      acciones de conversión configuradas, que es la diferencia
+                      entre «el tablero falla» y «el anunciante no mide». */}
+                  {!f.ultimoError && f.nota && (
+                    <div className="mt-0.5 max-w-[70ch] text-[12px] text-[var(--d360-muted)]">
+                      {f.nota}
+                    </div>
+                  )}
                 </td>
                 <td className="capitalize text-[var(--d360-ink-2)]">{f.tipo}</td>
                 <td className="text-[var(--d360-ink-2)]">{f.cuenta ?? "—"}</td>

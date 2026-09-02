@@ -92,6 +92,15 @@ const SENTENCIAS = [
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
   )`,
   `CREATE INDEX IF NOT EXISTS d360_informes_hasta_idx ON d360_informes (hasta)`,
+
+  // Columnas agregadas después de la primera versión. Van como ALTER
+  // idempotente y no dentro del CREATE de arriba: las tablas ya existen en
+  // producción, y un CREATE TABLE IF NOT EXISTS no agrega columnas nuevas —
+  // falla en silencio dejando el esquema viejo.
+  `ALTER TABLE d360_metricas_diarias ADD COLUMN IF NOT EXISTS cuota_impresiones INTEGER`,
+  `ALTER TABLE d360_metricas_diarias ADD COLUMN IF NOT EXISTS cuota_perdida_presupuesto INTEGER`,
+  `ALTER TABLE d360_metricas_diarias ADD COLUMN IF NOT EXISTS cuota_perdida_ranking INTEGER`,
+  `ALTER TABLE d360_fuentes ADD COLUMN IF NOT EXISTS nota TEXT`,
 ];
 
 export async function crearTablas(): Promise<number> {

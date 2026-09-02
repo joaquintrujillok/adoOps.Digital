@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Card, PageHeader, StatTile, btnSecundario } from "@/components/dashboard360/ui";
 import { BarraApilada, Lineas, colorSerie } from "@/components/dashboard360/charts";
+import SelectorRango from "@/components/dashboard360/SelectorRango";
 import { Tabla } from "@/components/dashboard360/ui";
 import { requireSession } from "@/lib/dashboard360/auth.actions";
 import {
@@ -13,7 +14,8 @@ import {
   pct,
   porFuente,
   rangoPrevio,
-  rangoReciente,
+  rangoDisponible,
+  rangoPedido,
   reconciliacion,
   resumen,
   serieDiaria,
@@ -22,10 +24,18 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export default async function Panel360() {
+export default async function Panel360({
+  searchParams,
+}: {
+  searchParams: Promise<{ desde?: string; hasta?: string }>;
+}) {
   await requireSession();
 
-  const rango = await rangoReciente(30);
+  const { desde, hasta } = await searchParams;
+  const [rango, disponible] = await Promise.all([
+    rangoPedido(desde, hasta),
+    rangoDisponible(),
+  ]);
   const previo = rangoPrevio(rango);
 
   const [actual, anterior, fuentes, serie, recon] = await Promise.all([
@@ -60,6 +70,10 @@ export default async function Panel360() {
         }
       />
 
+      <div className="mb-5">
+        <SelectorRango desde={rango.desde} hasta={rango.hasta} disponible={disponible} />
+      </div>
+
       {/* Cifras sin gráfico: son valores únicos, y dibujar una barra de un solo
           elemento agrega tinta, no información. */}
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -89,6 +103,29 @@ export default async function Panel360() {
           nota={`${num(actual.clics)} clics · ${num(actual.impresiones)} impresiones`}
         />
       </div>
+
+      {/* Va aparte y no en la fila de arriba porque no es una métrica de
+          resultado: es una restricción. Responde «¿cuánto más podrías estar
+          comprando?», que es una pregunta de presupuesto y tiene una acción
+          obvia detrás — a diferencia de un CTR, que solo se puede admirar. */}
+      {actual.cuotaPerdidaPresupuesto !== null && actual.cuotaPerdidaPresupuesto > 0 && (
+        <Card className="mb-5">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span className="d360-num text-[26px] font-semibold leading-none text-[var(--d360-ink)]">
+              {pct(actual.cuotaPerdidaPresupuesto)}
+            </span>
+            <span className="text-[14px] font-medium text-[var(--d360-ink)]">
+              de las impresiones se perdieron por presupuesto
+            </span>
+          </div>
+          <p className="mt-2 max-w-[75ch] text-[13px] text-[var(--d360-ink-2)]">
+            Gente que buscó exactamente lo que ofreces y no vio el anuncio porque
+            el presupuesto ya se había agotado ese día. Es la única cifra del panel
+            que se corrige subiendo un número, y por eso conviene decidirla antes
+            que cualquier optimización de creatividades.
+          </p>
+        </Card>
+      )}
 
       {/* La reconciliación va arriba y no escondida en una pestaña: es la
           pregunta que alguien va a hacer en la reunión, y es mejor responderla
