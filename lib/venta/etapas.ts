@@ -42,16 +42,38 @@ export function esCerrada(id: string): boolean {
   return id === "ganado" || id === "perdido";
 }
 
-/** De dónde salió el prospecto. Texto libre no: sin esto no se puede comparar. */
+/**
+ * De dónde salió el prospecto. Texto libre no: sin esto no se puede comparar.
+ *
+ * **«Referido de Clases» va primero y separado de «Referido» a secas porque hoy
+ * es el origen principal del pipeline.** Meterlo dentro del referido genérico
+ * dejaría al canal que más produce escondido en una bolsa junto a los referidos
+ * de otro tipo, y la primera pregunta que alguien le hace a un CRM es de dónde
+ * viene el negocio.
+ *
+ * La distinción además importa para leer el tablero: la publicidad se mide en
+ * Dashboard360 y las clases no aparecen ahí, así que confundirlos hace parecer
+ * que el pipeline sale de canales que en realidad aportan poco.
+ */
 export const FUENTES = [
+  { id: "clases", nombre: "Referido de Clases" },
+  { id: "referido", nombre: "Referido" },
   { id: "motor", nombre: "Motor de prospección" },
   { id: "linkedin", nombre: "LinkedIn a mano" },
-  { id: "referido", nombre: "Referido" },
   { id: "web", nombre: "Formulario de la web" },
   { id: "evento", nombre: "Evento" },
   { id: "reunion", nombre: "Salió de una reunión" },
   { id: "otro", nombre: "Otro" },
 ] as const;
+
+/**
+ * La que viene marcada al crear una oportunidad.
+ *
+ * Se preselecciona la más frecuente para que registrar el caso común no cueste
+ * un clic extra. Quien venga de otro lado la cambia; lo que no se quiere es que
+ * el campo quede vacío por pereza y el origen del pipeline se vuelva ilegible.
+ */
+export const FUENTE_POR_DEFECTO = "clases";
 
 export function nombreFuente(id: string | null): string {
   if (!id) return "sin origen";

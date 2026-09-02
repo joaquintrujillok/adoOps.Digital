@@ -20,7 +20,7 @@ import { Card, PageHeader, Vacio, btnPrimario } from "@/components/dashboard360/
 import { requireSession } from "@/lib/dashboard360/auth.actions";
 import { cerradas, contactos, disponible, tablero } from "@/lib/venta/consultas";
 import { crearOportunidadAction } from "@/lib/venta/acciones";
-import { FUENTES, nombreEtapa } from "@/lib/venta/etapas";
+import { FUENTES, FUENTE_POR_DEFECTO, nombreEtapa } from "@/lib/venta/etapas";
 
 export const dynamic = "force-dynamic";
 
@@ -177,7 +177,11 @@ export default async function CrmPage() {
             </label>
             <label className="text-[12px] text-[var(--d360-ink-2)]">
               <span className="mb-1 block">Origen</span>
-              <select name="fuente" className={`${campo} w-48`}>
+              <select
+                name="fuente"
+                defaultValue={FUENTE_POR_DEFECTO}
+                className={`${campo} w-48`}
+              >
                 {FUENTES.map((f) => (
                   <option key={f.id} value={f.id}>
                     {f.nombre}
