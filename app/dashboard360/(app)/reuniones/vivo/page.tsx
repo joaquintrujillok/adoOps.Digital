@@ -22,7 +22,7 @@ export default async function VivoPage() {
     <>
       <PageHeader
         titulo="Escucha en vivo"
-        bajada="Transcribe la reunión mientras ocurre, arma el contexto solo y sugiere qué preguntar. Cuesta ~US$1 la hora."
+        bajada="Transcribe la reunión mientras ocurre, arma el contexto solo y sugiere qué preguntar. Se guarda sola cada 20 segundos. Cuesta ~US$1 la hora."
       />
 
       <Card className="mb-4" titulo="Cómo probarla bien">
@@ -41,6 +41,12 @@ export default async function VivoPage() {
           <li>
             Mira el panel de eventos: si algo falla, la respuesta está ahí y no
             en un mensaje genérico.
+          </li>
+          <li>
+            <strong>No hace falta que termines bien.</strong> La transcripción se
+            guarda cada 20 segundos, así que cerrar la pestaña pierde a lo más
+            esos segundos. Lo que sí conviene es apretar «Detener y guardar»:
+            eso cierra la reunión y dispara la corrección y el resumen.
           </li>
         </ol>
       </Card>

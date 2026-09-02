@@ -12,6 +12,7 @@
 // nada.
 
 import { actualizarCopiloto, type EstadoCopiloto } from "@/lib/reuniones/copiloto";
+import { guardarVivo } from "@/lib/reuniones/vivo";
 import { recuperar } from "@/lib/conocimiento";
 import { resolverCuenta } from "@/lib/cuentas";
 import { getSession } from "@/lib/dashboard360/session";
@@ -32,6 +33,12 @@ export async function POST(req: Request) {
   let cuerpo: {
     estado?: EstadoCopiloto;
     fragmento?: string;
+    /** Identifica la sesión entre pasadas. Sin esto no se guarda nada. */
+    clave?: string;
+    titulo?: string;
+    inicioEn?: string;
+    /** La transcripción completa hasta ahora, para guardarla al paso. */
+    transcripcion?: string;
   };
   try {
     cuerpo = await req.json();
@@ -47,12 +54,39 @@ export async function POST(req: Request) {
     preguntas: [],
   };
 
+  const cuenta = resolverCuenta(sesion.cuenta, sesion.cuentas);
+
+  // ── Guardar antes de razonar ───────────────────────────────────────────────
+  //
+  // Primero se persiste el transcript y después se piensa. El orden importa: si
+  // el copiloto falla —cuota, timeout, un modelo que devuelve cualquier cosa—
+  // la reunión ya quedó guardada. Al revés, un error en la parte prescindible
+  // se llevaría puesta la irrecuperable.
+  //
+  // Y no rompe la pasada si falla: una reunión sin guardar todavía es peor que
+  // una sin contexto, pero cortar la transcripción en vivo por un error de
+  // escritura sería peor que las dos.
+  if (cuerpo.clave && cuerpo.transcripcion?.trim() && cuerpo.inicioEn) {
+    try {
+      await guardarVivo({
+        clave: cuerpo.clave,
+        titulo: (cuerpo.titulo ?? "").trim().slice(0, 300) || "Reunión en vivo",
+        inicioEn: new Date(cuerpo.inicioEn),
+        transcripcion: cuerpo.transcripcion,
+        cuenta: cuenta.id,
+        capturadaPor: sesion.nombre,
+      });
+    } catch {
+      // Se sigue: el próximo intento es en veinte segundos y lleva el texto
+      // completo, no un incremento, así que un fallo aislado no pierde nada.
+    }
+  }
+
   try {
     // La consulta de búsqueda es el CONTEXTO más lo último dicho, no la última
     // frase sola. Veinte segundos de conversación suelen ser "sí, claro,
     // exacto"; el contexto acumulado es una descripción densa de qué se está
     // hablando, que es lo que un embedding sabe comparar.
-    const cuenta = resolverCuenta(sesion.cuenta, sesion.cuentas);
     const c = estado.contexto;
     const consulta = [c.tema, c.objetivo, ...c.tensiones, fragmento]
       .filter(Boolean)

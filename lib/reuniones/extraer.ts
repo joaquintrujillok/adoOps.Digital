@@ -139,8 +139,17 @@ export async function extraerReunion(
 
   const encabezado: string[] = [];
   if (contexto?.titulo) encabezado.push(`Título de la reunión: ${contexto.titulo}`);
-  if (contexto?.participantes?.length)
+  if (contexto?.participantes?.length) {
     encabezado.push(`Personas que hablaron: ${contexto.participantes.join(", ")}`);
+  } else {
+    // Sin lista de hablantes la transcripción viene de un micrófono de sala —el
+    // carril de escucha en vivo— y no trae nombres. Hay que decirlo, o el modelo
+    // reparte la conversación entre interlocutores que inventa, y los
+    // compromisos salen a nombre de gente que no existe.
+    encabezado.push(
+      "AVISO: esta transcripción viene de un solo micrófono y NO identifica quién dijo cada cosa. No inventes hablantes ni repartas la conversación entre personas: escribe \"alguien planteó\" en vez de atribuir. Los compromisos van con responsable en null salvo que alguien diga su propio nombre.",
+    );
+  }
   if (recortada)
     encabezado.push(
       "AVISO: la transcripción venía muy larga y está cortada. Resume solo lo que recibes y no supongas el final.",

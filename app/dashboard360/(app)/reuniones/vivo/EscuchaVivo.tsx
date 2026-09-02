@@ -54,6 +54,9 @@ export default function EscuchaVivo() {
   const [copiloto, setCopiloto] = useState<EstadoCopiloto>(VACIO);
   const [pensando, setPensando] = useState(false);
   const [costoCopiloto, setCostoCopiloto] = useState(0);
+  const [titulo, setTitulo] = useState("");
+  /** Id de la reunión guardada, para poder ir a verla al terminar. */
+  const [guardada, setGuardada] = useState<number | null>(null);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -64,6 +67,14 @@ export default function EscuchaVivo() {
   const ocupadoRef = useRef(false);
   const lineasRef = useRef<Linea[]>([]);
   const copilotoRef = useRef<EstadoCopiloto>(VACIO);
+  /**
+   * Identifica la sesión entre pasadas. Se arma con el instante de inicio, así
+   * que guardar dos veces la misma sesión actualiza la misma fila en vez de
+   * crear una reunión duplicada por cada 20 segundos.
+   */
+  const claveRef = useRef<string>("");
+  const inicioRef = useRef<string>("");
+  const tituloRef = useRef<string>("");
 
   // Los refs se sincronizan en un efecto y no al pintar. La pasada del copiloto
   // corre desde un `setInterval` que se crea una sola vez: si leyera el estado
@@ -77,6 +88,10 @@ export default function EscuchaVivo() {
   useEffect(() => {
     copilotoRef.current = copiloto;
   }, [copiloto]);
+
+  useEffect(() => {
+    tituloRef.current = titulo;
+  }, [titulo]);
 
   const registrar = useCallback((linea: string) => {
     setEventos((prev) => [...prev.slice(-60), linea]);
@@ -128,7 +143,19 @@ export default function EscuchaVivo() {
       const res = await fetch("/api/dashboard360/reuniones/vivo/contexto", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ estado: copilotoRef.current, fragmento }),
+        body: JSON.stringify({
+          estado: copilotoRef.current,
+          fragmento,
+          // La transcripción viaja entera y no por incrementos: así un fallo
+          // aislado no pierde nada, porque el próximo envío lleva todo igual.
+          clave: claveRef.current,
+          titulo: tituloRef.current,
+          inicioEn: inicioRef.current,
+          transcripcion: lineasRef.current
+            .filter((l) => l.cerrada)
+            .map((l) => l.texto)
+            .join("\n"),
+        }),
       });
       const datos = await res.json();
       if (!res.ok) throw new Error(datos.error ?? `HTTP ${res.status}`);
@@ -157,6 +184,42 @@ export default function EscuchaVivo() {
     return () => clearInterval(t);
   }, [estado, pasada]);
 
+  /**
+   * Detener de verdad: corta el micrófono, hace una última pasada para no perder
+   * los últimos segundos, y cierra la sesión del lado del servidor.
+   *
+   * Si alguien cierra la pestaña sin apretar esto, no se pierde la reunión: el
+   * transcript ya está guardado y queda en la lista en estado "recibida", lista
+   * para que el botón de reintentar la termine de procesar.
+   */
+  async function finalizar() {
+    const clave = claveRef.current;
+    detener();
+    if (!clave) return;
+
+    // Una última pasada arrastra lo que se dijo desde la anterior. Sin esto se
+    // pierden hasta veinte segundos justo del final, que suele ser donde se
+    // acuerdan las cosas.
+    await pasada();
+
+    try {
+      const res = await fetch("/api/dashboard360/reuniones/vivo/cerrar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clave }),
+      });
+      const datos = await res.json();
+      if (res.ok && datos.id) {
+        setGuardada(datos.id);
+        registrar(`reunión guardada (id ${datos.id}), corrigiendo y resumiendo`);
+      } else {
+        registrar(`ERROR al cerrar: ${datos.error ?? res.status}`);
+      }
+    } catch (e) {
+      registrar(`ERROR al cerrar: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
   function alternarPregunta(id: string) {
     setCopiloto((prev) => ({
       ...prev,
@@ -174,6 +237,7 @@ export default function EscuchaVivo() {
     setEventos([]);
     setCopiloto(VACIO);
     setCostoCopiloto(0);
+    setGuardada(null);
     enviadasRef.current = new Set();
 
     try {
@@ -216,6 +280,8 @@ export default function EscuchaVivo() {
         const arranque = Date.now();
         setDesdeMs(arranque);
         setAhora(arranque);
+        inicioRef.current = new Date(arranque).toISOString();
+        claveRef.current = `vivo-${inicioRef.current}`;
       });
 
       dc.addEventListener("message", (e) => {
@@ -297,12 +363,22 @@ export default function EscuchaVivo() {
     <div className="space-y-4">
       {/* ── Barra ─────────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[var(--d360-border)] bg-[var(--d360-surface)] px-4 py-3">
+        {/* El título se escribe antes o durante, y se puede cambiar mientras
+            corre: cada pasada lo vuelve a guardar. Al final uno sabe mejor de
+            qué se trató la reunión que al empezar. */}
+        <input
+          value={titulo}
+          onChange={(e) => setTitulo(e.target.value)}
+          placeholder="Título de la reunión"
+          className="w-56 rounded-md border border-[var(--d360-border)] px-3 py-2 text-[13px] text-[var(--d360-ink)]"
+        />
+
         {escuchando ? (
           <button
-            onClick={detener}
+            onClick={finalizar}
             className="rounded-lg bg-[#8f2c2c] px-4 py-2 text-[13px] font-medium text-white transition-colors hover:bg-[#7a2424]"
           >
-            Detener
+            Detener y guardar
           </button>
         ) : (
           <button
@@ -335,6 +411,21 @@ export default function EscuchaVivo() {
           {pensando ? " · pensando…" : ""}
         </span>
       </div>
+
+      {guardada ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#b7dfc4] bg-[#eefaf1] p-4 text-[13px] text-[#1c6b39]">
+          <span>
+            Reunión guardada. La transcripción se está corrigiendo y resumiendo;
+            en un momento queda con su .txt para descargar.
+          </span>
+          <a
+            className="rounded-lg border border-[#1c6b39] px-3 py-1.5 text-[12.5px] font-medium text-[#1c6b39] hover:bg-white"
+            href={`/dashboard360/reuniones/${guardada}`}
+          >
+            Verla
+          </a>
+        </div>
+      ) : null}
 
       {error ? (
         <div className="rounded-xl border border-[#f0c2c2] bg-[#fdf1f1] p-4 text-[13px] text-[#8f2c2c]">
