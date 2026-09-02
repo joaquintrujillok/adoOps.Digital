@@ -37,6 +37,8 @@ import {
   asignarLote,
   crearVisita,
   guardarFoto,
+  guardarFotoPendiente,
+  adjuntarPendientes,
   lotesCandidatos,
   descartar,
   ultimaPendiente,
@@ -270,7 +272,7 @@ async function procesarTranscripcion(
     ? lotes.filter((l) => l.agricultorId === agricultorId)
     : [];
 
-  await crearVisita({
+  const visitaId = await crearVisita({
     loteId,
     agricultorId,
     area,
@@ -287,6 +289,9 @@ async function procesarTranscripcion(
     resumen: extraida.resumen,
   });
 
+  // Las fotos que llegaron mientras se procesaba el audio ya tienen dónde ir.
+  const recogidas = await adjuntarPendientes(u.id, visitaId);
+
   await enviarWhatsApp(
     u.telefono!,
     borrador({
@@ -297,7 +302,12 @@ async function procesarTranscripcion(
       etapa: extraida.etapa,
       datos: extraida.datos,
       nota: extraida.notaAgronomica,
-    }),
+    }) +
+      // Se dice cuántas entraron. Una foto que se guarda sin avisar es, para
+      // quien la mandó, indistinguible de una que se perdió.
+      (recogidas
+        ? `\n\n📷 Le pegué ${recogidas} foto${recogidas > 1 ? "s" : ""} que habías mandado.`
+        : ""),
   );
 }
 
@@ -309,12 +319,12 @@ async function procesarTranscripcion(
  * justo cuando alguien lo abre para mostrarle a un agricultor lo que pasó en su
  * campo — que es el único momento en que este sistema tiene que funcionar.
  */
-async function copiarFoto(urlTemporal: string, visitaId: number, msgId: string): Promise<string> {
+async function copiarFoto(urlTemporal: string, carpeta: string, msgId: string): Promise<string> {
   const res = await fetch(urlTemporal);
   if (!res.ok) throw new Error(`No se pudo descargar la foto: ${res.status}`);
   const buf = Buffer.from(await res.arrayBuffer());
   const ext = (res.headers.get("content-type") ?? "image/jpeg").includes("png") ? "png" : "jpg";
-  const { url } = await put(`tuniche/visitas/${visitaId}/${msgId}.${ext}`, buf, {
+  const { url } = await put(`tuniche/${carpeta}/${msgId}.${ext}`, buf, {
     access: "public",
     contentType: res.headers.get("content-type") ?? "image/jpeg",
   });
@@ -438,19 +448,11 @@ export async function procesarMensajeTuniche(msg: WaIncomingMessage): Promise<bo
 
     if (comoImagen || comoDocumento) {
       const visita = await ultimaVisita(u.id);
-      if (!visita) {
-        await enviarWhatsApp(
-          u.telefono,
-          "Recibí la foto, pero todavía no hay una visita a la cual pegarla. Mándame primero el audio.",
-        );
-        return true;
-      }
       const temporal = comoImagen ? await decryptImage(msg) : await decryptDocument(msg);
       if (!temporal) {
         await enviarWhatsApp(u.telefono, "⚠️ No pude descargar la foto. ¿La reenvías?");
         return true;
       }
-      const url = await copiarFoto(temporal, visita.id, msg.key.id);
 
       // El pie decide el tipo: en Altué se pide general, de hembra y de macho.
       const pie = (
@@ -467,6 +469,22 @@ export async function procesarMensajeTuniche(msg: WaIncomingMessage): Promise<bo
             ? "dron"
             : "general";
 
+      // **La foto puede llegar antes que su visita, y es lo normal.** Quien está
+      // en terreno graba el audio y manda las fotos enseguida: para él es un
+      // solo gesto. Pero el audio tarda en transcribirse y estructurarse, así
+      // que las fotos aterrizan cuando la visita todavía no existe. Se guardan
+      // aparte y `procesarTranscripcion` las recoge al crearla.
+      if (!visita) {
+        const urlPend = await copiarFoto(temporal, `pendientes/${u.id}`, msg.key.id);
+        await guardarFotoPendiente({ usuarioId: u.id, url: urlPend, tipo, waMessageId: msg.key.id });
+        await enviarWhatsApp(
+          u.telefono,
+          `📷 Foto guardada (${tipo}). La pego a la visita apenas termine de procesar tu audio.`,
+        );
+        return true;
+      }
+
+      const url = await copiarFoto(temporal, `visitas/${visita.id}`, msg.key.id);
       await guardarFoto({ visitaId: visita.id, url, tipo, waMessageId: msg.key.id });
 
       // Si el informe ya estaba generado, la foto tiene que entrar igual: el

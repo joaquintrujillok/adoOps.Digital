@@ -320,10 +320,41 @@ export const tunicheFotos = pgTable(
   (t) => [index("tuniche_fotos_visita_idx").on(t.visitaId)],
 );
 
+/**
+ * La foto que llegó **antes** que su visita.
+ *
+ * Quien está en terreno graba el audio y manda las fotos enseguida: es un solo
+ * gesto. Pero el audio tarda en transcribirse y estructurarse, así que las
+ * fotos llegan cuando la visita todavía no existe. Antes eso terminaba de dos
+ * maneras, las dos malas: se rechazaban con un "mándame primero el audio" a
+ * quien acababa de mandarlo, o —peor— se pegaban a la visita anterior, la de la
+ * semana pasada, sin que nadie se enterara.
+ *
+ * Es tabla aparte y no una `visita_id` nullable en `tuniche_fotos` a propósito.
+ * Una foto pendiente no es una foto de visita a la que le falta un dato: es
+ * otra cosa, con dueño y con fecha de vencimiento. Aflojar aquel `NOT NULL`
+ * obligaría a que cada lector del historial se acuerde de filtrar, y el día que
+ * uno se olvide mostrará fotos sin contexto en el informe de un agricultor.
+ */
+export const tunicheFotosPendientes = pgTable(
+  "tuniche_fotos_pendientes",
+  {
+    id: serial("id").primaryKey(),
+    /** De quién es. Es lo único que permite reencontrarla al crear la visita. */
+    usuarioId: integer("usuario_id").notNull(),
+    url: text("url").notNull(),
+    tipo: varchar("tipo", { length: 20 }).notNull().default("general"),
+    waMessageId: varchar("wa_message_id", { length: 120 }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("tuniche_fotos_pend_usuario_idx").on(t.usuarioId, t.createdAt)],
+);
+
 export type TunicheAgricultor = typeof tunicheAgricultores.$inferSelect;
 export type TunicheLote = typeof tunicheLotes.$inferSelect;
 export type TunicheVisita = typeof tunicheVisitas.$inferSelect;
 export type TunicheFoto = typeof tunicheFotos.$inferSelect;
+export type TunicheFotoPendiente = typeof tunicheFotosPendientes.$inferSelect;
 
 // ─── El repositorio de informes ──────────────────────────────────────────────
 

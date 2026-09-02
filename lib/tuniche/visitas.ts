@@ -5,11 +5,12 @@
 // los agricultores de Altué. Una consulta que arme su propio `where` se salta el
 // control sin que nada avise, y el síntoma aparece meses después en una reunión.
 
-import { and, asc, desc, eq, inArray, isNotNull, isNull, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import {
   tunicheAgricultores,
   tunicheFotos,
+  tunicheFotosPendientes,
   tunicheInformes,
   tunicheLotes,
   tunicheVisitas,
@@ -335,14 +336,80 @@ export async function ultimaPendiente(usuarioId: number): Promise<TunicheVisita 
 }
 
 /** La última visita de un zonal, validada o no. Es a la que se pegan las fotos. */
+/**
+ * Horas hacia atrás en que una visita todavía cuenta como "la de ahora" para
+ * pegarle una foto.
+ *
+ * Sin este límite, `ultimaVisita` devuelve la visita anterior aunque sea de la
+ * semana pasada, y una foto mandada antes de que exista la de hoy termina
+ * dentro del informe de otro campo sin que nadie se entere. Perder la foto es
+ * malo; ponerla en el lote equivocado es peor, porque nadie la va a buscar.
+ *
+ * Seis horas cubre una jornada de terreno —se recorre en la mañana y se manda
+ * la foto que faltaba después de almuerzo— sin llegar al día siguiente.
+ */
+const HORAS_VISITA_RECIENTE = 6;
+
 export async function ultimaVisita(usuarioId: number): Promise<TunicheVisita | null> {
+  const desde = new Date(Date.now() - HORAS_VISITA_RECIENTE * 60 * 60 * 1000);
   const [v] = await db
     .select()
     .from(tunicheVisitas)
-    .where(eq(tunicheVisitas.usuarioId, usuarioId))
+    .where(and(eq(tunicheVisitas.usuarioId, usuarioId), gte(tunicheVisitas.fecha, desde)))
     .orderBy(desc(tunicheVisitas.fecha))
     .limit(1);
   return v ?? null;
+}
+
+/**
+ * Minutos que una foto espera a su visita.
+ *
+ * Corto a propósito. Una foto pendiente se pega a la **próxima** visita que
+ * cree esa persona, así que una ventana larga la haría aparecer en el campo
+ * siguiente. Veinte minutos alcanzan de sobra: el audio y las fotos salen del
+ * mismo gesto, con segundos de diferencia.
+ */
+const MINUTOS_FOTO_PENDIENTE = 20;
+
+/** Guarda una foto que llegó antes que su visita. Ya viene copiada a Blob. */
+export async function guardarFotoPendiente(f: {
+  usuarioId: number;
+  url: string;
+  tipo?: string;
+  waMessageId?: string | null;
+}): Promise<void> {
+  await db.insert(tunicheFotosPendientes).values({
+    usuarioId: f.usuarioId,
+    url: f.url,
+    tipo: f.tipo ?? "general",
+    waMessageId: f.waMessageId ?? null,
+  });
+}
+
+/**
+ * Pasa a la visita recién creada las fotos que su autor mandó justo antes.
+ * Devuelve cuántas, para poder decírselo en la respuesta: una foto que se
+ * guarda sin avisar es indistinguible de una que se perdió.
+ */
+export async function adjuntarPendientes(usuarioId: number, visitaId: number): Promise<number> {
+  const desde = new Date(Date.now() - MINUTOS_FOTO_PENDIENTE * 60 * 1000);
+  const pend = await db
+    .select()
+    .from(tunicheFotosPendientes)
+    .where(and(eq(tunicheFotosPendientes.usuarioId, usuarioId), gte(tunicheFotosPendientes.createdAt, desde)))
+    .orderBy(asc(tunicheFotosPendientes.id));
+  if (!pend.length) return 0;
+
+  await db.insert(tunicheFotos).values(
+    pend.map((f) => ({ visitaId, url: f.url, tipo: f.tipo, waMessageId: f.waMessageId })),
+  );
+  // Se borran **todas** las de esa persona, no solo las que entraron: las que
+  // quedaron fuera de la ventana ya no van a encontrar visita y dejarlas sería
+  // sembrar fotos que aparecen en un campo ajeno la próxima semana.
+  await db
+    .delete(tunicheFotosPendientes)
+    .where(eq(tunicheFotosPendientes.usuarioId, usuarioId));
+  return pend.length;
 }
 
 /**
