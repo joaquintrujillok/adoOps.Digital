@@ -36,9 +36,19 @@ export async function POST(request: Request) {
 
   const url = new URL(request.url);
   const limpiar = url.searchParams.get("limpiar") === "1";
+  // `soloTablas=1` aplica el DDL y las migraciones sin sembrar nada.
+  //
+  // Existe porque este endpoint hacía las dos cosas juntas, y con datos reales
+  // ya cargados eso deja de ser una comodidad y pasa a ser una trampa: correrlo
+  // para agregar una columna habría reemplazado la inversión real del cliente
+  // por datos inventados.
+  const soloTablas = url.searchParams.get("soloTablas") === "1";
 
   try {
     const sentencias = await crearTablas();
+    if (soloTablas) {
+      return NextResponse.json({ ok: true, sentencias, soloTablas: true });
+    }
     const seed = await sembrarDemo({
       usuario: process.env.D360_DEMO_USER ?? "demo",
       clave: process.env.D360_DEMO_PASS ?? "dashboard360",
