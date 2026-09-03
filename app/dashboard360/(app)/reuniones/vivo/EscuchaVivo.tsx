@@ -84,8 +84,19 @@ export default function EscuchaVivo() {
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const finRef = useRef<HTMLDivElement | null>(null);
-  /** Qué líneas cerradas ya se le mandaron al copiloto. */
-  const enviadasRef = useRef<Set<string>>(new Set());
+  /**
+   * Hasta qué carácter de cada intervención se le mandó al copiloto.
+   *
+   * Es un mapa y no un conjunto de "ya enviadas", y la diferencia la enseñó una
+   * reunión real: `gpt-live-transcribe` sin `turn_detection` no abre una
+   * intervención por turno — manda TODA la reunión en una sola, que crece sin
+   * parar. Con un conjunto, esa única línea se marcaba enviada la primera vez y
+   * los cincuenta minutos siguientes no llegaban nunca al copiloto.
+   *
+   * Guardando el desplazamiento se manda solo la cola nueva, sirva el modelo una
+   * intervención o cien.
+   */
+  const enviadoHastaRef = useRef<Map<string, number>>(new Map());
   /** Evita dos pasadas encimadas si una tarda más que la cadencia. */
   const ocupadoRef = useRef(false);
   const lineasRef = useRef<Linea[]>([]);
@@ -162,8 +173,11 @@ export default function EscuchaVivo() {
     // Sin una palabra todavía no hay nada que guardar ni que pensar.
     if (!transcripcion.trim()) return;
 
-    const nuevas = listas.filter((l) => !enviadasRef.current.has(l.id));
-    const fragmento = nuevas.map((l) => l.texto).join(" ").trim();
+    // La cola de cada intervención estable que todavía no se mandó.
+    const colas = listas
+      .map((l) => ({ id: l.id, cola: l.texto.slice(enviadoHastaRef.current.get(l.id) ?? 0), largo: l.texto.length }))
+      .filter((x) => x.cola.trim().length > 0);
+    const fragmento = colas.map((x) => x.cola).join(" ").trim();
     // El fragmento va vacío cuando no hubo suficiente habla nueva: el servidor
     // guarda igual y devuelve el contexto sin tocarlo. Guardar y razonar son
     // cosas distintas, y atarlas hacía que una reunión callada no se guardara.
@@ -175,7 +189,7 @@ export default function EscuchaVivo() {
     // Se marcan como enviadas ANTES de la llamada: si falla, este fragmento se
     // pierde pero la reunión sigue. Reintentarlo acumularía texto viejo y el
     // contexto empezaría a hablar del pasado.
-    if (suficiente) nuevas.forEach((l) => enviadasRef.current.add(l.id));
+    if (suficiente) colas.forEach((x) => enviadoHastaRef.current.set(x.id, x.largo));
 
     try {
       const res = await fetch("/api/dashboard360/reuniones/vivo/contexto", {
@@ -273,7 +287,7 @@ export default function EscuchaVivo() {
     setCopiloto(VACIO);
     setCostoCopiloto(0);
     setGuardada(null);
-    enviadasRef.current = new Set();
+    enviadoHastaRef.current = new Map();
     vistosRef.current = new Set();
 
     try {
