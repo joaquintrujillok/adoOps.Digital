@@ -352,3 +352,11 @@ export * from "./dashboard360";
 // =============================================================================
 
 export * from "./contenido";
+
+// -----------------------------------------------------------------------------
+// Cafecito IA (/cafecito-ia) — ediciones del boletín y suscriptores. Las tablas
+// viven en db/cafecito.ts y se reexportan acá por el mismo motivo que las demás:
+// drizzle-kit solo mira este archivo.
+// -----------------------------------------------------------------------------
+
+export * from "./cafecito";
