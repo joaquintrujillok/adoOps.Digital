@@ -76,12 +76,28 @@ export default function EscuchaVivo() {
   const [pensando, setPensando] = useState(false);
   const [costoCopiloto, setCostoCopiloto] = useState(0);
   const [titulo, setTitulo] = useState("");
+  /**
+   * Si la transcripción sigue al texto nuevo.
+   *
+   * **Se apaga cuando la persona sube a leer y se vuelve a encender cuando baja
+   * al final.** Antes seguía siempre, así que subir a releer algo era imposible:
+   * a los pocos segundos entraba texto nuevo y te devolvía abajo. Es el
+   * comportamiento de cualquier consola o chat, y por el mismo motivo: mientras
+   * mirás el final querés que avance solo, y en el momento en que te vas a
+   * buscar algo, el que manda es quien lee.
+   */
+  const [pegado, setPegado] = useState(true);
   /** Id de la reunión guardada, para poder ir a verla al terminar. */
   const [guardada, setGuardada] = useState<number | null>(null);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const finRef = useRef<HTMLDivElement | null>(null);
+  /**
+   * El panel de transcripción. Se manipula su `scrollTop` directo en vez de usar
+   * `scrollIntoView` sobre un elemento de adentro: eso último arrastra la página
+   * entera y no solo el panel, y en una pantalla de tres paneles se nota.
+   */
+  const panelRef = useRef<HTMLDivElement | null>(null);
   /**
    * Hasta qué carácter de cada intervención se le mandó al copiloto.
    *
@@ -150,8 +166,10 @@ export default function EscuchaVivo() {
   useEffect(() => () => detener(), [detener]);
 
   useEffect(() => {
-    finRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [lineas]);
+    if (!pegado) return;
+    const el = panelRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [lineas, pegado]);
 
   // El efecto solo mantiene el intervalo. El primer valor se pone donde arranca
   // la sesión: sembrarlo acá con un setState síncrono provoca render en cascada.
@@ -524,7 +542,19 @@ export default function EscuchaVivo() {
                 : "Aprieta empezar."}
             </p>
           ) : (
-            <div className="max-h-[600px] space-y-2.5 overflow-y-auto pr-2">
+            <div className="relative">
+            <div
+              ref={panelRef}
+              onScroll={(e) => {
+                const el = e.currentTarget;
+                // Margen de 60 px: nadie deja el scroll exactamente al final, y
+                // exigir el píxel exacto apagaría el seguimiento por el rebote
+                // de un trackpad.
+                const alFinal = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+                if (alFinal !== pegado) setPegado(alFinal);
+              }}
+              className="max-h-[600px] space-y-2.5 overflow-y-auto pr-2"
+            >
               {/* Texto normal, sin itálica de "en curso". Esa distinción se
                   diseñó para intervenciones que llegan y se cierran; con este
                   modelo, que manda la reunión entera en una sola que crece,
@@ -539,7 +569,24 @@ export default function EscuchaVivo() {
                   {l.texto}
                 </p>
               ))}
-              <div ref={finRef} />
+            </div>
+
+            {/* Solo cuando el seguimiento está apagado. Dice explícitamente que
+                el texto sigue entrando: sin eso, quien subió a leer puede creer
+                que la transcripción se detuvo. */}
+            {!pegado ? (
+              <button
+                type="button"
+                onClick={() => {
+                  const el = panelRef.current;
+                  if (el) el.scrollTop = el.scrollHeight;
+                  setPegado(true);
+                }}
+                className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-[var(--d360-border)] bg-white/95 px-3 py-1.5 text-[12px] font-medium text-[var(--d360-ink-2)] shadow-[0_2px_10px_rgba(11,21,35,0.12)] backdrop-blur hover:border-[var(--d360-brand)] hover:text-[var(--d360-brand-dark)]"
+              >
+                ↓ Seguir el texto{escuchando ? " · sigue entrando" : ""}
+              </button>
+            ) : null}
             </div>
           )}
         </section>
