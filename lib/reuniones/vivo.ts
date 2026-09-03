@@ -27,13 +27,19 @@ import { db } from "@/db";
 import { reunionRegistros } from "@/db/reuniones";
 
 /**
- * Precio por minuto de `gpt-live-transcribe`, en USD.
+ * Precio por minuto de la transcripción, en USD.
  *
- * Verificado el 01-09-2026 en developers.openai.com/api/docs/pricing. Va con
- * fecha por lo mismo que la tabla de `lib/reuniones/costo.ts`: es un número que
- * envejece y que nadie va a volver a mirar por su cuenta.
+ * `gpt-transcribe`, verificado el 01-09-2026 en
+ * developers.openai.com/api/docs/pricing. Reemplazó a `gpt-live-transcribe`, que
+ * costaba US$0,017 —cuatro veces más— por entregar el texto en menos de un
+ * segundo. Se pagó una reunión real a ese precio: 27 minutos, US$0,46 solo de
+ * escucha. Esa latencia se estaba pagando y no se usaba, porque el copiloto
+ * razona cada 20 segundos igual.
+ *
+ * Va con fecha por lo mismo que la tabla de `lib/reuniones/costo.ts`: es un
+ * número que envejece y que nadie va a volver a mirar por su cuenta.
  */
-export const USD_POR_MINUTO_VIVO = 0.017;
+export const USD_POR_MINUTO_ESCUCHA = 0.0045;
 
 export type EntradaVivo = {
   /** Clave de idempotencia: identifica la sesión entre pasadas. */
@@ -113,13 +119,11 @@ export async function cerrarVivo(clave: string, fin: Date): Promise<number | nul
     .set({
       finEn: fin,
       duracionMin,
-      // La transcripción se cobra por minuto y es, de lejos, el grueso del
-      // gasto: una reunión de media hora son ~US$0,50 de escucha contra medio
-      // centavo de resumen. Se calcula acá y no en la pantalla porque tiene que
-      // quedar guardado: el contador en vivo desaparece al cerrar la pestaña.
-      costoVivoUsd: sql`coalesce(${reunionRegistros.costoVivoUsd}, 0) + ${(
-        (duracionMin ?? 0) * USD_POR_MINUTO_VIVO
-      ).toFixed(6)}::numeric`,
+      // El costo NO se calcula acá multiplicando la duración: lo fue acumulando
+      // cada tramo transcrito. La diferencia importa porque los tramos en
+      // silencio no se mandan a transcribir, así que una reunión con pausas
+      // largas cuesta de verdad menos que sus minutos — y multiplicar por la
+      // duración cobraría el silencio.
     })
     .where(eq(reunionRegistros.id, fila.id));
 

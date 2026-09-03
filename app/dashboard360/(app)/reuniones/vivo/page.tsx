@@ -22,7 +22,7 @@ export default async function VivoPage() {
     <>
       <PageHeader
         titulo="Escucha en vivo"
-        bajada="Transcribe la reunión mientras ocurre, arma el contexto solo y sugiere qué preguntar. Se guarda sola cada 20 segundos. Cuesta ~US$1 la hora."
+        bajada="Transcribe la reunión mientras ocurre, arma el contexto solo y sugiere qué preguntar. Se guarda sola cada 20 segundos. Cuesta ~US$0,30 la hora."
       />
 
       <Card className="mb-4" titulo="Cómo probarla bien">
@@ -35,8 +35,10 @@ export default async function VivoPage() {
           </li>
           <li>Sube el volumen del parlante más de lo habitual.</li>
           <li>
-            Aprieta empezar <em>antes</em> de que hablen, y fíjate cuánto tarda
-            en aparecer el texto.
+            Aprieta empezar <em>antes</em> de que hablen. El texto aparece por
+            bloques cada 20 segundos, no palabra por palabra: la transcripción
+            por tramos cuesta la cuarta parte que la de tiempo real, y el
+            copiloto razona a esa misma cadencia igual.
           </li>
           <li>
             Mira el panel de eventos: si algo falla, la respuesta está ahí y no
@@ -68,10 +70,11 @@ export default async function VivoPage() {
             uno habla.
           </li>
           <li>
-            <strong>Cuesta mientras está abierta.</strong> US$0,017 el minuto de
-            transcripción más unos diez centavos por hora de razonamiento: cerca de
-            US$1,10 la hora, cien veces el carril de los subtítulos. Por eso el
-            contador está arriba y no al final.
+            <strong>Cuesta mientras está abierta.</strong> Unos US$0,30 la hora
+            entre transcripción y razonamiento. Los tramos en silencio no se
+            mandan a transcribir, así que una reunión con pausas cuesta menos que
+            sus minutos. El contador de arriba muestra el gasto real, no una
+            estimación por duración.
           </li>
         </ul>
       </Card>
