@@ -29,28 +29,26 @@ import type { EstadoCopiloto } from "@/lib/reuniones/copiloto";
 type Estado = "detenido" | "pidiendo-permiso" | "conectando" | "escuchando" | "error";
 
 /**
- * Una intervención. `ultimo` es cuándo llegó su última palabra.
+ * Una intervención.
  *
- * Existe por un error que costó una reunión entera: el código original solo
- * consideraba una línea utilizable cuando llegaba el evento
- * `…transcription.completed`. Al sacar `turn_detection` —que `gpt-live-transcribe`
- * rechaza— ese evento dejó de llegar, así que ninguna línea se cerraba jamás. El
- * texto se veía en pantalla, porque los deltas sí llegaban, pero el copiloto
- * nunca recibía un fragmento y **no se guardaba nada**.
+ * ── Dos ideas equivocadas antes de llegar acá, y las dos se vieron en pantalla ─
  *
- * Ahora una línea se considera estable por INACTIVIDAD: si hace tres segundos
- * que no le llega una palabra, ya está. Eso funciona reciba o no el evento de
- * cierre, que es lo que hay que exigirle a algo que depende de eventos de un
- * tercero.
+ * La primera: esperar el evento `…transcription.completed` para dar una línea
+ * por utilizable. Al sacar `turn_detection` —que `gpt-live-transcribe` rechaza—
+ * ese evento dejó de llegar y ninguna línea se cerró jamás; el texto se veía,
+ * pero el copiloto nunca recibía nada y no se guardaba nada.
+ *
+ * La segunda: cerrarla por inactividad, tres segundos sin palabras nuevas. Suena
+ * razonable y falla por el mismo motivo de fondo: este modelo manda **toda la
+ * reunión en una sola intervención que crece**, y mientras alguien hable no hay
+ * tres segundos de silencio en cincuenta minutos. Seguía sin mandarse nada.
+ *
+ * La conclusión es que no hay que esperar a que una intervención "termine". Con
+ * el desplazamiento guardado —cuánto de esta línea ya se mandó— la cola nueva se
+ * puede mandar en cualquier momento, y da lo mismo si el modelo devuelve una
+ * intervención o cien.
  */
 type Linea = { id: string; texto: string; cerrada: boolean; ultimo: number };
-
-/** Silencio a partir del cual una intervención se da por terminada. */
-const ESTABLE_MS = 3_000;
-
-function estables(lineas: Linea[], ahora: number): Linea[] {
-  return lineas.filter((l) => l.cerrada || ahora - l.ultimo > ESTABLE_MS);
-}
 
 const VACIO: EstadoCopiloto = {
   contexto: { tema: "", objetivo: null, puntosClave: [], tensiones: [] },
@@ -167,15 +165,22 @@ export default function EscuchaVivo() {
   const pasada = useCallback(async () => {
     if (ocupadoRef.current) return;
 
-    const ahora = Date.now();
-    const listas = estables(lineasRef.current, ahora);
-    const transcripcion = listas.map((l) => l.texto).join("\n");
+    const lineas = lineasRef.current;
+    const transcripcion = lineas.map((l) => l.texto).join("\n");
     // Sin una palabra todavía no hay nada que guardar ni que pensar.
     if (!transcripcion.trim()) return;
 
-    // La cola de cada intervención estable que todavía no se mandó.
-    const colas = listas
-      .map((l) => ({ id: l.id, cola: l.texto.slice(enviadoHastaRef.current.get(l.id) ?? 0), largo: l.texto.length }))
+    // La cola de cada intervención que todavía no se mandó, cortada en el último
+    // espacio: si la frase sigue en curso, la última palabra puede estar a
+    // medias, y el desplazamiento se deja justo antes para que la próxima pasada
+    // la mande entera.
+    const colas = lineas
+      .map((l) => {
+        const desde = enviadoHastaRef.current.get(l.id) ?? 0;
+        const pendiente = l.texto.slice(desde);
+        const corte = l.cerrada ? pendiente.length : pendiente.lastIndexOf(" ") + 1;
+        return { id: l.id, cola: pendiente.slice(0, corte || pendiente.length), largo: desde + (corte || pendiente.length) };
+      })
       .filter((x) => x.cola.trim().length > 0);
     const fragmento = colas.map((x) => x.cola).join(" ").trim();
     // El fragmento va vacío cuando no hubo suficiente habla nueva: el servidor
@@ -229,8 +234,16 @@ export default function EscuchaVivo() {
 
   useEffect(() => {
     if (estado !== "escuchando") return;
+    // La primera pasada a los 8 segundos y después cada 20. No es capricho: si
+    // algo está mal configurado, esperar veinte segundos para enterarse ya costó
+    // dos reuniones. A los ocho segundos ya hay señal de que el circuito
+    // completo funciona.
+    const primera = setTimeout(pasada, 8_000);
     const t = setInterval(pasada, CADENCIA_MS);
-    return () => clearInterval(t);
+    return () => {
+      clearTimeout(primera);
+      clearInterval(t);
+    };
   }, [estado, pasada]);
 
   /**
@@ -512,21 +525,16 @@ export default function EscuchaVivo() {
             </p>
           ) : (
             <div className="max-h-[600px] space-y-2.5 overflow-y-auto pr-2">
+              {/* Texto normal, sin itálica de "en curso". Esa distinción se
+                  diseñó para intervenciones que llegan y se cierran; con este
+                  modelo, que manda la reunión entera en una sola que crece,
+                  dejaba la pantalla completa en gris itálico de principio a fin
+                  — y sugería que nada se había asentado, justo cuando todo ya
+                  estaba guardado. */}
               {lineas.map((l) => (
                 <p
                   key={l.id}
-                  className={`text-[15px] leading-relaxed transition-colors ${
-                    // Itálica mientras la frase se está formando. Se mira la
-                    // inactividad y no solo `cerrada`: sin el evento de cierre,
-                    // antes quedaba TODO en itálica gris para siempre.
-                    //
-                    // Con la sesión detenida todo es estable por definición: el
-                    // reloj `ahora` deja de avanzar al parar, y sin este caso la
-                    // transcripción entera volvía a la itálica al terminar.
-                    !escuchando || l.cerrada || ahora - l.ultimo > ESTABLE_MS
-                      ? "text-[var(--d360-ink)]"
-                      : "italic text-[var(--d360-muted)]"
-                  }`}
+                  className="text-[15px] leading-relaxed text-[var(--d360-ink)]"
                 >
                   {l.texto}
                 </p>
