@@ -27,7 +27,30 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { EstadoCopiloto } from "@/lib/reuniones/copiloto";
 
 type Estado = "detenido" | "pidiendo-permiso" | "conectando" | "escuchando" | "error";
-type Linea = { id: string; texto: string; cerrada: boolean };
+
+/**
+ * Una intervención. `ultimo` es cuándo llegó su última palabra.
+ *
+ * Existe por un error que costó una reunión entera: el código original solo
+ * consideraba una línea utilizable cuando llegaba el evento
+ * `…transcription.completed`. Al sacar `turn_detection` —que `gpt-live-transcribe`
+ * rechaza— ese evento dejó de llegar, así que ninguna línea se cerraba jamás. El
+ * texto se veía en pantalla, porque los deltas sí llegaban, pero el copiloto
+ * nunca recibía un fragmento y **no se guardaba nada**.
+ *
+ * Ahora una línea se considera estable por INACTIVIDAD: si hace tres segundos
+ * que no le llega una palabra, ya está. Eso funciona reciba o no el evento de
+ * cierre, que es lo que hay que exigirle a algo que depende de eventos de un
+ * tercero.
+ */
+type Linea = { id: string; texto: string; cerrada: boolean; ultimo: number };
+
+/** Silencio a partir del cual una intervención se da por terminada. */
+const ESTABLE_MS = 3_000;
+
+function estables(lineas: Linea[], ahora: number): Linea[] {
+  return lineas.filter((l) => l.cerrada || ahora - l.ultimo > ESTABLE_MS);
+}
 
 const VACIO: EstadoCopiloto = {
   contexto: { tema: "", objetivo: null, puntosClave: [], tensiones: [] },
@@ -66,6 +89,13 @@ export default function EscuchaVivo() {
   /** Evita dos pasadas encimadas si una tarda más que la cadencia. */
   const ocupadoRef = useRef(false);
   const lineasRef = useRef<Linea[]>([]);
+  /**
+   * Tipos de evento ya registrados. Se anota cada uno UNA vez: sin esto el panel
+   * se llena de deltas y deja de servir; sin registrar nada —como quedó al
+   * rehacer la pantalla— no hay forma de saber qué está emitiendo la sesión, que
+   * es exactamente lo que hizo falta para encontrar este bug.
+   */
+  const vistosRef = useRef<Set<string>>(new Set());
   const copilotoRef = useRef<EstadoCopiloto>(VACIO);
   /**
    * Identifica la sesión entre pasadas. Se arma con el instante de inicio, así
@@ -126,18 +156,26 @@ export default function EscuchaVivo() {
   const pasada = useCallback(async () => {
     if (ocupadoRef.current) return;
 
-    const nuevas = lineasRef.current.filter(
-      (l) => l.cerrada && !enviadasRef.current.has(l.id),
-    );
+    const ahora = Date.now();
+    const listas = estables(lineasRef.current, ahora);
+    const transcripcion = listas.map((l) => l.texto).join("\n");
+    // Sin una palabra todavía no hay nada que guardar ni que pensar.
+    if (!transcripcion.trim()) return;
+
+    const nuevas = listas.filter((l) => !enviadasRef.current.has(l.id));
     const fragmento = nuevas.map((l) => l.texto).join(" ").trim();
-    if (fragmento.split(/\s+/).filter(Boolean).length < MINIMO_PALABRAS) return;
+    // El fragmento va vacío cuando no hubo suficiente habla nueva: el servidor
+    // guarda igual y devuelve el contexto sin tocarlo. Guardar y razonar son
+    // cosas distintas, y atarlas hacía que una reunión callada no se guardara.
+    const suficiente =
+      fragmento.split(/\s+/).filter(Boolean).length >= MINIMO_PALABRAS;
 
     ocupadoRef.current = true;
-    setPensando(true);
+    setPensando(suficiente);
     // Se marcan como enviadas ANTES de la llamada: si falla, este fragmento se
     // pierde pero la reunión sigue. Reintentarlo acumularía texto viejo y el
     // contexto empezaría a hablar del pasado.
-    nuevas.forEach((l) => enviadasRef.current.add(l.id));
+    if (suficiente) nuevas.forEach((l) => enviadasRef.current.add(l.id));
 
     try {
       const res = await fetch("/api/dashboard360/reuniones/vivo/contexto", {
@@ -145,16 +183,13 @@ export default function EscuchaVivo() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           estado: copilotoRef.current,
-          fragmento,
+          fragmento: suficiente ? fragmento : "",
           // La transcripción viaja entera y no por incrementos: así un fallo
           // aislado no pierde nada, porque el próximo envío lleva todo igual.
           clave: claveRef.current,
           titulo: tituloRef.current,
           inicioEn: inicioRef.current,
-          transcripcion: lineasRef.current
-            .filter((l) => l.cerrada)
-            .map((l) => l.texto)
-            .join("\n"),
+          transcripcion,
         }),
       });
       const datos = await res.json();
@@ -239,6 +274,7 @@ export default function EscuchaVivo() {
     setCostoCopiloto(0);
     setGuardada(null);
     enviadasRef.current = new Set();
+    vistosRef.current = new Set();
 
     try {
       setEstado("pidiendo-permiso");
@@ -302,9 +338,15 @@ export default function EscuchaVivo() {
           const id = ev.item_id ?? "suelto";
           setLineas((prev) => {
             const i = prev.findIndex((l) => l.id === id);
-            if (i === -1) return [...prev, { id, texto: ev.delta ?? "", cerrada: false }];
+            const ahora = Date.now();
+            if (i === -1)
+              return [...prev, { id, texto: ev.delta ?? "", cerrada: false, ultimo: ahora }];
             const copia = [...prev];
-            copia[i] = { ...copia[i], texto: copia[i].texto + (ev.delta ?? "") };
+            copia[i] = {
+              ...copia[i],
+              texto: copia[i].texto + (ev.delta ?? ""),
+              ultimo: ahora,
+            };
             return copia;
           });
           return;
@@ -315,9 +357,10 @@ export default function EscuchaVivo() {
           setLineas((prev) => {
             const i = prev.findIndex((l) => l.id === id);
             const texto = ev.transcript ?? "";
-            if (i === -1) return [...prev, { id, texto, cerrada: true }];
+            const ahora = Date.now();
+            if (i === -1) return [...prev, { id, texto, cerrada: true, ultimo: ahora }];
             const copia = [...prev];
-            copia[i] = { id, texto, cerrada: true };
+            copia[i] = { id, texto, cerrada: true, ultimo: ahora };
             return copia;
           });
           return;
@@ -325,6 +368,12 @@ export default function EscuchaVivo() {
 
         if (ev.type?.includes("error")) {
           registrar(`ERROR ${ev.type}: ${JSON.stringify(ev.error ?? ev).slice(0, 300)}`);
+        } else if (ev.type && !vistosRef.current.has(ev.type)) {
+          // Cada tipo de evento, la primera vez que aparece. Es barato y es lo
+          // único que permite saber qué emite de verdad la sesión cuando algo no
+          // llega.
+          vistosRef.current.add(ev.type);
+          registrar(`evento: ${ev.type}`);
         }
       });
 
@@ -453,7 +502,14 @@ export default function EscuchaVivo() {
                 <p
                   key={l.id}
                   className={`text-[15px] leading-relaxed transition-colors ${
-                    l.cerrada
+                    // Itálica mientras la frase se está formando. Se mira la
+                    // inactividad y no solo `cerrada`: sin el evento de cierre,
+                    // antes quedaba TODO en itálica gris para siempre.
+                    //
+                    // Con la sesión detenida todo es estable por definición: el
+                    // reloj `ahora` deja de avanzar al parar, y sin este caso la
+                    // transcripción entera volvía a la itálica al terminar.
+                    !escuchando || l.cerrada || ahora - l.ultimo > ESTABLE_MS
                       ? "text-[var(--d360-ink)]"
                       : "italic text-[var(--d360-muted)]"
                   }`}

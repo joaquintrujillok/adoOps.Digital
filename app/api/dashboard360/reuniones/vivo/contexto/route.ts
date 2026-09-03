@@ -47,7 +47,6 @@ export async function POST(req: Request) {
   }
 
   const fragmento = (cuerpo.fragmento ?? "").trim();
-  if (!fragmento) return Response.json({ error: "sin fragmento" }, { status: 400 });
 
   const estado: EstadoCopiloto = cuerpo.estado ?? {
     contexto: { tema: "", objetivo: null, puntosClave: [], tensiones: [] },
@@ -80,6 +79,15 @@ export async function POST(req: Request) {
       // Se sigue: el próximo intento es en veinte segundos y lleva el texto
       // completo, no un incremento, así que un fallo aislado no pierde nada.
     }
+  }
+
+  // Guardar y razonar son dos cosas distintas, y separarlas costó una reunión.
+  // Antes esta ruta exigía fragmento y salía con 400 si no venía: como el
+  // fragmento solo se manda cuando hay suficientes palabras nuevas, una reunión
+  // callada no guardaba NADA. El transcript se guarda siempre; el copiloto opina
+  // solo cuando hay algo nuevo sobre lo que opinar.
+  if (!fragmento) {
+    return Response.json({ estado, sinFragmento: true });
   }
 
   try {
