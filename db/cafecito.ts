@@ -18,7 +18,6 @@
 // romper editando un texto no es una URL permanente. Además ordena solo.
 
 import {
-  boolean,
   index,
   pgTable,
   serial,
@@ -26,10 +25,32 @@ import {
   timestamp,
   uniqueIndex,
   varchar,
+  boolean,
 } from "drizzle-orm/pg-core";
 
-/** Los dos públicos del boletín. El sitio publica una tercera versión, más larga. */
-export type CafecitoPerfil = "direccion" | "builder";
+/**
+ * Las tres tazas. La metáfora no es decoración: comunica el tamaño de la lectura
+ * antes de que nadie lea una palabra, que es justo lo que hay que decidir.
+ */
+export type CafecitoTaza = "expreso_directivo" | "expreso_builder" | "flat_white";
+
+export const TAZAS: Record<CafecitoTaza, { nombre: string; detalle: string; minutos: string }> = {
+  expreso_directivo: {
+    nombre: "Expreso directivo",
+    detalle: "Qué significa para el negocio: costo, riesgo y posición competitiva.",
+    minutos: "2 min",
+  },
+  expreso_builder: {
+    nombre: "Expreso builder",
+    detalle: "Qué salió, cuánto cuesta y qué conviene probar. Con cifras y links.",
+    minutos: "2 min",
+  },
+  flat_white: {
+    nombre: "Flat white",
+    detalle: "El informe completo, con el análisis de fondo y todos los recursos.",
+    minutos: "8 min",
+  },
+};
 
 export const cafecitoEdiciones = pgTable(
   "cafecito_ediciones",
@@ -69,15 +90,32 @@ export const cafecitoEdiciones = pgTable(
 );
 
 /**
- * Quien se suscribe desde el sitio.
+ * Quien se suscribe. Doble opt-in en tres estados:
  *
- * `perfil` decide qué variante recibe. No es un dato opcional que se pregunta
- * después: el boletín sale segmentado desde el primer envío, y un suscriptor
- * sin perfil no tiene a qué lista entrar.
+ *   pendiente ──(clic en el correo)──> confirmado ──(clic en baja)──> baja
+ *       │                                   ↑
+ *       └───────────(vuelve a pedirlo)──────┘
  *
- * `bajaEn` vive acá y no en otra tabla, por la misma razón que la supresión del
- * motor de nurturing: la baja es de la persona y es para siempre. Nunca se
- * borra la fila — borrarla permitiría que un reenvío de formulario la resucite.
+ * ── Por qué el perfilamiento va DESPUÉS de confirmar ─────────────────────────
+ *
+ * El formulario del sitio pide solo el correo. Pedir nombre, empresa, rol y taza
+ * de entrada cuesta conversión en el momento de menor compromiso, y además los
+ * datos no valen nada hasta que la dirección esté verificada. Confirmado el
+ * correo, la persona ya invirtió un clic: ahí el formulario largo se completa.
+ *
+ * Un suscriptor confirmado SIN taza es un estado válido y esperable — confirmó
+ * pero abandonó el perfilamiento. Recibe el expreso directivo por defecto; se
+ * prefiere mandarle algo a dejarlo en el limbo tras haber dicho que sí.
+ *
+ * ── Dos tokens, no uno ───────────────────────────────────────────────────────
+ *
+ * El de confirmación vence: un link que valida una dirección de correo no puede
+ * seguir siendo válido un año después. El de baja no vence nunca, porque va en
+ * el pie de cada edición y tiene que funcionar en la que se abra dentro de dos
+ * años. Reutilizar uno solo obligaría a elegir entre las dos cosas.
+ *
+ * La fila nunca se borra: se marca `baja_en`. Borrarla permitiría que un
+ * reenvío del formulario resucite a quien pidió salir.
  */
 export const cafecitoSuscriptores = pgTable(
   "cafecito_suscriptores",
@@ -85,25 +123,35 @@ export const cafecitoSuscriptores = pgTable(
     id: serial("id").primaryKey(),
 
     email: varchar("email", { length: 254 }).notNull(),
-    nombre: varchar("nombre", { length: 160 }),
-    perfil: varchar("perfil", { length: 20 }).$type<CafecitoPerfil>().notNull(),
 
-    /** De dónde entró: `web` hoy; deja lugar a importaciones o formularios futuros. */
+    /** pendiente | confirmado | baja */
+    estado: varchar("estado", { length: 20 }).notNull().default("pendiente"),
+
+    // Datos del perfilamiento. Nulos hasta que la persona complete el formulario.
+    nombre: varchar("nombre", { length: 160 }),
+    empresa: varchar("empresa", { length: 160 }),
+    rol: varchar("rol", { length: 160 }),
+    taza: varchar("taza", { length: 30 }).$type<CafecitoTaza>(),
+
+    /** De dónde entró: `web` hoy; deja lugar a importaciones futuras. */
     origen: varchar("origen", { length: 30 }).notNull().default("web"),
 
-    /**
-     * Token de un solo uso para el link de baja de cada correo. Se genera al
-     * suscribirse: sin él, dar de baja exigiría un login que nadie va a hacer.
-     */
-    token: varchar("token", { length: 40 }).notNull(),
+    tokenConfirmacion: varchar("token_confirmacion", { length: 64 }),
+    /** Sin esto, un link de verificación sería válido para siempre. */
+    confirmacionExpiraEn: timestamp("confirmacion_expira_en"),
+    confirmadoEn: timestamp("confirmado_en"),
 
+    /** Permanente: viaja en el pie de cada correo y no puede caducar. */
+    tokenBaja: varchar("token_baja", { length: 64 }).notNull(),
     bajaEn: timestamp("baja_en"),
+
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
     uniqueIndex("cafecito_suscriptores_email_idx").on(t.email),
-    index("cafecito_suscriptores_perfil_idx").on(t.perfil, t.bajaEn),
-    uniqueIndex("cafecito_suscriptores_token_idx").on(t.token),
+    uniqueIndex("cafecito_suscriptores_conf_idx").on(t.tokenConfirmacion),
+    uniqueIndex("cafecito_suscriptores_baja_idx").on(t.tokenBaja),
+    index("cafecito_suscriptores_envio_idx").on(t.estado, t.taza),
   ],
 );
 

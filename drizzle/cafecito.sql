@@ -19,20 +19,30 @@ CREATE UNIQUE INDEX IF NOT EXISTS cafecito_ediciones_slug_idx
 CREATE INDEX IF NOT EXISTS cafecito_ediciones_publicada_idx
   ON cafecito_ediciones (publicada, publicada_en);
 
+-- Doble opt-in: la fila nace `pendiente` y solo pasa a `confirmado` cuando la
+-- persona vuelve desde el enlace del correo.
 CREATE TABLE IF NOT EXISTS cafecito_suscriptores (
-  id         serial PRIMARY KEY,
-  email      varchar(254) NOT NULL,
-  nombre     varchar(160),
-  perfil     varchar(20)  NOT NULL,
-  origen     varchar(30)  NOT NULL DEFAULT 'web',
-  token      varchar(40)  NOT NULL,
-  baja_en    timestamp,
-  created_at timestamp    NOT NULL DEFAULT now()
+  id                    serial PRIMARY KEY,
+  email                 varchar(254) NOT NULL,
+  estado                varchar(20)  NOT NULL DEFAULT 'pendiente',
+  nombre                varchar(160),
+  empresa               varchar(160),
+  rol                   varchar(160),
+  taza                  varchar(30),
+  origen                varchar(30)  NOT NULL DEFAULT 'web',
+  token_confirmacion    varchar(64),
+  confirmacion_expira_en timestamp,
+  confirmado_en         timestamp,
+  token_baja            varchar(64)  NOT NULL,
+  baja_en               timestamp,
+  created_at            timestamp    NOT NULL DEFAULT now()
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS cafecito_suscriptores_email_idx
   ON cafecito_suscriptores (email);
-CREATE UNIQUE INDEX IF NOT EXISTS cafecito_suscriptores_token_idx
-  ON cafecito_suscriptores (token);
-CREATE INDEX IF NOT EXISTS cafecito_suscriptores_perfil_idx
-  ON cafecito_suscriptores (perfil, baja_en);
+CREATE UNIQUE INDEX IF NOT EXISTS cafecito_suscriptores_conf_idx
+  ON cafecito_suscriptores (token_confirmacion);
+CREATE UNIQUE INDEX IF NOT EXISTS cafecito_suscriptores_baja_idx
+  ON cafecito_suscriptores (token_baja);
+CREATE INDEX IF NOT EXISTS cafecito_suscriptores_envio_idx
+  ON cafecito_suscriptores (estado, taza);

@@ -3,35 +3,39 @@
 import { randomBytes } from "crypto";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { cafecitoSuscriptores, type CafecitoPerfil } from "@/db/schema";
+import { cafecitoSuscriptores, TAZAS, type CafecitoTaza } from "@/db/schema";
+import { enviarConfirmacion } from "./email";
 
-export type SuscripcionState =
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const token = () => randomBytes(24).toString("hex");
+const en7Dias = () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+// ─── Paso 1: registro con el correo ──────────────────────────────────────────
+
+export type RegistroState =
   | { status: "idle" }
-  | { status: "success"; perfil: CafecitoPerfil }
+  | { status: "success" }
   | { status: "error"; message: string };
 
-const PERFILES: CafecitoPerfil[] = ["direccion", "builder"];
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-export async function suscribir(
-  _prev: SuscripcionState,
+/**
+ * Crea o reactiva un registro pendiente y manda el correo de confirmación.
+ *
+ * La respuesta es idéntica exista o no la dirección, y también cuando ya está
+ * confirmada. Un formulario que contesta distinto según el caso se convierte en
+ * un oráculo para averiguar quién está suscrito a qué.
+ */
+export async function registrar(
+  _prev: RegistroState,
   formData: FormData,
-): Promise<SuscripcionState> {
+): Promise<RegistroState> {
   const email = (formData.get("email") as string)?.trim().toLowerCase();
-  const nombre = (formData.get("nombre") as string)?.trim() || null;
-  const perfil = formData.get("perfil") as CafecitoPerfil;
 
-  // Honeypot: un campo invisible que solo un bot completa. Se responde éxito
-  // para no darle señal de que fue detectado.
-  if ((formData.get("empresa_web") as string)?.trim()) {
-    return { status: "success", perfil: "direccion" };
-  }
+  // Honeypot: campo invisible que solo completa un bot. Se responde éxito para
+  // no darle señal de que fue detectado.
+  if ((formData.get("empresa_web") as string)?.trim()) return { status: "success" };
 
   if (!email || !EMAIL_RE.test(email)) {
     return { status: "error", message: "Revisa el correo, parece incompleto." };
-  }
-  if (!PERFILES.includes(perfil)) {
-    return { status: "error", message: "Elige qué edición quieres recibir." };
   }
 
   try {
@@ -41,27 +45,115 @@ export async function suscribir(
       .where(eq(cafecitoSuscriptores.email, email))
       .limit(1);
 
-    // Ya estaba: se actualiza el perfil y se revierte una baja previa. Volver a
-    // suscribirse desde el formulario es un consentimiento nuevo y explícito.
+    // Ya confirmado: no se reenvía nada ni se toca el registro.
+    if (existente?.estado === "confirmado") return { status: "success" };
+
+    const tokenConfirmacion = token();
+
     if (existente) {
       await db
         .update(cafecitoSuscriptores)
-        .set({ perfil, nombre: nombre ?? existente.nombre, bajaEn: null })
+        .set({ estado: "pendiente", tokenConfirmacion, confirmacionExpiraEn: en7Dias(), bajaEn: null })
         .where(eq(cafecitoSuscriptores.id, existente.id));
-      return { status: "success", perfil };
+    } else {
+      await db.insert(cafecitoSuscriptores).values({
+        email,
+        estado: "pendiente",
+        origen: "web",
+        tokenConfirmacion,
+        confirmacionExpiraEn: en7Dias(),
+        tokenBaja: token(),
+      });
     }
 
-    await db.insert(cafecitoSuscriptores).values({
-      email,
-      nombre,
-      perfil,
-      origen: "web",
-      token: randomBytes(16).toString("hex"),
-    });
-
-    return { status: "success", perfil };
+    await enviarConfirmacion(email, tokenConfirmacion);
+    return { status: "success" };
   } catch (err) {
-    console.error("suscribir error:", err);
+    console.error("registrar cafecito error:", err);
     return { status: "error", message: "No se pudo registrar. Intenta de nuevo." };
+  }
+}
+
+// ─── Paso 2: perfilamiento (desde el link del correo) ────────────────────────
+
+export type PerfilState =
+  | { status: "idle" }
+  | { status: "success"; taza: CafecitoTaza }
+  | { status: "error"; message: string };
+
+/**
+ * Confirma la dirección y guarda el perfil en la misma operación: el clic en el
+ * correo ya verificó el buzón, y este formulario es la contrapartida.
+ *
+ * Es idempotente. Alguien puede volver al link para cambiar de taza, y debe
+ * poder hacerlo sin pasar de nuevo por el correo.
+ */
+export async function perfilar(
+  _prev: PerfilState,
+  formData: FormData,
+): Promise<PerfilState> {
+  const tk = (formData.get("token") as string)?.trim();
+  const nombre = (formData.get("nombre") as string)?.trim() || null;
+  const empresa = (formData.get("empresa") as string)?.trim() || null;
+  const rol = (formData.get("rol") as string)?.trim() || null;
+  const taza = formData.get("taza") as CafecitoTaza;
+
+  if (!tk) return { status: "error", message: "Enlace inválido." };
+  if (!Object.keys(TAZAS).includes(taza)) {
+    return { status: "error", message: "Elige una de las tres tazas." };
+  }
+
+  try {
+    const [s] = await db
+      .select()
+      .from(cafecitoSuscriptores)
+      .where(eq(cafecitoSuscriptores.tokenConfirmacion, tk))
+      .limit(1);
+
+    if (!s) return { status: "error", message: "Este enlace no es válido." };
+
+    // Vencido solo si aún no había confirmado: quien ya confirmó puede volver a
+    // ajustar su perfil cuando quiera.
+    if (s.estado === "pendiente" && s.confirmacionExpiraEn && s.confirmacionExpiraEn < new Date()) {
+      return { status: "error", message: "El enlace venció. Vuelve a suscribirte en el sitio." };
+    }
+
+    await db
+      .update(cafecitoSuscriptores)
+      .set({
+        estado: "confirmado",
+        confirmadoEn: s.confirmadoEn ?? new Date(),
+        nombre, empresa, rol, taza,
+        bajaEn: null,
+      })
+      .where(eq(cafecitoSuscriptores.id, s.id));
+
+    return { status: "success", taza };
+  } catch (err) {
+    console.error("perfilar cafecito error:", err);
+    return { status: "error", message: "No se pudo guardar. Intenta de nuevo." };
+  }
+}
+
+// ─── Baja ────────────────────────────────────────────────────────────────────
+
+/**
+ * La baja se ejecuta con POST desde un botón, no en el GET de la página.
+ *
+ * Los escáneres de enlaces de los clientes de correo visitan cada URL de un
+ * mensaje: si un GET diera de baja, un antivirus corporativo desuscribiría a
+ * quien solo abrió el correo.
+ */
+export async function darDeBaja(tk: string): Promise<{ ok: boolean }> {
+  if (!tk) return { ok: false };
+  try {
+    await db
+      .update(cafecitoSuscriptores)
+      .set({ estado: "baja", bajaEn: new Date() })
+      .where(eq(cafecitoSuscriptores.tokenBaja, tk));
+    return { ok: true };
+  } catch (err) {
+    console.error("baja cafecito error:", err);
+    return { ok: false };
   }
 }
