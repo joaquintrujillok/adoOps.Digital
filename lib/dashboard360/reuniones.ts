@@ -215,8 +215,12 @@ export async function gasto(cuenta?: string): Promise<Gasto> {
   try {
     const base = db
       .select({
-        total: sql<string>`coalesce(sum(${reunionRegistros.costoUsd}), 0)`,
-        n: sql<number>`count(${reunionRegistros.costoUsd})::int`,
+        // Las dos columnas: `costoUsd` es la corrección y el resumen;
+        // `costoVivoUsd` es escuchar en vivo, que en una reunión larga es cien
+        // veces más. Sumar solo la primera —como hacía antes— daba un total que
+        // parecía decir que el módulo es gratis.
+        total: sql<string>`coalesce(sum(coalesce(${reunionRegistros.costoUsd}, 0) + coalesce(${reunionRegistros.costoVivoUsd}, 0)), 0)`,
+        n: sql<number>`count(*) filter (where ${reunionRegistros.costoUsd} is not null or ${reunionRegistros.costoVivoUsd} is not null)::int`,
         aprox: sql<number>`count(*) filter (where ${reunionRegistros.costoAproximado} = 1 and ${reunionRegistros.costoUsd} is not null)::int`,
       })
       .from(reunionRegistros);

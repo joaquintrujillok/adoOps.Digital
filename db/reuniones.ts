@@ -266,6 +266,24 @@ export const reunionRegistros = pgTable(
      */
     costoAproximado: smallint("costo_aproximado").notNull().default(0),
 
+    /**
+     * Lo que costó escuchar en vivo: la transcripción por minuto más las pasadas
+     * del copiloto durante la reunión.
+     *
+     * **Va en su propia columna y no sumada a `costoUsd`** porque las dos se
+     * escriben en momentos distintos y con reglas distintas. `costoUsd` lo fija
+     * `procesar()` de una vez, y se REEMPLAZA en cada reintento para no inflarse.
+     * Esto se ACUMULA mientras la sesión está abierta y no se puede rehacer.
+     * Sumarlas en una sola columna haría que un reintento del resumen borrara el
+     * costo de la reunión.
+     *
+     * Existe porque faltaba, y se notó recién cuando alguien preguntó cuánto le
+     * había costado una reunión de verdad: la pantalla decía US$0,0045 sobre una
+     * de 27 minutos que había costado unos US$0,54. Medía el gasto justo donde
+     * es despreciable y lo perdía donde es real.
+     */
+    costoVivoUsd: numeric("costo_vivo_usd", { precision: 12, scale: 6 }),
+
     // Mismo criterio que `inicioEn`: la lista cae en `createdAt` cuando no hay
     // fecha de reunión, así que tiene que ser tan confiable como ella.
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),

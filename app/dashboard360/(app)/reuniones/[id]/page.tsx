@@ -190,8 +190,17 @@ export default async function ReunionDetalle({
           {/* El costo va acá abajo, chico, y no en un tablero de gastos aparte:
               la pregunta "¿valió la pena?" se hace mirando el resumen, no una
               planilla. */}
-          {r.modelo ? (
+          {/* El desglose y no un solo número: en una reunión en vivo, escuchar
+              cuesta cien veces más que resumir, y un total sin partes esconde
+              cuál de las dos decisiones es la cara. */}
+          {r.costoVivoUsd !== null ? (
             <p className="d360-num mt-4 border-t border-[var(--d360-border)] pt-3 text-[11.5px] text-[var(--d360-muted)]">
+              Escucha en vivo · {USD.format(Number(r.costoVivoUsd))}
+              {r.duracionMin ? ` · ${r.duracionMin} min` : ""}
+            </p>
+          ) : null}
+          {r.modelo ? (
+            <p className={`d360-num text-[11.5px] text-[var(--d360-muted)] ${r.costoVivoUsd !== null ? "mt-1" : "mt-4 border-t border-[var(--d360-border)] pt-3"}`}>
               {r.modelo} · {(r.tokensEntrada ?? 0).toLocaleString("es-CL")} tokens de
               entrada
               {r.tokensEntradaCache ? ` (${r.tokensEntradaCache.toLocaleString("es-CL")} en caché)` : ""}
@@ -204,6 +213,11 @@ export default async function ReunionDetalle({
               {r.costoUsd !== null
                 ? `${USD.format(Number(r.costoUsd))}${r.costoAproximado ? " aprox." : ""}`
                 : "costo desconocido: el modelo no está en la tabla de tarifas"}
+            </p>
+          ) : null}
+          {r.costoVivoUsd !== null && r.costoUsd !== null ? (
+            <p className="d360-num mt-1 text-[11.5px] font-medium text-[var(--d360-ink-2)]">
+              Total · {USD.format(Number(r.costoVivoUsd) + Number(r.costoUsd))}
             </p>
           ) : null}
         </Card>

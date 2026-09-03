@@ -12,7 +12,7 @@
 // nada.
 
 import { actualizarCopiloto, type EstadoCopiloto } from "@/lib/reuniones/copiloto";
-import { guardarVivo } from "@/lib/reuniones/vivo";
+import { guardarVivo, sumarCostoVivo } from "@/lib/reuniones/vivo";
 import { recuperar } from "@/lib/conocimiento";
 import { resolverCuenta } from "@/lib/cuentas";
 import { getSession } from "@/lib/dashboard360/session";
@@ -108,6 +108,14 @@ export async function POST(req: Request) {
       fragmento,
       conocimiento,
     });
+
+    // El costo de la pasada se acumula en la fila. Antes solo volvía a la
+    // pantalla, así que al cerrar la pestaña se perdía: la reunión quedaba
+    // registrando el gasto del resumen —centésimas de centavo— y no el de la
+    // hora de escucha.
+    if (cuerpo.clave && uso.costoUsd) {
+      await sumarCostoVivo(cuerpo.clave, uso.costoUsd);
+    }
     return Response.json({
       estado: nuevo,
       costoUsd: uso.costoUsd,

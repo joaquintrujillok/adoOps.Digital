@@ -55,6 +55,7 @@ await sql`
     tokens_salida INTEGER,
     costo_usd NUMERIC(12,6),
     costo_aproximado SMALLINT NOT NULL DEFAULT 0,
+    costo_vivo_usd NUMERIC(12,6),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     resumida_en TIMESTAMPTZ
   )
@@ -75,6 +76,7 @@ await sql`ALTER TABLE reunion_registros ADD COLUMN IF NOT EXISTS ambito VARCHAR(
 await sql`ALTER TABLE reunion_registros ADD COLUMN IF NOT EXISTS capturada_por VARCHAR(160)`;
 await sql`ALTER TABLE reunion_registros ADD COLUMN IF NOT EXISTS transcripcion_corregida TEXT`;
 await sql`ALTER TABLE reunion_registros ADD COLUMN IF NOT EXISTS tramos_sin_corregir SMALLINT`;
+await sql`ALTER TABLE reunion_registros ADD COLUMN IF NOT EXISTS costo_vivo_usd NUMERIC(12,6)`;
 
 await sql`CREATE INDEX IF NOT EXISTS reunion_registros_ambito_idx ON reunion_registros (ambito)`;
 
