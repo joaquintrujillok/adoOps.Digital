@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
+import { SITE_URL as BASE } from "@/lib/site";
 
-const BASE = process.env.NEXT_PUBLIC_BASE_URL || "https://adoops.digital";
 
 /**
  * robots.txt

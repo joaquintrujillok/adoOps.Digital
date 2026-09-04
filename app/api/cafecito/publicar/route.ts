@@ -13,6 +13,7 @@
 
 import { NextResponse } from "next/server";
 import { db } from "@/db";
+import { url } from "@/lib/site";
 import { cafecitoEdiciones } from "@/db/schema";
 import {
   cuerpoSinTitulo,
@@ -79,7 +80,7 @@ export async function POST(req: Request) {
       ok: true,
       slug: fila.slug,
       titulo: fila.titulo,
-      url: `https://adoops.digital/cafecito-ia/${fila.slug}`,
+      url: url(`/cafecito-ia/${fila.slug}`),
     });
   } catch (err) {
     console.error("publicar cafecito error:", err);

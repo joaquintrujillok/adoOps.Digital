@@ -8,6 +8,7 @@ import { db } from "@/db";
 import { cafecitoEdiciones } from "@/db/schema";
 import { markdownAHtml } from "@/lib/cafecito/markdown";
 import styles from "../cafecito.module.css";
+import { SITE_URL as BASE } from "@/lib/site";
 
 export const revalidate = 300;
 
@@ -42,7 +43,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-const BASE = process.env.NEXT_PUBLIC_BASE_URL || "https://adoops.digital";
 
 const fechaLarga = (slug: string) =>
   new Intl.DateTimeFormat("es-CL", {

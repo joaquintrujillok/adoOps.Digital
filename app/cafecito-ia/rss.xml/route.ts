@@ -7,8 +7,8 @@
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { cafecitoEdiciones } from "@/db/schema";
+import { SITE_URL as BASE } from "@/lib/site";
 
-const BASE = process.env.NEXT_PUBLIC_BASE_URL || "https://adoops.digital";
 
 export const revalidate = 3600;
 

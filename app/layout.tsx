@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Sora } from "next/font/google";
 import Preloader from "@/components/Preloader";
 import "./globals.css";
+import { SITE_URL as BASE_URL } from "@/lib/site";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -15,7 +16,6 @@ const sora = Sora({
   display: "swap",
 });
 
-const BASE_URL = "https://adoops.digital";
 
 // cover: habilita env(safe-area-inset-*) en iPhone (tab bar de la consola /mix)
 export const viewport: Viewport = {

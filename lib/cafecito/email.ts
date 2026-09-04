@@ -5,8 +5,8 @@
 // boletín, no el formulario de contacto de una web.
 
 import { BrevoClient } from "@getbrevo/brevo";
+import { SITE_URL as BASE } from "@/lib/site";
 
-const BASE = process.env.NEXT_PUBLIC_BASE_URL || "https://adoops.digital";
 const REMITENTE = {
   email: process.env.CAFECITO_FROM_EMAIL || "hola@adoops.digital",
   name: "Cafecito IA",
