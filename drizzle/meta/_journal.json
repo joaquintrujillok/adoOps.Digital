@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1788483158269,
+      "tag": "0000_clean_taskmaster",
+      "breakpoints": true
+    }
+  ]
+}

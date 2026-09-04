@@ -57,3 +57,55 @@ This version has breaking changes — APIs, conventions, and file structure may 
   with `No database connection string was provided`. `next dev` works fine at the
   same time, which makes it look like a build bug. If a past `vercel env pull`
   left that file behind, move it out of the way — it holds nothing but blanks.
+
+## Never run `drizzle-kit push` on this database
+
+- **`npm run db:push` is deliberately disabled.** It prints why and exits 1. Do
+  not re-enable it, and do not run `npx drizzle-kit push` around it.
+- On 03-09-2026 a routine `push` proposed **dropping 14 tables holding real
+  data** — all of Tuniche, the sales CRM, `conocimiento_trozos` with 319 rows,
+  meetings — plus four columns with 78 and 200 rows. It was aborted in time.
+- It was not a drizzle bug. `push` makes the database identical to the schema, so
+  anything that exists and is not declared is surplus to be deleted. The cause
+  was that `db/schema.ts` re-exported **5 of the 10 files** in `db/`, and
+  **drizzle-kit reads `schema.ts` and nothing else**. What does not reach that
+  file does not exist for it. Missing were `tuniche`, `reuniones`, `venta` and
+  `conocimiento` — exactly the tables it offered to drop.
+- This is a direct consequence of "There is one database" above: other projects
+  share this Neon instance, so tables this repo never created still live in
+  `public` and are still in `push`'s blast radius.
+
+### The rules that follow
+
+- **Every new file in `db/` gets an `export * from "./x"` line in
+  `db/schema.ts`.** Without it, its tables are exposed to deletion.
+- **`npm run db:verificar` before any migration.** It compares what is declared
+  against what exists and exits 1 on any difference — including the case that
+  started all this: a `db/` file that is not re-exported. `db:generate` runs it
+  first, so a migration cannot be generated from an incomplete schema.
+- **Foreign tables are declared, not ignored.** `messages` and `memories` belong
+  to another project sharing this database and are declared in `db/externas.ts`
+  mirroring their real shape. Matching the database exactly means they produce no
+  diff: invisible to migrations, yet protected from deletion. Do not read or
+  write them from this repo. The real fix — moving them to their own Postgres
+  schema, which drizzle does not look at — is still pending.
+- **Legacy columns are declared with a comment, not dropped.**
+  `crm_showroom_visitas.con_cita` / `.sala_id` and `lead_empresas.grupo` /
+  `.grupo_metodo` exist with data but no code reads them. Dropping them deserves
+  an explicit migration and a human decision, not a side effect of a sync.
+
+### Migration workflow
+
+The database was managed with `push` until 03-09-2026, so it had no history. A
+baseline was set that day: migration `0000` (72 `CREATE TABLE`) is recorded as
+applied without ever having run, via `scripts/baseline-migraciones.mjs`.
+
+    npm run db:verificar   # what is declared vs what exists
+    npm run db:generate    # verifies, then writes a reviewable SQL file
+    npm run db:migrate     # applies pending migrations
+
+`npm run db:inventario` regenerates `docs/db-inventario.md` with every table,
+column, index and row count. `drizzle/manual/` holds hand-written SQL used only
+for bootstrapping; it is outside the migration history.
+
+Full context in `docs/base-de-datos.md`.
