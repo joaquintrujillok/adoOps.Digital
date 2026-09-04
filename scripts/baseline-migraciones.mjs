@@ -1,6 +1,9 @@
 // Marca las migraciones existentes como YA APLICADAS, sin ejecutarlas.
 //
-//   node scripts/baseline-migraciones.mjs [--aplicar]
+//   node scripts/baseline-migraciones.mjs [--prod] [--aplicar]
+//
+// Con --prod trabaja sobre la base de producción, que también necesita su línea
+// base: nació sin historial de migraciones, igual que la de desarrollo.
 //
 // ── Para qué ─────────────────────────────────────────────────────────────────
 //
@@ -25,20 +28,13 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { neon } from "@neondatabase/serverless";
+import { anunciar, baseObjetivo, cargarEnv } from "./base-objetivo.mjs";
 
-function cargarEnv() {
-  for (const f of [".env.local", ".env"]) {
-    let s;
-    try { s = readFileSync(f, "utf8"); } catch { continue; }
-    for (const linea of s.split("\n")) {
-      const m = linea.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*)\s*$/);
-      if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
-    }
-  }
-}
 cargarEnv();
+const objetivo = baseObjetivo();
 
 const aplicar = process.argv.includes("--aplicar");
+anunciar(objetivo, aplicar ? "Poniendo línea base" : "Línea base (simulación)");
 const OUT = "drizzle";
 
 let journal;
@@ -54,7 +50,7 @@ if (!journal.entries?.length) {
   process.exit(1);
 }
 
-const sql = neon(process.env.DATABASE_URL);
+const sql = neon(objetivo.url);
 
 await sql`CREATE SCHEMA IF NOT EXISTS drizzle`;
 await sql`

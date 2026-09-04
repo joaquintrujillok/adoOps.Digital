@@ -1,14 +1,16 @@
 # Inventario de la base
 
-Generado por `scripts/inventario-db.mjs` el 2026-09-04 00:48 UTC.
+Generado por `scripts/inventario-db.mjs` el 2026-09-04 01:18 UTC.
 
-70 tablas en el esquema `public`.
+72 tablas en el esquema `public`.
 
 ## Resumen
 
 | Tabla | Filas | Columnas |
 |---|---:|---:|
 | `acta_reports` | ? | 17 |
+| `cafecito_ediciones` | ? | 9 |
+| `cafecito_suscriptores` | ? | 14 |
 | `compromisos` | ? | 8 |
 | `conocimiento_trozos` | ? | 11 |
 | `contenido_emisores` | ? | 11 |
@@ -102,6 +104,49 @@ Generado por `scripts/inventario-db.mjs` el 2026-09-04 00:48 UTC.
 | `status` | character varying(20) | no | `'pendiente'::character varying` |
 | `created_at` | timestamp without time zone | no | `now()` |
 | `validated_at` | timestamp without time zone | sí | — |
+
+### `cafecito_ediciones` — ? filas
+
+| Columna | Tipo | Nulo | Default |
+|---|---|---|---|
+| `id` | integer | no | `nextval('cafecito_ediciones_id_seq'::reg` |
+| `slug` | character varying(10) | no | — |
+| `titulo` | character varying(300) | no | — |
+| `bajada` | character varying(400) | sí | — |
+| `contenido` | text | no | — |
+| `lectura` | character varying(20) | sí | — |
+| `publicada` | boolean | no | `true` |
+| `publicada_en` | timestamp without time zone | no | `now()` |
+| `actualizada_en` | timestamp without time zone | no | `now()` |
+
+Índices:
+- `cafecito_ediciones_publicada_idx`: INDEX cafecito_ediciones_publicada_idx ON public.cafecito_ediciones USING btree (publicada, publicada_en)
+- `cafecito_ediciones_slug_idx`: UNIQUE INDEX cafecito_ediciones_slug_idx ON public.cafecito_ediciones USING btree (slug)
+
+### `cafecito_suscriptores` — ? filas
+
+| Columna | Tipo | Nulo | Default |
+|---|---|---|---|
+| `id` | integer | no | `nextval('cafecito_suscriptores_id_seq'::` |
+| `email` | character varying(254) | no | — |
+| `estado` | character varying(20) | no | `'pendiente'::character varying` |
+| `nombre` | character varying(160) | sí | — |
+| `empresa` | character varying(160) | sí | — |
+| `rol` | character varying(160) | sí | — |
+| `taza` | character varying(30) | sí | — |
+| `origen` | character varying(30) | no | `'web'::character varying` |
+| `token_confirmacion` | character varying(64) | sí | — |
+| `confirmacion_expira_en` | timestamp without time zone | sí | — |
+| `confirmado_en` | timestamp without time zone | sí | — |
+| `token_baja` | character varying(64) | no | — |
+| `baja_en` | timestamp without time zone | sí | — |
+| `created_at` | timestamp without time zone | no | `now()` |
+
+Índices:
+- `cafecito_suscriptores_baja_idx`: UNIQUE INDEX cafecito_suscriptores_baja_idx ON public.cafecito_suscriptores USING btree (token_baja)
+- `cafecito_suscriptores_conf_idx`: UNIQUE INDEX cafecito_suscriptores_conf_idx ON public.cafecito_suscriptores USING btree (token_confirmacion)
+- `cafecito_suscriptores_email_idx`: UNIQUE INDEX cafecito_suscriptores_email_idx ON public.cafecito_suscriptores USING btree (email)
+- `cafecito_suscriptores_envio_idx`: INDEX cafecito_suscriptores_envio_idx ON public.cafecito_suscriptores USING btree (estado, taza)
 
 ### `compromisos` — ? filas
 

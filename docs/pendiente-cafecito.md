@@ -71,33 +71,65 @@ base local. No hay integración de Neon en el proyecto de Vercel
 (`vercel integration list` → *No resources found*), así que la variable se pegó a
 mano hace 74 días y desde entonces las dos copias se separaron.
 
-### Qué falta, y quién puede hacerlo
+### Decidido: bases separadas
 
-Solo tú: el valor en Vercel es Secret y no se puede leer de vuelta, ni con
-`vercel env pull` (ver `AGENTS.md`).
+Las dos bases se quedan separadas. Es el estado de facto desde siempre, y evita
+que una prueba local escriba sobre datos reales de CRM, Tuniche y TorreControl.
+Quedó escrito en `AGENTS.md`, y las herramientas de esquema ya saben apuntar a
+cada una: `db:verificar`, `db:migrate`, `db:inventario` y
+`baseline-migraciones.mjs` aceptan `--prod` (o su variante `:prod`), y todas
+anuncian contra qué base van a trabajar antes de hacerlo. Desarrollo es el
+destino por defecto; producción cuesta un flag explícito.
 
-1. **Decidir el modelo** y dejarlo escrito en `AGENTS.md`:
-   - **Una sola base** para local y producción: simple, pero cualquier prueba
-     local escribe en producción.
-   - **Bases separadas**: más sano, pero el flujo de migración tiene que
-     aplicarse a las dos, y hoy no lo contempla. Si se elige esto,
-     `db:verificar` y `db:migrate` necesitan poder apuntar a cada una.
-2. **Crear las tablas en la base de producción.** Con su cadena de conexión
-   sacada de la consola de Neon:
+Se descartó el atajo de cambiar `DATABASE_URL` en Vercel por la de `.env.local`:
+arreglaría el síntoma, pero le cambiaría la fuente de datos a todo el sitio de
+golpe hacia una base que nadie verificó que tenga los datos de producción.
 
+### Qué falta, y solo tú puedes hacerlo
+
+El valor de la `DATABASE_URL` de producción es Secret en Vercel y no se puede
+leer de vuelta, ni con `vercel env pull` (ver `AGENTS.md`). Sale de la consola de
+Neon. Los cinco pasos, en orden:
+
+1. **Pegar la cadena en `.env.local`** (la de producción, con pooler), como
+   `DATABASE_URL_PRODUCCION`. El archivo está en `.gitignore`; no se sube.
+
+2. **Ver qué le falta a producción.** Debería reportar las dos tablas de Cafecito
+   como declaradas que aún no existen:
+
+   ```bash
+   npm run db:verificar:prod
    ```
-   psql "<DATABASE_URL de producción>" -f drizzle/manual/cafecito.sql
+
+3. **Crear las tablas allá.** Idempotente, solo `CREATE ... IF NOT EXISTS`:
+
+   ```bash
+   psql "$DATABASE_URL_PRODUCCION" -f drizzle/manual/cafecito.sql
    ```
 
-   Es idempotente: solo hace `CREATE ... IF NOT EXISTS`. Correrlo contra una
-   base que ya las tiene no hace nada.
-3. **No correr `drizzle-kit push` jamás.** Ver `AGENTS.md`: el 03-09-2026
-   propuso borrar 14 tablas con datos reales.
+   Repetir el paso 2: tiene que quedar en verde.
 
-Ojo con el atajo tentador: cambiar `DATABASE_URL` en Vercel por la de
-`.env.local` también arreglaría el síntoma, pero le cambia la fuente de datos a
-todo el sitio de golpe —CRM, Tuniche, TorreControl, el motor— hacia una base que
-nadie verificó que tenga esos datos. Eso es la decisión (1), no un atajo.
+4. **Poner la línea base en producción.** Nació con `push`, así que no tiene
+   historial de migraciones; sin línea base, el primer `db:migrate:prod`
+   intentaría correr los 72 `CREATE TABLE` de la `0000` sobre tablas que ya
+   existen y fallaría. Primero sin `--aplicar`, que solo muestra qué haría:
+
+   ```bash
+   node scripts/baseline-migraciones.mjs --prod
+   node scripts/baseline-migraciones.mjs --prod --aplicar
+   ```
+
+5. **Desplegar.** El commit ya está hecho pero no empujado, porque empujar a
+   `main` despliega a producción:
+
+   ```bash
+   git push origin main
+   ```
+
+   Con los pasos 1 a 4 hechos, `/cafecito-ia` sale funcionando. Sin ellos el
+   despliegue **igual pasa** —eso es lo que se arregló— pero `/cafecito-ia` se ve
+   vacía y el log de Vercel dice `[cafecito] listarEdiciones — la base no
+   respondió`.
 
 ### Ya no puede tumbar el despliegue
 

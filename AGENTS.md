@@ -26,11 +26,31 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## Modules: what is a demo and what is production
 
-- **There is one database.** `db/index.ts` opens a single `DATABASE_URL`. The
-  prospecting engine, the CRM, TorreControl and TV Mix all write to the same Neon
-  database, separated by table prefix (`lead_*`, `crm_*`, `d360_*`) and **not by
-  environment**. There is no demo database that test records cannot escape from.
-  This is why every module must declare itself and mark itself on screen.
+- **One database per environment, and only two.** `db/index.ts` opens a single
+  `DATABASE_URL`, whose value differs by where the code runs: locally it is the
+  development database, and on Vercel it is the production one. They are two
+  separate Neon databases. Inside either of them, the prospecting engine, the
+  CRM, TorreControl and TV Mix all share the same tables, separated by prefix
+  (`lead_*`, `crm_*`, `d360_*`) and **not by module**. There is no demo database
+  that test records cannot escape from. This is why every module must declare
+  itself and mark itself on screen.
+- **The two databases drift, and nothing warns you.** Neither can be read back
+  from Vercel (see below), so both connection strings are kept by hand. On
+  04-09-2026 a production deploy died with `42P01: relation "cafecito_ediciones"
+  does not exist`: the tables had been created only in development, and the
+  build prerendered `/cafecito-ia`, so one missing table took down the deploy of
+  the entire site. Two things came out of that, and both must be kept up:
+  - **A schema change is not done until it is applied to both.** Point the tools
+    at production with `--prod` / the `:prod` script variants — `db:verificar`,
+    `db:migrate`, `db:inventario` and `baseline-migraciones.mjs` all take it, and
+    all announce which database they are about to touch before touching it.
+    Production needs `DATABASE_URL_PRODUCCION` in `.env.local`, from the Neon
+    console. Development is always the default: production costs an explicit
+    flag, never an omission.
+  - **A read added to a prerendered page must not be able to fail the build.**
+    See `lib/cafecito/consultas.ts`: every read is wrapped, logs under a
+    recognizable prefix, and returns empty. A new section renders blank instead
+    of taking the whole site down with it.
 - **`lib/modulos.ts` is the source of truth**, not a document. Each module
   declares its state (`produccion` · `demo` · `interno` · `archivado`), where its
   data comes from, who looks at it, and why. Do not infer a module's state from
@@ -51,6 +71,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
   `Encrypted` in `vercel env ls` means "encrypted at rest", not "downloadable".
 - So a fresh clone cannot recover `DATABASE_URL` from Vercel. It comes from the
   **Neon console** (connection string, pooled), pasted into `.env.local` by hand.
+  The same is true of `DATABASE_URL_PRODUCCION`, which the `:prod` tools need and
+  which exists only in `.env.local` — never in the repo, never in Vercel.
 - **A leftover `.env.production.local` will silently break `next build`.** When
   `NODE_ENV=production`, Next loads it *before* `.env.local`, so an empty
   `DATABASE_URL` in it wins and the build fails at `Failed to collect page data`
@@ -71,7 +93,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
   **drizzle-kit reads `schema.ts` and nothing else**. What does not reach that
   file does not exist for it. Missing were `tuniche`, `reuniones`, `venta` and
   `conocimiento` — exactly the tables it offered to drop.
-- This is a direct consequence of "There is one database" above: other projects
+- This is a direct consequence of the shared-database note above: other projects
   share this Neon instance, so tables this repo never created still live in
   `public` and are still in `push`'s blast radius.
 
@@ -97,15 +119,32 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ### Migration workflow
 
 The database was managed with `push` until 03-09-2026, so it had no history. A
-baseline was set that day: migration `0000` (72 `CREATE TABLE`) is recorded as
-applied without ever having run, via `scripts/baseline-migraciones.mjs`.
+baseline was set that day on **development**: migration `0000` (72
+`CREATE TABLE`) is recorded as applied without ever having run, via
+`scripts/baseline-migraciones.mjs`.
 
     npm run db:verificar   # what is declared vs what exists
     npm run db:generate    # verifies, then writes a reviewable SQL file
     npm run db:migrate     # applies pending migrations
 
+Then the same against production — the change is not done until both agree:
+
+    npm run db:verificar:prod
+    npm run db:migrate:prod   # verifies first, then applies
+
+**Production needs its own baseline before its first `db:migrate:prod`.** It was
+built by `push` too, so it has no `drizzle.__drizzle_migrations` either; without
+a baseline, `migrate` would try to run `0000`'s 72 `CREATE TABLE` against tables
+that already exist and fail. Once `db:verificar:prod` is green, run it once —
+without `--aplicar` first, which only prints what it would do:
+
+    node scripts/baseline-migraciones.mjs --prod
+    node scripts/baseline-migraciones.mjs --prod --aplicar
+
 `npm run db:inventario` regenerates `docs/db-inventario.md` with every table,
-column, index and row count. `drizzle/manual/` holds hand-written SQL used only
-for bootstrapping; it is outside the migration history.
+column, index and row count (`:prod` for the other one, but do not commit that —
+the file tracks development). `drizzle/manual/` holds hand-written SQL used only
+for bootstrapping; it is outside the migration history and is idempotent, which
+makes it the right tool for creating tables in a database that is behind.
 
 Full context in `docs/base-de-datos.md`.
