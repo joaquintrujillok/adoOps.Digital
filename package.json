@@ -9,9 +9,13 @@
     "desplegar": "node scripts/desplegar.mjs",
     "al-dia": "git pull --ff-only origin main",
     "lint": "eslint",
-    "db:push": "drizzle-kit push",
+    "db:push": "echo \"\\n  db:push está deshabilitado a propósito.\\n\\n  Sincroniza la base al esquema y BORRA todo lo que no esté declarado.\\n  El 3 de septiembre propuso eliminar 14 tablas con datos reales.\\n\\n  Usa en cambio:\\n    npm run db:verificar   ver si el esquema declara todo lo que existe\\n    npm run db:generate    generar el SQL de la migración (revisalo)\\n    npm run db:migrate     aplicarlo\\n\" && exit 1",
     "db:studio": "drizzle-kit studio",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "npm run db:verificar && drizzle-kit generate",
+    "db:inventario": "node scripts/inventario-db.mjs",
+    "db:verificar": "node scripts/verificar-schema.mjs",
+    "db:migrate": "drizzle-kit migrate",
+    "db:baseline": "node scripts/baseline-migraciones.mjs"
   },
   "dependencies": {
     "@getbrevo/brevo": "^5.0.4",

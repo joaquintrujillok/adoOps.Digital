@@ -360,3 +360,36 @@ export * from "./contenido";
 // -----------------------------------------------------------------------------
 
 export * from "./cafecito";
+
+// -----------------------------------------------------------------------------
+// Tuniche (/api/tuniche) — sistema de terreno agrícola. Las tablas viven en
+// db/tuniche.ts y se reexportan acá por el mismo motivo que las demás.
+// -----------------------------------------------------------------------------
+
+export * from "./tuniche";
+
+// -----------------------------------------------------------------------------
+// Reuniones — registros y compromisos. Viven en db/reuniones.ts.
+// -----------------------------------------------------------------------------
+
+export * from "./reuniones";
+
+// -----------------------------------------------------------------------------
+// Ventas — pipeline comercial. Vive en db/venta.ts.
+// -----------------------------------------------------------------------------
+
+export * from "./venta";
+
+// -----------------------------------------------------------------------------
+// Conocimiento — trozos indexados para recuperación. Vive en db/conocimiento.ts.
+// -----------------------------------------------------------------------------
+
+export * from "./conocimiento";
+
+// -----------------------------------------------------------------------------
+// Tablas de OTROS proyectos que comparten esta base. Viven en db/externas.ts y
+// se declaran solo para que las migraciones de adoOps no las borren. Lee la
+// cabecera de ese archivo antes de tocarlas.
+// -----------------------------------------------------------------------------
+
+export * from "./externas";

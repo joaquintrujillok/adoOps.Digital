@@ -450,6 +450,18 @@ export const crmShowroomVisitas = pgTable(
     consentimientoEn: timestamp("consentimiento_en"),
     atendidoPor: integer("atendido_por"),
     contactId: integer("contact_id"),
+
+    /**
+     * HEREDADAS. Estas dos columnas existen en la base desde una versión previa
+     * en que la visita registraba sala y cita; ese dato hoy vive en
+     * `crm_audiciones`. No se leen ni se escriben desde el código.
+     *
+     * Se declaran para que una migración no las borre: hay 78 filas con datos.
+     * Para eliminarlas de verdad, hay que hacerlo con una migración explícita y
+     * a conciencia, no de refilón.
+     */
+    conCita: boolean("con_cita").notNull().default(false),
+    salaId: integer("sala_id"),
     /** pendiente | contactado | convertido | descartado */
     estado: varchar("estado", { length: 20 }).notNull().default("pendiente"),
     createdAt: timestamp("created_at").defaultNow().notNull(),

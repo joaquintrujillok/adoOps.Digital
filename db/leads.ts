@@ -104,6 +104,14 @@ export const leadEmpresas = pgTable(
     dominioOrigen: varchar("dominio_origen", { length: 20 }).$type<LeadOrigen>(),
     dominioObtenidoEn: timestamp("dominio_obtenido_en"),
 
+    /**
+     * HEREDADAS. Existen en la base con 200 filas pobladas, de una clasificación
+     * por grupo que no llegó al código actual. Se declaran para que una
+     * migración no las borre; eliminarlas requiere una decisión explícita.
+     */
+    grupo: varchar("grupo", { length: 80 }),
+    grupoMetodo: varchar("grupo_metodo", { length: 20 }),
+
     origen: varchar("origen", { length: 20 }).$type<LeadOrigen>().notNull(),
     obtenidoEn: timestamp("obtenido_en").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
