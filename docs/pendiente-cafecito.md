@@ -38,10 +38,15 @@ suscripción con doble opt-in y perfilamiento, y baja por token.
 - Variables en Vercel (Production): `CAFECITO_TOKEN`, `CAFECITO_FROM_EMAIL`,
   `NEXT_PUBLIC_BASE_URL`.
 
-## BLOQUEANTE: producción apunta a otra base — confirmado
+## Resuelto: el build de producción caía por orden, no por configuración
 
-El despliegue de producción de las 00:43 UTC del 04-09-2026
-(`ado-ops-digital-gilzm43k9`) murió así:
+**Estado: desplegado y funcionando** desde el 04-09-2026 01:29 UTC
+(`ado-ops-digital-m075010v7`). `/cafecito-ia`, `/sitemap.xml`, `/robots.txt` y
+`/cafecito-ia/rss.xml` responden 200.
+
+### Qué pasó de verdad
+
+El despliegue de las 00:43 UTC murió con:
 
 ```
 Error [NeonDbError]: relation "cafecito_ediciones" does not exist
@@ -49,103 +54,45 @@ Error [NeonDbError]: relation "cafecito_ediciones" does not exist
 Export encountered an error on /cafecito-ia/page: /cafecito-ia, exiting the build.
 ```
 
-**Ya no es una hipótesis.** Ese error lo emite el parser de Postgres, no el
-driver: la conexión se abrió, se autenticó y la consulta llegó al servidor. Si
-`DATABASE_URL` estuviera vacía o mal formada el error sería otro. Lo único que
-falta es la tabla.
+Se sospechó que la `DATABASE_URL` de Vercel apuntaba a otra base. **Era falso.**
+Hay **una sola base**, y se comprobó escribiendo una fila desde local y pidiendo
+`https://www.adoops.digital/cafecito-ia/<slug>` en producción: respondió 200. La
+fila se borró enseguida; la tabla quedó en 0 filas.
 
-Y en la base de `.env.local` la tabla **sí existe**, y existía 43 minutos antes
-de ese despliegue:
+La causa real es de orden, no de configuración: el build corrió **antes** de que
+las tablas de Cafecito existieran. Como es una sola base, crearlas localmente ya
+las crea en producción, y el despliegue solo tenía que llegar después. Llegó
+antes.
 
-```
-host: ep-nameless-mountain-atzwqsr4-pooler.c-9.us-east-1.aws.neon.tech
-db:   neondb   ·   cafecito_ediciones: 0 filas   ·   cafecito_suscriptores: 0 filas
-```
+Es una causa más aburrida que la hipótesis, pero mucho más fácil de repetir: se
+repite cada vez que alguien empuja código que lee una tabla que todavía no creó.
+Por eso quedó escrito en `AGENTS.md` como regla de orden — tablas primero,
+despliegue después — y no como una anécdota.
 
-`npm run db:verificar` da 72 declaradas / 72 en la base, en verde.
+### Lo que sí quedó, y vale igual
 
-Conclusión: **la `DATABASE_URL` de Vercel y la de `.env.local` son bases
-distintas.** Producción tiene las otras 70 tablas —el sitio lleva meses
-funcionando— pero no las dos de Cafecito, que se crearon el 03-09 solo en la
-base local. No hay integración de Neon en el proyecto de Vercel
-(`vercel integration list` → *No resources found*), así que la variable se pegó a
-mano hace 74 días y desde entonces las dos copias se separaron.
+Las cinco lecturas de Cafecito —índice, edición, imagen OG, RSS y sitemap— están
+en `lib/cafecito/consultas.ts`, cada una con su try/catch y un log marcado
+`[cafecito]`.
 
-### Decidido: bases separadas
+Esto no depende de cuántas bases haya: el problema de fondo era que Next
+prerenderiza `/cafecito-ia` en el build, así que **una consulta de un módulo
+nuevo podía tumbar el despliegue del sitio entero**, CRM y Tuniche incluidos.
+Verificado corriendo `npm run build` contra una base inexistente: las consultas
+fallaron, quedaron registradas, y las 36 páginas se generaron igual.
 
-Las dos bases se quedan separadas. Es el estado de facto desde siempre, y evita
-que una prueba local escriba sobre datos reales de CRM, Tuniche y TorreControl.
-Quedó escrito en `AGENTS.md`, y las herramientas de esquema ya saben apuntar a
-cada una: `db:verificar`, `db:migrate`, `db:inventario` y
-`baseline-migraciones.mjs` aceptan `--prod` (o su variante `:prod`), y todas
-anuncian contra qué base van a trabajar antes de hacerlo. Desarrollo es el
-destino por defecto; producción cuesta un flag explícito.
+Si algún día `/cafecito-ia` sale vacía, el termómetro es el log de Vercel: si
+dice `[cafecito] listarEdiciones — la base no respondió`, el problema es la base;
+si no dice nada, es que no hay ediciones publicadas.
 
-Se descartó el atajo de cambiar `DATABASE_URL` en Vercel por la de `.env.local`:
-arreglaría el síntoma, pero le cambiaría la fuente de datos a todo el sitio de
-golpe hacia una base que nadie verificó que tenga los datos de producción.
+### Lo que se probó y se descartó
 
-### Qué falta, y solo tú puedes hacerlo
-
-El valor de la `DATABASE_URL` de producción es Secret en Vercel y no se puede
-leer de vuelta, ni con `vercel env pull` (ver `AGENTS.md`). Sale de la consola de
-Neon. Los cinco pasos, en orden:
-
-1. **Pegar la cadena en `.env.local`** (la de producción, con pooler), como
-   `DATABASE_URL_PRODUCCION`. El archivo está en `.gitignore`; no se sube.
-
-2. **Ver qué le falta a producción.** Debería reportar las dos tablas de Cafecito
-   como declaradas que aún no existen:
-
-   ```bash
-   npm run db:verificar:prod
-   ```
-
-3. **Crear las tablas allá.** Idempotente, solo `CREATE ... IF NOT EXISTS`:
-
-   ```bash
-   psql "$DATABASE_URL_PRODUCCION" -f drizzle/manual/cafecito.sql
-   ```
-
-   Repetir el paso 2: tiene que quedar en verde.
-
-4. **Poner la línea base en producción.** Nació con `push`, así que no tiene
-   historial de migraciones; sin línea base, el primer `db:migrate:prod`
-   intentaría correr los 72 `CREATE TABLE` de la `0000` sobre tablas que ya
-   existen y fallaría. Primero sin `--aplicar`, que solo muestra qué haría:
-
-   ```bash
-   node scripts/baseline-migraciones.mjs --prod
-   node scripts/baseline-migraciones.mjs --prod --aplicar
-   ```
-
-5. **Desplegar.** El commit ya está hecho pero no empujado, porque empujar a
-   `main` despliega a producción:
-
-   ```bash
-   git push origin main
-   ```
-
-   Con los pasos 1 a 4 hechos, `/cafecito-ia` sale funcionando. Sin ellos el
-   despliegue **igual pasa** —eso es lo que se arregló— pero `/cafecito-ia` se ve
-   vacía y el log de Vercel dice `[cafecito] listarEdiciones — la base no
-   respondió`.
-
-### Ya no puede tumbar el despliegue
-
-Las cinco lecturas de Cafecito —índice, edición, imagen OG, RSS y sitemap—
-pasaron a `lib/cafecito/consultas.ts`, cada una con su try/catch.
-
-**Verificado**, no supuesto: se corrió `npm run build` con una `DATABASE_URL`
-apuntando a una base inexistente. Las tres consultas del build fallaron, cada
-una registró su `[cafecito] … — la base no respondió`, y el build **terminó
-bien**, con las 36 páginas generadas. Un módulo nuevo ya no se lleva puesto el
-despliegue completo.
-
-Lo que esto NO arregla: mientras producción siga sin las tablas, `/cafecito-ia`
-se verá vacía y el log de Vercel dirá `[cafecito] listarEdiciones — la base no
-respondió`. Ese mensaje es el termómetro: cuando desaparezca, las dos bases
-quedaron alineadas.
+Se llegó a documentar en `AGENTS.md` un modelo de dos bases separadas, con
+`--prod` en `db:verificar`, `db:migrate`, `db:inventario` y
+`baseline-migraciones.mjs`. Todo eso se revirtió al comprobar que la base es una
+sola: herramientas que ofrecen apuntar a una base que no existe confunden más de
+lo que ayudan, y una afirmación falsa en `AGENTS.md` es exactamente el tipo de
+cosa que causó el susto del 03-09.
 
 ## Después del despliegue
 

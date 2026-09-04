@@ -1,7 +1,6 @@
 // Inventario de la base, de solo lectura.
 //
-//   node scripts/inventario-db.mjs           # base de desarrollo
-//   node scripts/inventario-db.mjs --prod    # base de producción
+//   node scripts/inventario-db.mjs
 //
 // Escribe docs/db-inventario.md con todas las tablas que existen de verdad en
 // Neon, sus columnas, índices y cuántas filas tienen. Sirve para comparar la
@@ -11,13 +10,20 @@
 
 import { neon } from "@neondatabase/serverless";
 import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
-import { anunciar, baseObjetivo, cargarEnv } from "./base-objetivo.mjs";
 
+/** Lee .env.local sin dependencias: @next/env es CommonJS y no importa limpio. */
+function cargarEnv() {
+  for (const f of [".env.local", ".env"]) {
+    let s;
+    try { s = readFileSync(f, "utf8"); } catch { continue; }
+    for (const linea of s.split("\n")) {
+      const m = linea.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*)\s*$/);
+      if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
+    }
+  }
+}
 cargarEnv();
-const objetivo = baseObjetivo();
-anunciar(objetivo, "Inventariando");
-
-const sql = neon(objetivo.url);
+const sql = neon(process.env.DATABASE_URL);
 
 const tablas = await sql`
   SELECT c.relname AS tabla,

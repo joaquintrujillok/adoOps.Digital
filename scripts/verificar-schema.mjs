@@ -1,7 +1,6 @@
 // Compara lo que declara db/ contra lo que existe de verdad en la base.
 //
-//   node scripts/verificar-schema.mjs           # base de desarrollo
-//   node scripts/verificar-schema.mjs --prod    # base de producción
+//   node scripts/verificar-schema.mjs
 //
 // Sale con código 1 si hay diferencias. Es la red de seguridad que faltaba:
 // `drizzle-kit push` sincroniza la base al esquema, así que TODA tabla o columna
@@ -15,11 +14,19 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { neon } from "@neondatabase/serverless";
-import { anunciar, baseObjetivo, cargarEnv } from "./base-objetivo.mjs";
 
+/** Lee .env.local sin dependencias: @next/env es CommonJS y no importa limpio. */
+function cargarEnv() {
+  for (const f of [".env.local", ".env"]) {
+    let s;
+    try { s = readFileSync(f, "utf8"); } catch { continue; }
+    for (const linea of s.split("\n")) {
+      const m = linea.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*)\s*$/);
+      if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
+    }
+  }
+}
 cargarEnv();
-const objetivo = baseObjetivo();
-anunciar(objetivo, "Verificando esquema");
 
 // ─── Lo declarado ────────────────────────────────────────────────────────────
 
@@ -62,7 +69,7 @@ function declaradas(archivos) {
 
 // ─── Lo que existe ───────────────────────────────────────────────────────────
 
-const sql = neon(objetivo.url);
+const sql = neon(process.env.DATABASE_URL);
 const filas = await sql`
   SELECT table_name AS tabla, column_name AS columna
   FROM information_schema.columns

@@ -13,11 +13,8 @@
     "db:studio": "drizzle-kit studio",
     "db:generate": "npm run db:verificar && drizzle-kit generate",
     "db:inventario": "node scripts/inventario-db.mjs",
-    "db:inventario:prod": "node scripts/inventario-db.mjs --prod",
     "db:verificar": "node scripts/verificar-schema.mjs",
-    "db:verificar:prod": "node scripts/verificar-schema.mjs --prod",
     "db:migrate": "drizzle-kit migrate",
-    "db:migrate:prod": "npm run db:verificar:prod && BASE=produccion drizzle-kit migrate",
     "db:baseline": "node scripts/baseline-migraciones.mjs"
   },
   "dependencies": {
