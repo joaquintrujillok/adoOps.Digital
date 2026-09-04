@@ -177,6 +177,19 @@ export const MODULOS: Modulo[] = [
     nota: "La otra mitad de TV Mix: lo que se proyecta. Lee la misma sala, no escribe nada nuevo.",
   },
   {
+    id: "cafecito",
+    nombre: "Cafecito IA",
+    ruta: "/cafecito-ia",
+    estado: "produccion",
+    datos: "reales",
+    audiencia: "cualquier visitante",
+    tablas: ["cafecito_"],
+    // Sin chip, como el resto de la web pública: `llevaChip` lo omite en
+    // `produccion`. Aquí nadie se confunde de ambiente — la confusión que este
+    // registro previene es la del equipo mirando un tablero sembrado.
+    nota: "Guarda el correo de personas reales con doble opt-in y les manda el boletín; la baja no borra la fila, la marca.",
+  },
+  {
     id: "framework",
     nombre: "AI Adoption Framework",
     ruta: "/framework",
