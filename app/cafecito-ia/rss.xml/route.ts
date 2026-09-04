@@ -4,9 +4,7 @@
 // entradas fechadas y regulares le dice a los agregadores —y a Google Discover—
 // que esto es una publicación periódica y no una página que cambia sola.
 
-import { desc, eq } from "drizzle-orm";
-import { db } from "@/db";
-import { cafecitoEdiciones } from "@/db/schema";
+import { edicionesParaFeed } from "@/lib/cafecito/consultas";
 import { SITE_URL as BASE } from "@/lib/site";
 
 
@@ -21,17 +19,7 @@ const esc = (s: string) =>
     .replace(/"/g, "&quot;");
 
 export async function GET() {
-  const ediciones = await db
-    .select({
-      slug: cafecitoEdiciones.slug,
-      titulo: cafecitoEdiciones.titulo,
-      bajada: cafecitoEdiciones.bajada,
-      publicadaEn: cafecitoEdiciones.publicadaEn,
-    })
-    .from(cafecitoEdiciones)
-    .where(eq(cafecitoEdiciones.publicada, true))
-    .orderBy(desc(cafecitoEdiciones.slug))
-    .limit(50);
+  const ediciones = await edicionesParaFeed();
 
   const items = ediciones
     .map(

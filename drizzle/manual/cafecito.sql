@@ -1,6 +1,14 @@
 -- Cafecito IA — tablas del boletín.
--- Correr una vez:  psql "$DATABASE_URL" -f drizzle/cafecito.sql
--- (o `npx drizzle-kit push`, que las deduce del esquema)
+--
+-- Correr una vez, contra la base donde falten:
+--   psql "$DATABASE_URL" -f drizzle/manual/cafecito.sql
+--
+-- Es idempotente: todo es CREATE ... IF NOT EXISTS, así que correrlo contra una
+-- base que ya las tiene no hace nada.
+--
+-- NUNCA usar `drizzle-kit push` para esto. Ver AGENTS.md: el 03-09-2026 propuso
+-- borrar 14 tablas con datos reales, porque `push` borra todo lo que existe y no
+-- está declarado. Esta base la comparten varios proyectos.
 
 CREATE TABLE IF NOT EXISTS cafecito_ediciones (
   id             serial PRIMARY KEY,

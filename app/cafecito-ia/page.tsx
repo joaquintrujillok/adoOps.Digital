@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { desc, eq } from "drizzle-orm";
 import CafecitoForm from "@/components/CafecitoForm";
-import { db } from "@/db";
-import { cafecitoEdiciones } from "@/db/schema";
+import { listarEdiciones } from "@/lib/cafecito/consultas";
 import { SITE_URL as BASE } from "@/lib/site";
 
 export const revalidate = 300;
@@ -33,17 +31,7 @@ const fechaLarga = (slug: string) =>
   }).format(new Date(`${slug}T12:00:00Z`));
 
 export default async function CafecitoIA() {
-  const ediciones = await db
-    .select({
-      slug: cafecitoEdiciones.slug,
-      titulo: cafecitoEdiciones.titulo,
-      bajada: cafecitoEdiciones.bajada,
-      lectura: cafecitoEdiciones.lectura,
-    })
-    .from(cafecitoEdiciones)
-    .where(eq(cafecitoEdiciones.publicada, true))
-    .orderBy(desc(cafecitoEdiciones.slug))
-    .limit(50);
+  const ediciones = await listarEdiciones();
 
   const [ultima, ...anteriores] = ediciones;
 

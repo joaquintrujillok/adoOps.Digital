@@ -2,10 +2,8 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { and, desc, eq, lt } from "drizzle-orm";
 import CafecitoForm from "@/components/CafecitoForm";
-import { db } from "@/db";
-import { cafecitoEdiciones } from "@/db/schema";
+import { edicionAnterior, traerEdicion } from "@/lib/cafecito/consultas";
 import { markdownAHtml } from "@/lib/cafecito/markdown";
 import styles from "../cafecito.module.css";
 import { SITE_URL as BASE } from "@/lib/site";
@@ -13,15 +11,6 @@ import { SITE_URL as BASE } from "@/lib/site";
 export const revalidate = 300;
 
 type Props = { params: Promise<{ slug: string }> };
-
-async function traerEdicion(slug: string) {
-  const [e] = await db
-    .select()
-    .from(cafecitoEdiciones)
-    .where(and(eq(cafecitoEdiciones.slug, slug), eq(cafecitoEdiciones.publicada, true)))
-    .limit(1);
-  return e ?? null;
-}
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
@@ -54,12 +43,7 @@ export default async function Edicion({ params }: Props) {
   const e = await traerEdicion(slug);
   if (!e) notFound();
 
-  const [anterior] = await db
-    .select({ slug: cafecitoEdiciones.slug, titulo: cafecitoEdiciones.titulo })
-    .from(cafecitoEdiciones)
-    .where(and(eq(cafecitoEdiciones.publicada, true), lt(cafecitoEdiciones.slug, e.slug)))
-    .orderBy(desc(cafecitoEdiciones.slug))
-    .limit(1);
+  const anterior = await edicionAnterior(e.slug);
 
   return (
     <div style={{ fontFamily: "var(--font-inter), Inter, sans-serif", color: "#0E1D33", background: "#FFFFFF" }}>

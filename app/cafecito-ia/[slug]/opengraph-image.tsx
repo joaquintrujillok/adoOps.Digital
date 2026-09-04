@@ -7,9 +7,7 @@
 // Se genera en el borde y se cachea; no vuelve a renderizarse por visita.
 
 import { ImageResponse } from "next/og";
-import { and, eq } from "drizzle-orm";
-import { db } from "@/db";
-import { cafecitoEdiciones } from "@/db/schema";
+import { traerEdicion } from "@/lib/cafecito/consultas";
 
 export const alt = "Cafecito IA — el boletín de IA de adoOps";
 export const size = { width: 1200, height: 630 };
@@ -23,11 +21,7 @@ const fechaLarga = (slug: string) =>
 export default async function Image({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
 
-  const [e] = await db
-    .select({ titulo: cafecitoEdiciones.titulo })
-    .from(cafecitoEdiciones)
-    .where(and(eq(cafecitoEdiciones.slug, slug), eq(cafecitoEdiciones.publicada, true)))
-    .limit(1);
+  const e = await traerEdicion(slug);
 
   const titulo = e?.titulo ?? "Cafecito IA";
 
