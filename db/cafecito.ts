@@ -131,6 +131,20 @@ export const cafecitoSuscriptores = pgTable(
     nombre: varchar("nombre", { length: 160 }),
     empresa: varchar("empresa", { length: 160 }),
     rol: varchar("rol", { length: 160 }),
+
+    /**
+     * En E.164 (`+56912345678`), siempre. Ver `lib/cafecito/telefono.ts`: lo que
+     * la persona escribe se normaliza antes de llegar acá, porque
+     * `+56 9 1234 5678` y `09-1234-5678` son la misma persona y dos strings
+     * distintos, y sin canonizar los duplicados no se detectan nunca.
+     *
+     * 16 caracteres es el techo del estándar: `+` más 15 dígitos.
+     *
+     * Es opcional a propósito. Este formulario ya pide cuatro cosas, y cada
+     * campo extra cuesta conversión justo donde la persona ya dijo que sí.
+     */
+    telefono: varchar("telefono", { length: 16 }),
+
     taza: varchar("taza", { length: 30 }).$type<CafecitoTaza>(),
 
     /** De dónde entró: `web` hoy; deja lugar a importaciones futuras. */

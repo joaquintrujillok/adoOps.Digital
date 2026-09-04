@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { perfilar, type PerfilState } from "@/lib/cafecito/actions";
 import { TAZAS, type CafecitoTaza } from "@/db/cafecito";
+import { PAIS_POR_DEFECTO, PAISES, paisPorIso } from "@/lib/cafecito/telefono";
 
 const INITIAL: PerfilState = { status: "idle" };
 
@@ -30,10 +31,20 @@ export default function CafecitoPerfil({
 }: {
   token: string;
   tazaActual: CafecitoTaza | null;
-  datos: { nombre: string | null; empresa: string | null; rol: string | null };
+  datos: { nombre: string | null; empresa: string | null; rol: string | null; telefono: string | null };
 }) {
   const [state, action, pending] = useActionState(perfilar, INITIAL);
   const [taza, setTaza] = useState<CafecitoTaza>(tazaActual ?? "expreso_directivo");
+
+  // Un teléfono ya guardado viene en E.164 (`+56912345678`). Se parte en las dos
+  // piezas del formulario para que quien vuelve a este enlace vea su número
+  // donde lo dejó, y no un campo vacío que parece haberlo perdido.
+  const guardado = PAISES.find((pa) => datos.telefono?.startsWith(`+${pa.codigo}`));
+  const [pais, setPais] = useState(guardado?.iso ?? PAIS_POR_DEFECTO);
+  const [numero, setNumero] = useState(
+    guardado && datos.telefono ? datos.telefono.slice(guardado.codigo.length + 1) : "",
+  );
+  const paisElegido = paisPorIso(pais);
 
   if (state.status === "success") {
     const t = TAZAS[state.taza];
@@ -109,6 +120,50 @@ export default function CafecitoPerfil({
             <label style={label} htmlFor="rol">Rol</label>
             <input id="rol" name="rol" defaultValue={datos.rol ?? ""} placeholder="A qué te dedicas" style={input} />
           </div>
+        </div>
+
+        {/* País y número van separados a propósito. Un solo campo obliga a la
+            persona a saber el formato internacional; separados, el código lo
+            pone la lista y ella escribe el número como lo escribe siempre.
+            Cambiar de país no borra lo tecleado: son dos controles distintos. */}
+        <div>
+          <label style={label} htmlFor="telefono">
+            Teléfono <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 500 }}>(opcional)</span>
+          </label>
+          {/* `auto-fit` en vez de dos columnas fijas: en el teléfono el par
+              quedaba en 134px y 117px —"República Dominicana — +1" truncado y
+              un campo donde no se ve el número que se escribe—. Así se apilan
+              solos cuando no caben en 170px cada uno, sin media query. */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10 }}>
+            <select
+              name="telefonoPais"
+              aria-label="País del teléfono"
+              value={pais}
+              onChange={(e) => setPais(e.target.value)}
+              style={{ ...input, appearance: "auto", cursor: "pointer" }}
+            >
+              {PAISES.map((pa) => (
+                <option key={pa.iso} value={pa.iso}>
+                  {pa.nombre} — +{pa.codigo}
+                </option>
+              ))}
+            </select>
+            <input
+              id="telefono"
+              name="telefono"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel-national"
+              maxLength={18}
+              value={numero}
+              onChange={(e) => setNumero(e.target.value)}
+              placeholder={paisElegido?.ejemplo ?? ""}
+              style={input}
+            />
+          </div>
+          <p style={{ margin: "7px 0 0", fontSize: 12, lineHeight: 1.5, color: "#8394A2" }}>
+            Solo para avisarte de algo importante. Nunca para llamarte a vender.
+          </p>
         </div>
       </div>
 

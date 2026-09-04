@@ -1,0 +1,1 @@
+ALTER TABLE "cafecito_suscriptores" ADD COLUMN "telefono" varchar(16);

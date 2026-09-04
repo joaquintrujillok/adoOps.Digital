@@ -95,7 +95,7 @@ export default async function Confirmar({ params }: Props) {
       <CafecitoPerfil
         token={token}
         tazaActual={s.taza}
-        datos={{ nombre: s.nombre, empresa: s.empresa, rol: s.rol }}
+        datos={{ nombre: s.nombre, empresa: s.empresa, rol: s.rol, telefono: s.telefono }}
       />
     </Marco>
   );

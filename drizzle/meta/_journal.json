@@ -8,6 +8,13 @@
       "when": 1788483158269,
       "tag": "0000_clean_taskmaster",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788491163624,
+      "tag": "0001_lucky_maggott",
+      "breakpoints": true
     }
   ]
 }

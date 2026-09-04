@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { cafecitoSuscriptores, TAZAS, type CafecitoTaza } from "@/db/schema";
 import { enviarConfirmacion } from "./email";
+import { normalizarTelefono, PAIS_POR_DEFECTO } from "./telefono";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const token = () => randomBytes(24).toString("hex");
@@ -103,6 +104,15 @@ export async function perfilar(
     return { status: "error", message: "Elige una de las tres tazas." };
   }
 
+  // El teléfono se valida acá y no solo en el navegador. El cliente puede
+  // saltarse cualquier validación, y esto es lo último antes de la base: si un
+  // número roto pasa, se descubre el día que haya que escribirle a esa persona.
+  const tel = normalizarTelefono(
+    (formData.get("telefonoPais") as string) || PAIS_POR_DEFECTO,
+    formData.get("telefono") as string,
+  );
+  if (!tel.ok) return { status: "error", message: tel.motivo };
+
   try {
     const [s] = await db
       .select()
@@ -124,6 +134,7 @@ export async function perfilar(
         estado: "confirmado",
         confirmadoEn: s.confirmadoEn ?? new Date(),
         nombre, empresa, rol, taza,
+        telefono: tel.e164,
         bajaEn: null,
       })
       .where(eq(cafecitoSuscriptores.id, s.id));
