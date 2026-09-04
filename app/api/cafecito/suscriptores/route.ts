@@ -14,11 +14,22 @@
 //
 // `tokenBaja` viaja con cada fila porque el pie de cada correo necesita un
 // enlace distinto por persona.
+//
+// `tazaPorDefecto` marca a quien no eligió. El fallback existe —es mejor mandar
+// algo que dejar en el limbo a alguien que ya dijo que sí— pero antes era
+// invisible: una fila sin taza salía indistinguible de una que eligió expreso
+// directivo. Cuando el 04-09-2026 alguien reportó "elegí flat white y me llegó
+// el directivo", no había forma de saber, mirando la respuesta, si había elegido
+// o si el default se lo había puesto encima. Ahora la respuesta lo dice y el
+// despachador lo registra.
 
 import { NextResponse } from "next/server";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { cafecitoSuscriptores, TAZAS, type CafecitoTaza } from "@/db/schema";
+
+/** A quién se le sirve cuando confirmó pero no eligió. */
+const TAZA_POR_DEFECTO: CafecitoTaza = "expreso_directivo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -59,10 +70,24 @@ export async function GET(req: Request) {
     // Quien confirmó pero no eligió taza recibe el expreso directivo: se prefiere
     // mandarle algo antes que dejarlo en el limbo tras haber dicho que sí.
     const suscriptores = filas
-      .filter((f) => (f.taza ?? "expreso_directivo") === taza)
-      .map(({ email, nombre, tokenBaja }) => ({ email, nombre, tokenBaja }));
+      .filter((f) => (f.taza ?? TAZA_POR_DEFECTO) === taza)
+      .map(({ email, nombre, tokenBaja, taza: elegida }) => ({
+        email,
+        nombre,
+        tokenBaja,
+        // Solo aparece cuando es verdad, para que saltar a la vista en el log
+        // sea el caso raro y no el ruido de fondo.
+        ...(elegida ? {} : { tazaPorDefecto: true as const }),
+      }));
 
-    return NextResponse.json({ taza, total: suscriptores.length, suscriptores });
+    const porDefecto = suscriptores.filter((x) => "tazaPorDefecto" in x).length;
+
+    return NextResponse.json({
+      taza,
+      total: suscriptores.length,
+      porDefecto,
+      suscriptores,
+    });
   } catch (err) {
     console.error("suscriptores cafecito error:", err);
     return NextResponse.json({ error: "error al consultar" }, { status: 500 });

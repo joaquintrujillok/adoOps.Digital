@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { eq } from "drizzle-orm";
 import CafecitoPerfil from "@/components/CafecitoPerfil";
-import { db } from "@/db";
-import { cafecitoSuscriptores } from "@/db/schema";
+import { abrirEnlaceDeConfirmacion } from "@/lib/cafecito/confirmar";
+import { mascara } from "@/lib/cafecito/iconos";
 
 // Nada de esto se cachea ni se indexa: es una página personal por token.
 export const dynamic = "force-dynamic";
@@ -36,21 +35,19 @@ function Marco({ children }: { children: React.ReactNode }) {
 export default async function Confirmar({ params }: Props) {
   const { token } = await params;
 
-  const [s] = await db
-    .select()
-    .from(cafecitoSuscriptores)
-    .where(eq(cafecitoSuscriptores.tokenConfirmacion, token))
-    .limit(1);
+  // Abrir el enlace confirma el correo. No es una lectura: es el segundo paso
+  // del doble opt-in. Ver `lib/cafecito/confirmar.ts`.
+  const r = await abrirEnlaceDeConfirmacion(token);
 
-  if (!s) {
+  if (r.estado === "invalido") {
     return (
       <Marco>
         <h1 style={{ fontFamily: "var(--font-sora), Sora, sans-serif", fontWeight: 650, fontSize: 23, margin: "0 0 10px", letterSpacing: "-0.02em" }}>
           Este enlace no es válido
         </h1>
         <p style={{ fontSize: 15, lineHeight: 1.62, color: "#5C6B79", margin: "0 0 22px" }}>
-          Puede que ya lo hayas usado o que esté incompleto. Vuelve a suscribirte
-          y te mandamos uno nuevo.
+          Puede que ya lo hayas usado, que esté incompleto o que te hayas dado de
+          baja. Vuelve a suscribirte y te mandamos uno nuevo.
         </p>
         <a href="/cafecito-ia#suscribirse" style={{ display: "inline-flex", background: "#20C463", color: "#06281A", fontSize: 15, fontWeight: 600, padding: "13px 26px", borderRadius: 10, textDecoration: "none" }}>
           Ir a suscribirme
@@ -59,10 +56,7 @@ export default async function Confirmar({ params }: Props) {
     );
   }
 
-  const vencido =
-    s.estado === "pendiente" && s.confirmacionExpiraEn && s.confirmacionExpiraEn < new Date();
-
-  if (vencido) {
+  if (r.estado === "vencido") {
     return (
       <Marco>
         <h1 style={{ fontFamily: "var(--font-sora), Sora, sans-serif", fontWeight: 650, fontSize: 23, margin: "0 0 10px", letterSpacing: "-0.02em" }}>
@@ -79,17 +73,38 @@ export default async function Confirmar({ params }: Props) {
     );
   }
 
-  const yaConfirmado = s.estado === "confirmado";
+  const s = r.suscriptor;
+  const recien = r.estado === "recien";
 
   return (
     <Marco>
+      {/* La suscripción ya está hecha en este punto, y el aviso lo dice antes
+          que nada. Lo de abajo es opcional: quien cierre acá igual recibe el
+          boletín, que es exactamente lo que antes no pasaba. */}
+      <div style={{ display: "flex", gap: 11, alignItems: "flex-start", background: "rgba(32,196,99,0.08)", border: "1px solid rgba(32,196,99,0.28)", borderRadius: 11, padding: "13px 15px", marginBottom: 22 }}>
+        <span aria-hidden style={{ flexShrink: 0, width: 19, height: 19, marginTop: 1, ...mascara("check", "#0B7A4B") }} />
+        <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.55, color: "#0B5138" }}>
+          {recien ? (
+            <>
+              <strong>Listo, tu correo quedó confirmado.</strong> Ya estás suscrito
+              aunque cierres esta página.
+            </>
+          ) : (
+            <>
+              <strong>Ya estás suscrito.</strong> Desde acá puedes cambiar de taza
+              o corregir tus datos cuando quieras.
+            </>
+          )}
+        </p>
+      </div>
+
       <h1 style={{ fontFamily: "var(--font-sora), Sora, sans-serif", fontWeight: 700, fontSize: 26, margin: "0 0 9px", letterSpacing: "-0.025em", lineHeight: 1.25 }}>
-        {yaConfirmado ? "Ajusta tu cafecito" : "¿Cómo lo tomas?"}
+        {recien ? "¿Cómo lo tomas?" : "Ajusta tu cafecito"}
       </h1>
       <p style={{ fontSize: 15, lineHeight: 1.62, color: "#5C6B79", margin: "0 0 26px" }}>
-        {yaConfirmado
-          ? "Ya estás suscrito. Desde acá puedes cambiar de taza o corregir tus datos cuando quieras."
-          : "Correo confirmado. Ahora elige el tamaño de tu taza y cuéntanos brevemente a qué te dedicas, para afinar lo que te llega."}
+        {recien
+          ? "Elige el tamaño de tu taza y cuéntanos brevemente a qué te dedicas, para afinar lo que te llega. Si no eliges, te sirvo el expreso directivo."
+          : "Cambia lo que quieras y guarda. Nada de esto afecta tu suscripción."}
       </p>
 
       <CafecitoPerfil

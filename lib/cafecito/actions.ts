@@ -83,11 +83,18 @@ export type PerfilState =
   | { status: "error"; message: string };
 
 /**
- * Confirma la dirección y guarda el perfil en la misma operación: el clic en el
- * correo ya verificó el buzón, y este formulario es la contrapartida.
+ * Guarda las preferencias. **No confirma el correo**: eso ya ocurrió al abrir el
+ * enlace, en `abrirEnlaceDeConfirmacion`.
  *
- * Es idempotente. Alguien puede volver al link para cambiar de taza, y debe
- * poder hacerlo sin pasar de nuevo por el correo.
+ * Hasta el 04-09-2026 esta función era el único lugar que escribía
+ * `estado = 'confirmado'`, mientras la página decía "Correo confirmado" al
+ * abrirse. Quien no apretaba el botón quedaba en `pendiente` sin saberlo. Ahora
+ * son dos pasos y este es el opcional: si nadie lo ejecuta, la suscripción
+ * igual está hecha.
+ *
+ * Sigue poniendo `confirmado` por si acaso —un POST directo sin haber pasado por
+ * la página— y es idempotente: se puede volver al enlace a cambiar de taza
+ * cuantas veces se quiera sin pasar de nuevo por el correo.
  */
 export async function perfilar(
   _prev: PerfilState,
@@ -121,6 +128,14 @@ export async function perfilar(
       .limit(1);
 
     if (!s) return { status: "error", message: "Este enlace no es válido." };
+
+    // Una fila dada de baja no vuelve por acá. Antes este `update` ponía
+    // `bajaEn: null` sin mirar el estado, así que reenviar el formulario con un
+    // token viejo resucitaba a alguien que se había ido. Misma regla que en
+    // `abrirEnlaceDeConfirmacion`: para volver hay que pedirlo en el sitio.
+    if (s.estado === "baja") {
+      return { status: "error", message: "Este enlace no es válido." };
+    }
 
     // Vencido solo si aún no había confirmado: quien ya confirmó puede volver a
     // ajustar su perfil cuando quiera.

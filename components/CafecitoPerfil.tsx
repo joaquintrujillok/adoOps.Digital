@@ -3,13 +3,14 @@
 import { useActionState, useState } from "react";
 import { perfilar, type PerfilState } from "@/lib/cafecito/actions";
 import { TAZAS, type CafecitoTaza } from "@/db/cafecito";
+import { mascara, type NombreIcono } from "@/lib/cafecito/iconos";
 import { PAIS_POR_DEFECTO, PAISES, paisPorIso } from "@/lib/cafecito/telefono";
 
 const INITIAL: PerfilState = { status: "idle" };
 
 const ORDEN: CafecitoTaza[] = ["expreso_directivo", "expreso_builder", "flat_white"];
 
-const ICONO: Record<CafecitoTaza, string> = {
+const ICONO: Record<CafecitoTaza, NombreIcono> = {
   expreso_directivo: "briefcase",
   expreso_builder: "terminal",
   flat_white: "book-open",
@@ -51,7 +52,7 @@ export default function CafecitoPerfil({
     return (
       <div style={{ textAlign: "center", padding: "34px 20px" }}>
         <span style={{ width: 62, height: 62, borderRadius: "50%", background: "rgba(32,196,99,0.14)", display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 18 }}>
-          <span style={{ display: "block", width: 30, height: 30, background: "#20C463", WebkitMask: "url('https://unpkg.com/lucide-static@latest/icons/coffee.svg') center/contain no-repeat", mask: "url('https://unpkg.com/lucide-static@latest/icons/coffee.svg') center/contain no-repeat" }} />
+          <span style={{ display: "block", width: 30, height: 30, ...mascara("coffee", "#20C463") }} />
         </span>
         <h2 style={{ fontFamily: "var(--font-sora), Sora, sans-serif", fontWeight: 650, fontSize: 24, margin: "0 0 10px", color: "#0E1D33", letterSpacing: "-0.02em" }}>
           Quedaste dentro
@@ -91,7 +92,7 @@ export default function CafecitoPerfil({
                 }}
               >
                 <span style={{ flexShrink: 0, width: 38, height: 38, borderRadius: 9, background: activo ? "rgba(32,196,99,0.16)" : "#F1F4F6", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-                  <span style={{ display: "block", width: 19, height: 19, background: activo ? "#0B7A4B" : "#697A88", WebkitMask: `url('https://unpkg.com/lucide-static@latest/icons/${ICONO[valor]}.svg') center/contain no-repeat`, mask: `url('https://unpkg.com/lucide-static@latest/icons/${ICONO[valor]}.svg') center/contain no-repeat` }} />
+                  <span style={{ display: "block", width: 19, height: 19, ...mascara(ICONO[valor], activo ? "#0B7A4B" : "#697A88") }} />
                 </span>
                 <span style={{ flex: 1 }}>
                   <span style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 3 }}>
@@ -172,13 +173,14 @@ export default function CafecitoPerfil({
           type="submit" disabled={pending}
           style={{ width: "100%", background: pending ? "#8FD9B0" : "#20C463", color: "#06281A", fontSize: 15.5, fontWeight: 600, padding: "15px 28px", border: "none", borderRadius: 10, cursor: pending ? "default" : "pointer", boxShadow: "0 6px 20px rgba(32,196,99,0.26)" }}
         >
-          {pending ? "Guardando…" : "Confirmar suscripción"}
+          {pending ? "Guardando…" : "Guardar preferencias"}
         </button>
         {state.status === "error" && (
           <p style={{ margin: "12px 0 0", fontSize: 13.5, color: "#C0392B" }}>{state.message}</p>
         )}
         <p style={{ margin: "12px 0 0", fontSize: 12, lineHeight: 1.5, color: "#8394A2", textAlign: "center" }}>
-          Los datos son opcionales y solo se usan para afinar el contenido.
+          Todo esto es opcional. Tu suscripción ya está hecha: si no guardas nada,
+          igual te llega el boletín.
         </p>
       </div>
     </form>
