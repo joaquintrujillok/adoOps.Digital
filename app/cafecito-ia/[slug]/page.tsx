@@ -42,6 +42,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
+const BASE = process.env.NEXT_PUBLIC_BASE_URL || "https://adoops.digital";
+
 const fechaLarga = (slug: string) =>
   new Intl.DateTimeFormat("es-CL", {
     day: "numeric", month: "long", year: "numeric", timeZone: "UTC",
@@ -74,6 +76,43 @@ export default async function Edicion({ params }: Props) {
           </a>
         </nav>
       </header>
+
+      {/*
+        JSON-LD. Es lo que convierte estas páginas de "documentos sueltos" en
+        artículos noticiosos para Google: habilita la fecha en los resultados y
+        la elegibilidad para Noticias y Discover, que el HTML solo no da.
+
+        El contenido sale de la base y ya está serializado por JSON.stringify,
+        así que no hay ruta por la que pueda romper el <script>.
+      */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "NewsArticle",
+            headline: e.titulo.slice(0, 110), // Google ignora titulares más largos
+            description: e.bajada ?? undefined,
+            datePublished: e.publicadaEn.toISOString(),
+            dateModified: e.actualizadaEn.toISOString(),
+            inLanguage: "es-CL",
+            mainEntityOfPage: { "@type": "WebPage", "@id": `${BASE}/cafecito-ia/${e.slug}` },
+            image: [`${BASE}/cafecito-ia/${e.slug}/opengraph-image`],
+            isPartOf: {
+              "@type": "Blog",
+              name: "Cafecito IA",
+              url: `${BASE}/cafecito-ia`,
+            },
+            author: { "@type": "Organization", name: "adoOps", url: BASE },
+            publisher: {
+              "@type": "Organization",
+              name: "adoOps",
+              url: BASE,
+              logo: { "@type": "ImageObject", url: `${BASE}/logo.png` },
+            },
+          }),
+        }}
+      />
 
       <article style={{ maxWidth: 700, margin: "0 auto", padding: "104px 24px 20px" }}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 11, alignItems: "center", fontSize: 13, color: "#8394A2", marginBottom: 14 }}>

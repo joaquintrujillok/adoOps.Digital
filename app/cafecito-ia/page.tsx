@@ -12,7 +12,10 @@ export const metadata: Metadata = {
   title: "Cafecito IA — El boletín de inteligencia artificial de adoOps",
   description:
     "Lo que pasó en IA, cada dos días y en cinco minutos. Lanzamientos, movimientos de industria y qué significan para tu operación. Lunes, miércoles y viernes.",
-  alternates: { canonical: "/cafecito-ia" },
+  alternates: {
+    canonical: "/cafecito-ia",
+    types: { "application/rss+xml": "/cafecito-ia/rss.xml" },
+  },
   openGraph: {
     title: "Cafecito IA — El boletín de IA de adoOps",
     description:
@@ -21,6 +24,8 @@ export const metadata: Metadata = {
     type: "website",
   },
 };
+
+const BASE = process.env.NEXT_PUBLIC_BASE_URL || "https://adoops.digital";
 
 const fechaLarga = (slug: string) =>
   new Intl.DateTimeFormat("es-CL", {
@@ -44,6 +49,38 @@ export default async function CafecitoIA() {
 
   return (
     <div style={{ fontFamily: "var(--font-inter), Inter, sans-serif", color: "#0E1D33", background: "#FFFFFF" }}>
+      {/*
+        JSON-LD del índice: declara Cafecito IA como una publicación periódica y
+        enlaza sus ediciones. Es lo que le permite a Google entender el conjunto,
+        no solo cada página por separado.
+      */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Blog",
+            name: "Cafecito IA",
+            description:
+              "Lo que pasó en inteligencia artificial, cada dos días y en cinco minutos.",
+            url: `${BASE}/cafecito-ia`,
+            inLanguage: "es-CL",
+            publisher: {
+              "@type": "Organization",
+              name: "adoOps",
+              url: BASE,
+              logo: { "@type": "ImageObject", url: `${BASE}/logo.png` },
+            },
+            blogPost: ediciones.slice(0, 10).map((e) => ({
+              "@type": "BlogPosting",
+              headline: e.titulo.slice(0, 110),
+              url: `${BASE}/cafecito-ia/${e.slug}`,
+              datePublished: e.slug,
+            })),
+          }),
+        }}
+      />
+
       {/* NAV */}
       <header style={{ position: "fixed", top: 0, left: 0, width: "100%", height: 64, zIndex: 50, background: "rgba(255,255,255,0.85)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", borderBottom: "1px solid #E9EEF1" }}>
         <nav style={{ maxWidth: 1100, height: "100%", margin: "0 auto", padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
