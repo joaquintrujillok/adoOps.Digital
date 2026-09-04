@@ -5,19 +5,26 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import styles from "./Preloader.module.css";
 
-// Superficies donde el preloader estorba: consola y pantalla de TV Mix, CRM,
-// Dashboard360, y el formulario del showroom —que lo abre un cliente de la
-// boutique en su teléfono y no tiene por qué ver la marca de la agencia ni
-// esperar cinco segundos de animación para dejar su nombre—.
+// Dónde corre la animación de marca: **solo en la portada**.
 //
-// La regla general: si es una herramienta que alguien abre todos los días o un
-// formulario que hay que completar, la animación de marca es un peaje. Se
-// reserva para la web corporativa, que es donde cumple una función.
-// /tuniche es el caso extremo de esa regla: no es una herramienta de adoOps,
-// es el sistema interno de otra empresa. La animación de nuestra marca sobre su
-// pantalla de login no es un peaje, es una confusión sobre de quién es el
-// sistema.
-const SKIP_PREFIXES = ["/mix", "/tv", "/crm", "/dashboard360", "/showroom", "/tuniche"];
+// La regla anterior era una lista de superficies a excluir (`/mix`, `/crm`,
+// `/tuniche`…), y el razonamiento que la sostenía era este: si es una
+// herramienta que alguien abre todos los días o un formulario que hay que
+// completar, la animación es un peaje. Se reserva para donde cumple una
+// función.
+//
+// Ese razonamiento aplicaba igual a las páginas interiores de la propia web
+// —/framework y /cafecito-ia son contenido que se llega a leer, y /cafecito-ia
+// además tiene el formulario de suscripción—, pero la lista no las cubría. Una
+// lista de exclusiones falla siempre en la misma dirección: lo que se olvida
+// hereda el peaje. Invertida, falla al revés, que es la dirección correcta.
+//
+// La animación cumple su función una vez, cuando alguien llega por primera vez
+// a la marca. Eso ocurre en `/`. En todo lo demás es tiempo que se le cobra a
+// alguien que ya venía entrando.
+//
+// Si alguna vez otra página la merece, se agrega acá y se dice por qué.
+const RUTAS_CON_PRELOADER = ["/"];
 
 const TRACE_PATH =
   "M 845 160 C 792 56 636 56 636 160 C 636 264 792 264 845 160 C 898 56 1058 56 1058 160 C 1058 264 898 264 845 160 Z";
@@ -40,8 +47,8 @@ export default function Preloader() {
   const pathname = usePathname();
   // Decidido una sola vez al montar (igual que la animación, que corre una vez
   // por carga completa de página).
-  const [skip] = useState(() =>
-    SKIP_PREFIXES.some((prefix) => pathname?.startsWith(prefix)),
+  const [skip] = useState(
+    () => !RUTAS_CON_PRELOADER.includes(pathname ?? ""),
   );
   const [hidden, setHidden] = useState(false);
   const fillRef = useRef<HTMLImageElement>(null);
