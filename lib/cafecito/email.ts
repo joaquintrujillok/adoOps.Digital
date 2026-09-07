@@ -99,8 +99,15 @@ export async function enviarConfirmacion(email: string, token: string) {
 export async function enviarBienvenida(
   email: string,
   edicion: { slug: string; titulo: string; bajada: string | null; lectura: string | null },
+  tokenBaja: string,
 ) {
   const url = `${BASE}/cafecito-ia/${edicion.slug}`;
+
+  // El enlace visible del pie lleva a la página con su botón; la cabecera apunta
+  // al endpoint que hace la baja con un POST. Son dos URLs distintas a
+  // propósito: la persona confirma, el proveedor ejecuta.
+  const baja = `${BASE}/cafecito-ia/baja/${tokenBaja}`;
+  const bajaUnClic = `${BASE}/api/cafecito/baja/${tokenBaja}`;
 
   await new BrevoClient({ apiKey: process.env.BREVO_API_KEY! })
     .transactionalEmails.sendTransacEmail({
@@ -133,14 +140,26 @@ export async function enviarBienvenida(
           </td></tr>
         </table>
         ${BOTON(url, "Leer la edición")}
-        <p style="margin:0;font-size:13.5px;line-height:1.6;color:#7B8894">
-          Puedes cambiar de taza o darte de baja cuando quieras, desde el pie de
-          cualquier edición.
+        <p style="margin:0 0 18px;font-size:13.5px;line-height:1.6;color:#7B8894">
+          Puedes cambiar de taza cuando quieras desde el enlace del correo de
+          confirmación.
+        </p>
+        <p style="margin:0;padding-top:16px;border-top:1px solid #E9EEF1;font-size:12.5px;line-height:1.6;color:#8b98a4">
+          Recibes esto porque confirmaste tu suscripción a Cafecito IA.<br>
+          <a href="${baja}" style="color:#8b98a4;text-decoration:underline">Darme de baja</a>
         </p>
       `),
       textContent:
         `Ya estás dentro de Cafecito IA. Sale lunes, miércoles y viernes a las 9:00.\n\n` +
         `Mientras llega la próxima, la última edición publicada es:\n\n` +
-        `${edicion.titulo}\n${edicion.bajada ?? ""}\n\n${url}\n`,
+        `${edicion.titulo}\n${edicion.bajada ?? ""}\n\n${url}\n\n` +
+        `---\nDarme de baja: ${baja}`,
+      // Gmail y Yahoo las exigen a los remitentes masivos. Van acá y no solo en
+      // las ediciones porque sale del mismo remitente: lo que se penalice por
+      // este correo afecta la entrega de todo lo demás.
+      headers: {
+        "List-Unsubscribe": `<${bajaUnClic}>, <mailto:${REMITENTE.email}?subject=baja>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      },
     });
 }

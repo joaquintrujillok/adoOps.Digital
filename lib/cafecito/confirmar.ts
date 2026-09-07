@@ -99,7 +99,7 @@ export async function abrirEnlaceDeConfirmacion(token: string): Promise<EstadoEn
   if (confirmadas.length) {
     try {
       const edicion = await ultimaEdicion();
-      if (edicion) await enviarBienvenida(s.email, edicion);
+      if (edicion) await enviarBienvenida(s.email, edicion, s.tokenBaja);
       else console.warn("[cafecito] bienvenida sin enviar: no hay ediciones publicadas");
     } catch (err) {
       console.error("[cafecito] bienvenida — no se pudo enviar:", err);
