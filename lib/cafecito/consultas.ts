@@ -34,6 +34,10 @@ export async function listarEdiciones(limite = 50) {
         titulo: cafecitoEdiciones.titulo,
         bajada: cafecitoEdiciones.bajada,
         lectura: cafecitoEdiciones.lectura,
+        // Para el JSON-LD: schema.org quiere ISO 8601 con zona horaria, y
+        // `fecha` es un date pelado (`2026-09-03`). Sirve para mostrar, no para
+        // declarar.
+        publicadaEn: cafecitoEdiciones.publicadaEn,
       })
       .from(cafecitoEdiciones)
       .where(eq(cafecitoEdiciones.publicada, true))

@@ -73,7 +73,12 @@ export default async function CafecitoIA() {
               "@type": "BlogPosting",
               headline: e.titulo.slice(0, 110),
               url: `${BASE}/cafecito-ia/${e.slug}`,
-              datePublished: e.fecha,
+              // ISO con zona, no `e.fecha`. Esa columna es un date pelado
+              // (`2026-09-03`) y schema.org pide fecha-hora: sin zona, Google
+              // la interpreta a su criterio y en una publicación diaria eso
+              // corre las ediciones un día.
+              datePublished: e.publicadaEn.toISOString(),
+              inLanguage: "es-CL",
             })),
           }),
         }}

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Sora } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import Preloader from "@/components/Preloader";
 import "./globals.css";
 import { SITE_URL as BASE_URL } from "@/lib/site";
@@ -54,6 +55,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body style={{ fontFamily: "var(--font-inter), Inter, sans-serif" }}>
         <Preloader />
         {children}
+        {/*
+          Analítica de Vercel, no GA4, y a propósito: no usa cookies ni
+          identificadores personales, así que no necesita banner de
+          consentimiento —relevante porque el boletín puede atraer lectores
+          europeos— y los bloqueadores de anuncios no la omiten, así que los
+          números vienen completos.
+
+          El adaptador es `/next` y no `/react`. El de react solo registra la
+          primera vista: no mira el router. Este usa `usePathname` y
+          `useSearchParams`, así que cuenta también las navegaciones del lado
+          del cliente, que en este sitio son la mayoría —del archivo a una
+          edición se llega sin recargar—.
+        */}
+        <Analytics />
       </body>
     </html>
   );
