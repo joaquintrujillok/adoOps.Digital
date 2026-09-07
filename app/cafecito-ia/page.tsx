@@ -69,6 +69,11 @@ export default async function CafecitoIA() {
               url: BASE,
               logo: { "@type": "ImageObject", url: `${BASE}/logo.png` },
             },
+            // `author` e `image` los pidió la Prueba de resultados enriquecidos
+            // el 07-09-2026: sin ellos marcaba dos problemas no críticos por
+            // entrada. Son opcionales —el elemento ya era válido— pero Google
+            // los usa para armar el resultado enriquecido, y acá no cuestan
+            // nada: los datos ya estaban a mano.
             blogPost: ediciones.slice(0, 10).map((e) => ({
               "@type": "BlogPosting",
               headline: e.titulo.slice(0, 110),
@@ -78,6 +83,8 @@ export default async function CafecitoIA() {
               // la interpreta a su criterio y en una publicación diaria eso
               // corre las ediciones un día.
               datePublished: e.publicadaEn.toISOString(),
+              image: [`${BASE}/cafecito-ia/${e.slug}/opengraph-image`],
+              author: { "@type": "Organization", name: "adoOps", url: BASE },
               inLanguage: "es-CL",
             })),
           }),
