@@ -3,6 +3,7 @@ import HeroCanvas from "@/components/HeroCanvas";
 import AnimatedCounter from "@/components/AnimatedCounter";
 import ContactForm from "@/components/ContactForm";
 import ClosingAnimation from "@/components/ClosingAnimation";
+import { mascara } from "@/lib/cafecito/iconos";
 
 const iconMask = (icon: string) =>
   `url('https://unpkg.com/lucide-static@latest/icons/${icon}.svg') center/contain no-repeat` as const;
@@ -19,6 +20,7 @@ export default function Home() {
           </a>
           <div className="nav-links" style={{ display: "flex", alignItems: "center", gap: 30 }}>
             <a className="nav-link" href="/framework" style={{ textDecoration: "none", color: "#43566A", fontSize: 14, fontWeight: 500 }}>Framework</a>
+            <a className="nav-link" href="/cafecito-ia" style={{ textDecoration: "none", color: "#43566A", fontSize: 14, fontWeight: 500 }}>Cafecito IA</a>
             <a className="nav-link" href="#solucion" style={{ textDecoration: "none", color: "#43566A", fontSize: 14, fontWeight: 500 }}>Pilares</a>
             <a className="nav-link" href="#resultados" style={{ textDecoration: "none", color: "#43566A", fontSize: 14, fontWeight: 500 }}>Impacto</a>
             <a className="nav-link" href="#contacto" style={{ textDecoration: "none", color: "#43566A", fontSize: 14, fontWeight: 500 }}>Contacto</a>
@@ -55,6 +57,24 @@ export default function Home() {
               <a href="#contacto" style={{ display: "inline-flex", alignItems: "center", gap: 9, background: "rgba(255,255,255,0.06)", color: "#EAF1F4", fontFamily: "var(--font-inter), Inter, sans-serif", fontSize: 15, fontWeight: 600, padding: "14px 24px", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 999, textDecoration: "none" }}>
                 <span style={{ display: "block", width: 17, height: 17, background: "#EAF1F4", WebkitMask: iconMask("calendar"), mask: iconMask("calendar") }} />
                 Agendar un Diagnóstico
+              </a>
+              {/*
+                Cafecito IA. Va en el hero además del nav porque en móvil
+                `.nav-link` se oculta entero (ver globals.css): un enlace solo en
+                el nav dejaría el boletín invisible justo donde más se lee.
+
+                Deliberadamente más liviano que los dos de arriba —sin fondo ni
+                borde— para que no compita con el embudo principal, que es el
+                assessment. Es una puerta de entrada de bajo compromiso, no una
+                tercera llamada a la acción.
+              */}
+              <a
+                href="/cafecito-ia"
+                style={{ display: "inline-flex", alignItems: "center", gap: 9, color: "#A9BBC7", fontFamily: "var(--font-inter), Inter, sans-serif", fontSize: 15, fontWeight: 500, padding: "14px 8px", textDecoration: "none" }}
+              >
+                <span style={{ display: "block", width: 17, height: 17, ...mascara("coffee", "#7BE9AE") }} />
+                Leer Cafecito IA
+                <span style={{ fontSize: 13, color: "#6C8090" }}>· el boletín</span>
               </a>
             </div>
             <div className="hero-stats" style={{ display: "flex", flexWrap: "wrap", gap: 30 }}>

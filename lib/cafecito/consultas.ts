@@ -82,6 +82,31 @@ export async function edicionAnterior(fecha: string) {
 }
 
 /**
+ * La edición publicada más reciente. La usa el correo de bienvenida: quien
+ * acaba de confirmar no tiene por qué esperar hasta el próximo lunes para
+ * recibir algo.
+ */
+export async function ultimaEdicion() {
+  try {
+    const [e] = await db
+      .select({
+        slug: cafecitoEdiciones.slug,
+        titulo: cafecitoEdiciones.titulo,
+        bajada: cafecitoEdiciones.bajada,
+        lectura: cafecitoEdiciones.lectura,
+      })
+      .from(cafecitoEdiciones)
+      .where(eq(cafecitoEdiciones.publicada, true))
+      .orderBy(desc(cafecitoEdiciones.fecha))
+      .limit(1);
+    return e ?? null;
+  } catch (err) {
+    fallo("ultimaEdicion", err);
+    return null;
+  }
+}
+
+/**
  * El slug de la edición de una fecha dada, para redirigir las URLs viejas.
  *
  * Las tres primeras ediciones se publicaron con la fecha como URL y salieron

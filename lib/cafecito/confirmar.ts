@@ -32,6 +32,8 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { cafecitoSuscriptores } from "@/db/schema";
+import { ultimaEdicion } from "./consultas";
+import { enviarBienvenida } from "./email";
 
 export type EstadoEnlace =
   | { estado: "invalido" }
@@ -75,7 +77,7 @@ export async function abrirEnlaceDeConfirmacion(token: string): Promise<EstadoEn
   // dos pestañas abren el enlace a la vez: la segunda no encuentra fila y no
   // pisa la marca de tiempo de la primera.
   const ahora = new Date();
-  await db
+  const confirmadas = await db
     .update(cafecitoSuscriptores)
     .set({ estado: "confirmado", confirmadoEn: ahora })
     .where(
@@ -83,7 +85,26 @@ export async function abrirEnlaceDeConfirmacion(token: string): Promise<EstadoEn
         eq(cafecitoSuscriptores.id, s.id),
         isNull(cafecitoSuscriptores.confirmadoEn),
       ),
-    );
+    )
+    .returning({ id: cafecitoSuscriptores.id });
+
+  // Bienvenida con la última edición. Va solo cuando el UPDATE tocó una fila:
+  // así dos pestañas abriendo el enlace a la vez no mandan dos correos, y
+  // volver al enlace más tarde tampoco lo repite.
+  //
+  // El envío NO puede tumbar la confirmación. La suscripción ya está hecha y es
+  // lo que la persona vino a conseguir; si Brevo falla, se registra y se sigue.
+  // Es la misma lección del 03-09: una llamada externa nueva no debe llevarse
+  // por delante lo que ya funcionaba.
+  if (confirmadas.length) {
+    try {
+      const edicion = await ultimaEdicion();
+      if (edicion) await enviarBienvenida(s.email, edicion);
+      else console.warn("[cafecito] bienvenida sin enviar: no hay ediciones publicadas");
+    } catch (err) {
+      console.error("[cafecito] bienvenida — no se pudo enviar:", err);
+    }
+  }
 
   return {
     estado: "recien",
