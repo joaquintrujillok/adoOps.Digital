@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { perfilar, type PerfilState } from "@/lib/cafecito/actions";
+import { evento } from "@/lib/cafecito/analitica";
 import { TAZAS, type CafecitoTaza } from "@/db/cafecito";
 import { mascara, type NombreIcono } from "@/lib/cafecito/iconos";
 import { PAIS_POR_DEFECTO, PAISES, paisPorIso } from "@/lib/cafecito/telefono";
@@ -55,6 +56,15 @@ export default function CafecitoPerfil({
     guardado && datos.telefono ? datos.telefono.slice(guardado.codigo.length + 1) : "",
   );
   const paisElegido = paisPorIso(pais);
+
+  // La taza va como parámetro: es lo que dice qué audiencia se está atrayendo,
+  // y la distancia contra `suscripcion_iniciada` es la tasa de abandono del
+  // doble opt-in, que hoy no se mide en ninguna parte.
+  useEffect(() => {
+    if (state.status === "success") {
+      evento("suscripcion_confirmada", { taza: state.taza });
+    }
+  }, [state.status, state.status === "success" ? state.taza : null]);
 
   if (state.status === "success") {
     const t = TAZAS[state.taza];

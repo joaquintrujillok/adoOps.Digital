@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
 import { registrar, type RegistroState } from "@/lib/cafecito/actions";
+import { evento } from "@/lib/cafecito/analitica";
 
 const INITIAL: RegistroState = { status: "idle" };
 
@@ -14,6 +15,13 @@ const INITIAL: RegistroState = { status: "idle" };
  */
 export default function CafecitoForm({ compacto = false }: { compacto?: boolean }) {
   const [state, action, pending] = useActionState(registrar, INITIAL);
+
+  // En un efecto y no en el render: `status === "success"` sigue siendo cierto
+  // en cada re-render, así que disparar ahí contaría la misma suscripción
+  // muchas veces. La dependencia es el estado, y solo cambia una vez.
+  useEffect(() => {
+    if (state.status === "success") evento("suscripcion_iniciada");
+  }, [state.status]);
 
   if (state.status === "success") {
     return (

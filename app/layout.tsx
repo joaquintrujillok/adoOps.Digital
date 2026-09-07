@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Sora } from "next/font/google";
+import { GoogleAnalytics } from "@next/third-parties/google";
 import { Analytics } from "@vercel/analytics/next";
 import Preloader from "@/components/Preloader";
 import "./globals.css";
@@ -69,6 +70,25 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           edición se llega sin recargar—.
         */}
         <Analytics />
+        {/*
+          GA4. Convive con Vercel Analytics y no lo reemplaza: miden cosas
+          distintas —Vercel es analítica de producto sin cookies, GA4 es
+          adquisición y se enlaza con Search Console—.
+
+          El guard no es decorativo. Sin `NEXT_PUBLIC_GA_ID` esto no monta nada,
+          que es exactamente lo que debe pasar en los despliegues de preview: sin
+          la variable, las visitas a esas URLs efímeras no entran a la propiedad
+          y no terminas midiendo tu propio trabajo. La variable va SOLO en
+          Production.
+
+          Hoy la variable no existe en ningún entorno, así que este bloque está
+          inerte a propósito: falta el ID de medición, y encender GA4 es además
+          una decisión pendiente por la ley 21.719 y el consentimiento de
+          cookies. El código queda listo; encenderlo es agregar la variable.
+        */}
+        {process.env.NEXT_PUBLIC_GA_ID && (
+          <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GA_ID} />
+        )}
       </body>
     </html>
   );
