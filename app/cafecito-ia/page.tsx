@@ -2,33 +2,44 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import CafecitoForm from "@/components/CafecitoForm";
+import { TAZAS, type CafecitoTaza } from "@/db/cafecito";
 import { listarEdiciones } from "@/lib/cafecito/consultas";
+import { mascara, type NombreIcono } from "@/lib/cafecito/iconos";
+import {
+  CUANTAS_TAZAS, PROMESA, RANGO_LECTURA_CORTO, TAZAS_EN_PROSA, TAZAS_ORDEN,
+} from "@/lib/cafecito/copy";
 import { SITE_URL as BASE } from "@/lib/site";
 
 export const revalidate = 300;
 
+/** Mismo ícono que en el selector del formulario, para que se reconozcan. */
+const ICONO_TAZA: Record<CafecitoTaza, NombreIcono> = {
+  expreso_directivo: "briefcase",
+  expreso_builder: "terminal",
+  flat_white: "book-open",
+};
+
 export const metadata: Metadata = {
   title: "Cafecito IA — El boletín de inteligencia artificial de adoOps",
   description:
-    "Lo que pasó en IA, cada dos días y en cinco minutos. Lanzamientos, movimientos de industria y qué significan para tu operación. Lunes, miércoles y viernes.",
+    `${PROMESA} Lanzamientos, movimientos de industria y qué significan para tu operación. Lunes, miércoles y viernes.`,
   alternates: {
     canonical: "/cafecito-ia",
     types: { "application/rss+xml": "/cafecito-ia/rss.xml" },
   },
   openGraph: {
     title: "Cafecito IA — El boletín de IA de adoOps",
-    description:
-      "Lo que pasó en IA, cada dos días y en cinco minutos. Lunes, miércoles y viernes.",
+    description: `${PROMESA} Lunes, miércoles y viernes.`,
     url: "/cafecito-ia",
     type: "website",
   },
 };
 
 
-const fechaLarga = (slug: string) =>
+const fechaLarga = (fecha: string) =>
   new Intl.DateTimeFormat("es-CL", {
     day: "numeric", month: "long", year: "numeric", timeZone: "UTC",
-  }).format(new Date(`${slug}T12:00:00Z`));
+  }).format(new Date(`${fecha}T12:00:00Z`));
 
 export default async function CafecitoIA() {
   const ediciones = await listarEdiciones();
@@ -49,8 +60,7 @@ export default async function CafecitoIA() {
             "@context": "https://schema.org",
             "@type": "Blog",
             name: "Cafecito IA",
-            description:
-              "Lo que pasó en inteligencia artificial, cada dos días y en cinco minutos.",
+            description: PROMESA,
             url: `${BASE}/cafecito-ia`,
             inLanguage: "es-CL",
             publisher: {
@@ -63,7 +73,7 @@ export default async function CafecitoIA() {
               "@type": "BlogPosting",
               headline: e.titulo.slice(0, 110),
               url: `${BASE}/cafecito-ia/${e.slug}`,
-              datePublished: e.slug,
+              datePublished: e.fecha,
             })),
           }),
         }}
@@ -96,14 +106,14 @@ export default async function CafecitoIA() {
 
           <p style={{ fontSize: 19, lineHeight: 1.6, color: "#A9BBC7", margin: "0 0 32px", maxWidth: 600 }}>
             La industria de la IA se mueve más rápido de lo que alcanzas a leer.
-            Cada dos días destilamos lo que pasó en algo que se lee en cinco
-            minutos: qué salió, qué cambió de precio y qué significa para tu
-            operación.
+            Cada dos días destilamos lo que pasó en algo que se lee {RANGO_LECTURA_CORTO.replace("–", " a ")}
+            —según la taza que elijas—: qué salió, qué cambió de precio y qué
+            significa para tu operación.
           </p>
 
           <div style={{ display: "flex", flexWrap: "wrap", gap: 28, fontSize: 13.5, color: "#8FA6B6" }}>
-            <span><strong style={{ color: "#EAF1F4", fontWeight: 600 }}>2 ediciones</strong> · dirección y builder</span>
-            <span><strong style={{ color: "#EAF1F4", fontWeight: 600 }}>5 min</strong> de lectura</span>
+            <span><strong style={{ color: "#EAF1F4", fontWeight: 600 }}>{CUANTAS_TAZAS} ediciones</strong> · dirección, builder y completa</span>
+            <span><strong style={{ color: "#EAF1F4", fontWeight: 600 }}>{RANGO_LECTURA_CORTO}</strong> de lectura</span>
             <span><strong style={{ color: "#EAF1F4", fontWeight: 600 }}>0</strong> relleno</span>
           </div>
         </div>
@@ -116,9 +126,35 @@ export default async function CafecitoIA() {
             Recíbelo en tu correo
           </h2>
           <p style={{ fontSize: 15, lineHeight: 1.6, color: "#5C6B79", margin: "0 0 22px" }}>
-            Dos ediciones, mismo material, distinto foco. Elige la que se parezca
-            a tu trabajo.
+            {TAZAS_EN_PROSA}. Mismo material, distinto foco y distinto largo:
+            eliges cuál te llega cuando confirmes el correo.
           </p>
+          {/* Las tres tazas, por nombre y con sus minutos.
+              Antes no aparecían en toda la portada: el flat white —la más
+              completa— solo se descubría al abrir el formulario de
+              perfilamiento, o sea después de suscribirse. La opción más valiosa
+              era invisible justo donde se decide.
+              Todo sale de `TAZAS`; acá no hay ningún texto que mantener. */}
+          <ul style={{ listStyle: "none", margin: "0 0 22px", padding: 0, display: "grid", gap: 9 }}>
+            {TAZAS_ORDEN.map((valor) => {
+              const t = TAZAS[valor];
+              return (
+                <li key={valor} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "12px 14px", border: "1px solid #E9EEF1", borderRadius: 11, background: "#FBFCFD" }}>
+                  <span aria-hidden style={{ flexShrink: 0, width: 34, height: 34, borderRadius: 8, background: "#F1F4F6", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                    <span style={{ display: "block", width: 17, height: 17, ...mascara(ICONO_TAZA[valor], "#697A88") }} />
+                  </span>
+                  <span style={{ flex: 1 }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2, flexWrap: "wrap" }}>
+                      <strong style={{ fontSize: 14.5, fontWeight: 650, color: "#0E1D33" }}>{t.nombre}</strong>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: "#7B8894", background: "#F1F4F6", padding: "2px 7px", borderRadius: 999 }}>{t.minutos}</span>
+                    </span>
+                    <span style={{ display: "block", fontSize: 13.5, lineHeight: 1.5, color: "#5C6B79" }}>{t.detalle}</span>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+
           <CafecitoForm />
         </div>
       </section>
@@ -141,7 +177,7 @@ export default async function CafecitoIA() {
                 style={{ display: "block", textDecoration: "none", color: "inherit", border: "1px solid #E9EEF1", borderRadius: 14, padding: "26px 28px", marginBottom: 44, background: "linear-gradient(180deg,#FFFFFF,#FBFDFC)" }}
               >
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", fontSize: 12.5, color: "#8394A2", marginBottom: 11 }}>
-                  <span style={{ textTransform: "capitalize" }}>{fechaLarga(ultima.slug)}</span>
+                  <span style={{ textTransform: "capitalize" }}>{fechaLarga(ultima.fecha)}</span>
                   {ultima.lectura && <><span>·</span><span>{ultima.lectura}</span></>}
                 </div>
                 <h3 style={{ fontFamily: "var(--font-sora), Sora, sans-serif", fontWeight: 650, fontSize: 25, lineHeight: 1.28, letterSpacing: "-0.02em", margin: "0 0 10px" }}>
@@ -166,7 +202,7 @@ export default async function CafecitoIA() {
                         style={{ display: "block", textDecoration: "none", color: "inherit", padding: "20px 0", borderBottom: "1px solid #EEF2F4" }}
                       >
                         <div style={{ fontSize: 12.5, color: "#8394A2", marginBottom: 6, textTransform: "capitalize" }}>
-                          {fechaLarga(e.slug)}{e.lectura ? ` · ${e.lectura}` : ""}
+                          {fechaLarga(e.fecha)}{e.lectura ? ` · ${e.lectura}` : ""}
                         </div>
                         <div style={{ fontFamily: "var(--font-sora), Sora, sans-serif", fontWeight: 600, fontSize: 18, lineHeight: 1.35, letterSpacing: "-0.015em" }}>
                           {e.titulo}

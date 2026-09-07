@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import CafecitoForm from "@/components/CafecitoForm";
-import { edicionAnterior, traerEdicion } from "@/lib/cafecito/consultas";
-import { markdownAHtml } from "@/lib/cafecito/markdown";
+import { edicionAnterior, slugPorFecha, traerEdicion } from "@/lib/cafecito/consultas";
+import { ES_FECHA } from "@/lib/cafecito/slug";
+import { markdownAHtml, sinBajadaRepetida } from "@/lib/cafecito/markdown";
 import styles from "../cafecito.module.css";
 import { SITE_URL as BASE } from "@/lib/site";
 
@@ -33,17 +34,30 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 
-const fechaLarga = (slug: string) =>
+const fechaLarga = (fecha: string) =>
   new Intl.DateTimeFormat("es-CL", {
     day: "numeric", month: "long", year: "numeric", timeZone: "UTC",
-  }).format(new Date(`${slug}T12:00:00Z`));
+  }).format(new Date(`${fecha}T12:00:00Z`));
 
 export default async function Edicion({ params }: Props) {
   const { slug } = await params;
   const e = await traerEdicion(slug);
+
+  // Las tres primeras ediciones se publicaron con la fecha como URL y salieron
+  // así por correo. Esos enlaces están en bandejas ajenas y no se pueden
+  // romper, así que un segmento con forma de fecha se resuelve y se redirige.
+  //
+  // 301 y no 302: le dice a Google que consolide la autoridad en la URL nueva,
+  // que es el motivo de todo el cambio. Un 302 la dejaría repartida entre las
+  // dos para siempre.
+  if (!e && ES_FECHA.test(slug)) {
+    const destino = await slugPorFecha(slug);
+    if (destino) permanentRedirect(`/cafecito-ia/${destino}`);
+  }
+
   if (!e) notFound();
 
-  const anterior = await edicionAnterior(e.slug);
+  const anterior = await edicionAnterior(e.fecha);
 
   return (
     <div style={{ fontFamily: "var(--font-inter), Inter, sans-serif", color: "#0E1D33", background: "#FFFFFF" }}>
@@ -100,7 +114,7 @@ export default async function Edicion({ params }: Props) {
 
       <article style={{ maxWidth: 700, margin: "0 auto", padding: "104px 24px 20px" }}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 11, alignItems: "center", fontSize: 13, color: "#8394A2", marginBottom: 14 }}>
-          <span style={{ textTransform: "capitalize" }}>{fechaLarga(e.slug)}</span>
+          <span style={{ textTransform: "capitalize" }}>{fechaLarga(e.fecha)}</span>
           {e.lectura && <><span>·</span><span>{e.lectura}</span></>}
         </div>
 
@@ -116,7 +130,7 @@ export default async function Edicion({ params }: Props) {
 
         {/* El HTML lo produce nuestro conversor sobre contenido escapado; no hay
             ruta por la que el cuerpo pueda inyectar etiquetas. */}
-        <div className={styles.prosa} dangerouslySetInnerHTML={{ __html: markdownAHtml(e.contenido) }} />
+        <div className={styles.prosa} dangerouslySetInnerHTML={{ __html: markdownAHtml(sinBajadaRepetida(e.contenido, e.bajada)) }} />
       </article>
 
       <section id="suscribirse" style={{ maxWidth: 700, margin: "48px auto 0", padding: "0 24px" }}>

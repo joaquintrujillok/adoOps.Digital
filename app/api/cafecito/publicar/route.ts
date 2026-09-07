@@ -6,14 +6,24 @@
 //
 //   POST /api/cafecito/publicar
 //   Authorization: Bearer $CAFECITO_TOKEN
-//   { "slug": "2026-09-05", "contenido": "# Titular\n\n...", "publicada": true }
+//   { "fecha": "2026-09-05", "contenido": "# Titular\n\n...", "publicada": true }
 //
-// Es idempotente: reenviar el mismo slug actualiza la edición en vez de
-// duplicarla, que es lo que hace posible corregir una errata sin romper la URL.
+// ── La identidad de una edición es su fecha, no su slug ─────────────────────
+//
+// Hasta el 07-09-2026 el cuerpo traía `slug` con forma `YYYY-MM-DD` y la
+// idempotencia salía de un `ON CONFLICT (slug)`. Ahora el slug se deriva del
+// título, y un título se corrige: si la identidad siguiera siendo el slug,
+// arreglar una errata crearía una edición nueva en vez de actualizar la que
+// existe, y dejaría la vieja publicada en su URL.
+//
+// Así que se busca por `fecha` y, si la fila ya existe, **se conserva su slug
+// tal cual**. Ese slug ya salió por correo; recalcularlo rompería enlaces que
+// están en bandejas de entrada ajenas. Solo se genera cuando no hay fila.
 
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { url } from "@/lib/site";
+import { eq } from "drizzle-orm";
 import { cafecitoEdiciones } from "@/db/schema";
 import {
   cuerpoSinTitulo,
@@ -21,6 +31,7 @@ import {
   extraerTitulo,
   minutosDeLectura,
 } from "@/lib/cafecito/markdown";
+import { ES_FECHA, slugUnico } from "@/lib/cafecito/slug";
 
 export const runtime = "nodejs";
 
@@ -33,16 +44,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "no autorizado" }, { status: 401 });
   }
 
-  let body: { slug?: string; contenido?: string; publicada?: boolean };
+  let body: { fecha?: string; slug?: string; contenido?: string; publicada?: boolean };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "json inválido" }, { status: 400 });
   }
 
-  const { slug, contenido } = body;
-  if (!slug || !/^\d{4}-\d{2}-\d{2}$/.test(slug)) {
-    return NextResponse.json({ error: "slug debe ser YYYY-MM-DD" }, { status: 400 });
+  // `slug` se sigue aceptando cuando trae una fecha: es el nombre que usaba el
+  // publicador antes de este cambio, y los dos repos se despliegan por separado
+  // —el otro ni siquiera está bajo git—, así que una versión vieja publicando
+  // contra este endpoint no debe romperse.
+  const fecha = body.fecha ?? (body.slug && ES_FECHA.test(body.slug) ? body.slug : undefined);
+  const { contenido } = body;
+
+  if (!fecha || !ES_FECHA.test(fecha)) {
+    return NextResponse.json({ error: "fecha debe ser YYYY-MM-DD" }, { status: 400 });
   }
   if (!contenido || contenido.trim().length < 100) {
     return NextResponse.json({ error: "contenido vacío o demasiado corto" }, { status: 400 });
@@ -51,34 +68,50 @@ export async function POST(req: Request) {
   const titulo = extraerTitulo(contenido);
   const bajada = extraerBajada(contenido);
   const cuerpo = cuerpoSinTitulo(contenido);
+  const campos = {
+    titulo,
+    bajada,
+    contenido: cuerpo,
+    lectura: minutosDeLectura(cuerpo),
+    publicada: body.publicada !== false,
+  };
 
   try {
-    const [fila] = await db
-      .insert(cafecitoEdiciones)
-      .values({
-        slug,
-        titulo,
-        bajada,
-        contenido: cuerpo,
-        lectura: minutosDeLectura(cuerpo),
-        publicada: body.publicada !== false,
-      })
-      .onConflictDoUpdate({
-        target: cafecitoEdiciones.slug,
-        set: {
-          titulo,
-          bajada,
-          contenido: cuerpo,
-          lectura: minutosDeLectura(cuerpo),
-          publicada: body.publicada !== false,
-          actualizadaEn: new Date(),
-        },
-      })
-      .returning();
+    const [existente] = await db
+      .select({ id: cafecitoEdiciones.id, slug: cafecitoEdiciones.slug })
+      .from(cafecitoEdiciones)
+      .where(eq(cafecitoEdiciones.fecha, fecha))
+      .limit(1);
+
+    let fila;
+
+    if (existente) {
+      // Se actualiza todo menos el slug. Ese es el punto.
+      [fila] = await db
+        .update(cafecitoEdiciones)
+        .set({ ...campos, actualizadaEn: new Date() })
+        .where(eq(cafecitoEdiciones.id, existente.id))
+        .returning();
+    } else {
+      const slug = await slugUnico(titulo, fecha, async (s) => {
+        const [c] = await db
+          .select({ id: cafecitoEdiciones.id })
+          .from(cafecitoEdiciones)
+          .where(eq(cafecitoEdiciones.slug, s))
+          .limit(1);
+        return Boolean(c);
+      });
+
+      [fila] = await db
+        .insert(cafecitoEdiciones)
+        .values({ slug, fecha, ...campos })
+        .returning();
+    }
 
     return NextResponse.json({
       ok: true,
       slug: fila.slug,
+      fecha: fila.fecha,
       titulo: fila.titulo,
       url: url(`/cafecito-ia/${fila.slug}`),
     });

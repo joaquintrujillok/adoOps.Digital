@@ -187,3 +187,35 @@ export function extraerBajada(md: string): string {
 export function cuerpoSinTitulo(md: string): string {
   return md.replace(/^#\s+.*$/m, "").trimStart();
 }
+
+/**
+ * Quita del cuerpo la primera línea si repite la bajada.
+ *
+ * Las ediciones se redactan con la bajada como primera línea suelta del
+ * markdown —así el archivo se lee entero por sí solo— y además se guarda en su
+ * propia columna, porque la página la necesita aparte para el `<head>` y para
+ * la tipografía de entradilla. El resultado era verla dos veces seguidas.
+ *
+ * El arreglo va acá y no en `publicar` a propósito: recortar al guardar
+ * perdería información del original, y el markdown almacenado tiene que seguir
+ * siendo el que se escribió. Esto es presentación, y se resuelve al presentar.
+ *
+ * La comparación normaliza espacios pero no mayúsculas ni acentos: se busca
+ * quitar una repetición literal, no adivinar parecidos. Ante la duda, se
+ * prefiere mostrar de más —una línea repetida es fea, un párrafo comido es un
+ * error.
+ */
+export function sinBajadaRepetida(contenido: string, bajada: string | null): string {
+  if (!bajada?.trim()) return contenido;
+
+  const normalizar = (s: string) => s.trim().replace(/\s+/g, " ");
+  const objetivo = normalizar(bajada);
+
+  const lineas = contenido.replace(/\r/g, "").split("\n");
+  const i = lineas.findIndex((l) => l.trim() !== "");
+  if (i === -1 || normalizar(lineas[i]) !== objetivo) return contenido;
+
+  lineas.splice(i, 1);
+  // Deja el cuerpo empezando en contenido, no en los blancos que quedaron.
+  return lineas.join("\n").replace(/^\n+/, "");
+}

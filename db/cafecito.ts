@@ -11,13 +11,25 @@
 // exigiría un commit y un despliegue completo del sitio de producción tres
 // veces por semana. La base desacopla publicar de desplegar.
 //
-// ── El slug es la fecha ──────────────────────────────────────────────────────
+// ── El slug es el titular; la fecha vive en su propia columna ───────────────
 //
-// `2026-09-05` y no un titular slugificado. El titular cambia si se corrige una
-// errata; la fecha de una edición no cambia nunca, y una URL que se puede
-// romper editando un texto no es una URL permanente. Además ordena solo.
+// Hasta el 07-09-2026 el slug ERA la fecha (`2026-09-05`), y el razonamiento
+// escrito acá era que un titular cambia si se corrige una errata mientras que
+// una fecha no. El razonamiento era correcto; la conclusión, no. Para quien
+// busca en Google, `2026-09-05` no dice nada del contenido, y el titular —que es
+// lo que se busca— no aparecía en la URL.
+//
+// La permanencia se resuelve congelando el slug, no evitándolo: se calcula una
+// sola vez al publicar y no se recalcula aunque el título cambie después (ver
+// `lib/cafecito/slug.ts` y la ruta de publicación). Las URLs de fecha viejas
+// siguen respondiendo con 301.
+//
+// `fecha` deja de estar implícita en el slug y pasa a ser una columna: el
+// listado, el RSS y el sitemap ordenan por ella. Ese orden lo daba el slug de
+// fecha gratis, y hay que reponerlo antes de quitarle ese rol.
 
 import {
+  date,
   index,
   pgTable,
   serial,
@@ -38,12 +50,12 @@ export const TAZAS: Record<CafecitoTaza, { nombre: string; detalle: string; minu
   expreso_directivo: {
     nombre: "Expreso directivo",
     detalle: "Qué significa para el negocio: costo, riesgo y posición competitiva.",
-    minutos: "2 min",
+    minutos: "4 min",
   },
   expreso_builder: {
     nombre: "Expreso builder",
     detalle: "Qué salió, cuánto cuesta y qué conviene probar. Con cifras y links.",
-    minutos: "2 min",
+    minutos: "4 min",
   },
   flat_white: {
     nombre: "Flat white",
@@ -57,8 +69,25 @@ export const cafecitoEdiciones = pgTable(
   {
     id: serial("id").primaryKey(),
 
-    /** `2026-09-05`. Es la URL: /cafecito-ia/2026-09-05. */
-    slug: varchar("slug", { length: 10 }).notNull(),
+    /**
+     * La URL: `/cafecito-ia/se-declaro-la-agi-lo-que-muestran-las-pruebas`.
+     *
+     * 200 caracteres porque el generador recorta en 80 y el desempate por
+     * colisión le suma la fecha; el resto es margen para no volver a tocar el
+     * esquema por un titular largo.
+     *
+     * **No se recalcula.** Una vez publicada una edición, este valor es una
+     * promesa: viajó por correo y está en bandejas de entrada.
+     */
+    slug: varchar("slug", { length: 200 }).notNull(),
+
+    /**
+     * El día de la edición. Antes vivía implícita dentro del slug.
+     *
+     * Es lo que ordena el archivo y el feed, y lo que permite resolver las URLs
+     * viejas de tipo `/cafecito-ia/2026-09-07` para redirigirlas.
+     */
+    fecha: date("fecha").notNull(),
 
     titulo: varchar("titulo", { length: 300 }).notNull(),
     /** La línea bajo el título. Se usa también como description en el <head>. */
@@ -85,6 +114,11 @@ export const cafecitoEdiciones = pgTable(
   },
   (t) => [
     uniqueIndex("cafecito_ediciones_slug_idx").on(t.slug),
+    // Una edición por día. Es lo que ya ocurría de hecho —el slug era la
+    // fecha, así que el índice único de arriba lo garantizaba—, y al soltar esa
+    // atadura hay que declararlo: la redirección de las URLs viejas busca por
+    // fecha y necesita que devuelva una sola fila.
+    uniqueIndex("cafecito_ediciones_fecha_idx").on(t.fecha),
     index("cafecito_ediciones_publicada_idx").on(t.publicada, t.publicadaEn),
   ],
 );

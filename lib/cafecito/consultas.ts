@@ -30,13 +30,16 @@ export async function listarEdiciones(limite = 50) {
     return await db
       .select({
         slug: cafecitoEdiciones.slug,
+        fecha: cafecitoEdiciones.fecha,
         titulo: cafecitoEdiciones.titulo,
         bajada: cafecitoEdiciones.bajada,
         lectura: cafecitoEdiciones.lectura,
       })
       .from(cafecitoEdiciones)
       .where(eq(cafecitoEdiciones.publicada, true))
-      .orderBy(desc(cafecitoEdiciones.slug))
+      // Por fecha, no por slug: desde que el slug es el titular, ordenarlo
+      // alfabéticamente pondría el archivo en un orden sin sentido.
+      .orderBy(desc(cafecitoEdiciones.fecha))
       .limit(limite);
   } catch (err) {
     fallo("listarEdiciones", err);
@@ -58,17 +61,39 @@ export async function traerEdicion(slug: string) {
   }
 }
 
-export async function edicionAnterior(slug: string) {
+/** La edición inmediatamente anterior. Se compara por fecha, que es lo que ordena. */
+export async function edicionAnterior(fecha: string) {
   try {
     const [e] = await db
       .select({ slug: cafecitoEdiciones.slug, titulo: cafecitoEdiciones.titulo })
       .from(cafecitoEdiciones)
-      .where(and(eq(cafecitoEdiciones.publicada, true), lt(cafecitoEdiciones.slug, slug)))
-      .orderBy(desc(cafecitoEdiciones.slug))
+      .where(and(eq(cafecitoEdiciones.publicada, true), lt(cafecitoEdiciones.fecha, fecha)))
+      .orderBy(desc(cafecitoEdiciones.fecha))
       .limit(1);
     return e ?? null;
   } catch (err) {
     fallo("edicionAnterior", err);
+    return null;
+  }
+}
+
+/**
+ * El slug de la edición de una fecha dada, para redirigir las URLs viejas.
+ *
+ * Las tres primeras ediciones se publicaron con la fecha como URL y salieron
+ * así por correo. Esos enlaces están en bandejas de entrada y tienen que seguir
+ * funcionando; esto es lo que permite responderles con un 301.
+ */
+export async function slugPorFecha(fecha: string) {
+  try {
+    const [e] = await db
+      .select({ slug: cafecitoEdiciones.slug })
+      .from(cafecitoEdiciones)
+      .where(and(eq(cafecitoEdiciones.fecha, fecha), eq(cafecitoEdiciones.publicada, true)))
+      .limit(1);
+    return e?.slug ?? null;
+  } catch (err) {
+    fallo(`slugPorFecha(${fecha})`, err);
     return null;
   }
 }
@@ -84,7 +109,7 @@ export async function edicionesParaFeed(limite = 50) {
       })
       .from(cafecitoEdiciones)
       .where(eq(cafecitoEdiciones.publicada, true))
-      .orderBy(desc(cafecitoEdiciones.slug))
+      .orderBy(desc(cafecitoEdiciones.fecha))
       .limit(limite);
   } catch (err) {
     // Un feed vacío es mejor que un 500: los lectores lo reintentan solos.
@@ -102,7 +127,7 @@ export async function edicionesParaSitemap(limite = 1000) {
       })
       .from(cafecitoEdiciones)
       .where(eq(cafecitoEdiciones.publicada, true))
-      .orderBy(desc(cafecitoEdiciones.slug))
+      .orderBy(desc(cafecitoEdiciones.fecha))
       .limit(limite);
   } catch (err) {
     // Un sitemap incompleto es un problema menor; uno caído hace que Google

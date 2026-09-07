@@ -35,7 +35,16 @@ export default function CafecitoPerfil({
   datos: { nombre: string | null; empresa: string | null; rol: string | null; telefono: string | null };
 }) {
   const [state, action, pending] = useActionState(perfilar, INITIAL);
-  const [taza, setTaza] = useState<CafecitoTaza>(tazaActual ?? "expreso_directivo");
+  // Sin valor por defecto, a propósito. Antes arrancaba en `expreso_directivo`,
+  // y como el borde verde se pinta contra este estado, la pregunta no se veía
+  // como pregunta: se veía como algo ya respondido. Quien bajaba a llenar nombre
+  // y empresa sin volver a subir enviaba expreso directivo sin haber elegido
+  // nunca. Pasó en producción el 04-09-2026.
+  //
+  // El beneficio de fondo es que `taza = NULL` vuelve a significar algo: "no
+  // eligió", que es distinto de "eligió el primero". El fallback de la API pasa
+  // a describir un caso real en vez de tapar este bug.
+  const [taza, setTaza] = useState<CafecitoTaza | null>(tazaActual);
 
   // Un teléfono ya guardado viene en E.164 (`+56912345678`). Se parte en las dos
   // piezas del formulario para que quien vuelve a este enlace vea su número
@@ -72,7 +81,9 @@ export default function CafecitoPerfil({
   return (
     <form action={action} style={{ display: "grid", gap: 22 }}>
       <input type="hidden" name="token" value={token} />
-      <input type="hidden" name="taza" value={taza} />
+      {/* Vacío cuando no se eligió. `perfilar` lo rechaza con "Elige una de las
+          tres tazas", que es la red por si alguien envía sin pasar por el botón. */}
+      <input type="hidden" name="taza" value={taza ?? ""} />
 
       <div>
         <span style={label}>¿Cómo lo tomas?</span>
@@ -170,11 +181,16 @@ export default function CafecitoPerfil({
 
       <div>
         <button
-          type="submit" disabled={pending}
-          style={{ width: "100%", background: pending ? "#8FD9B0" : "#20C463", color: "#06281A", fontSize: 15.5, fontWeight: 600, padding: "15px 28px", border: "none", borderRadius: 10, cursor: pending ? "default" : "pointer", boxShadow: "0 6px 20px rgba(32,196,99,0.26)" }}
+          type="submit" disabled={pending || !taza}
+          style={{ width: "100%", background: pending || !taza ? "#8FD9B0" : "#20C463", color: "#06281A", fontSize: 15.5, fontWeight: 600, padding: "15px 28px", border: "none", borderRadius: 10, cursor: pending || !taza ? "default" : "pointer", boxShadow: taza ? "0 6px 20px rgba(32,196,99,0.26)" : "none" }}
         >
           {pending ? "Guardando…" : "Guardar preferencias"}
         </button>
+        {!taza && (
+          <p style={{ margin: "12px 0 0", fontSize: 13.5, color: "#697A88", textAlign: "center" }}>
+            Elige una taza para continuar.
+          </p>
+        )}
         {state.status === "error" && (
           <p style={{ margin: "12px 0 0", fontSize: 13.5, color: "#C0392B" }}>{state.message}</p>
         )}

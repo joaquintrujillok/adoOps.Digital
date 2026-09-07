@@ -13,10 +13,10 @@ export const alt = "Cafecito IA — el boletín de IA de adoOps";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-const fechaLarga = (slug: string) =>
+const fechaLarga = (fecha: string) =>
   new Intl.DateTimeFormat("es-CL", {
     day: "numeric", month: "long", year: "numeric", timeZone: "UTC",
-  }).format(new Date(`${slug}T12:00:00Z`));
+  }).format(new Date(`${fecha}T12:00:00Z`));
 
 export default async function Image({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -67,7 +67,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
           }}
         >
           <div style={{ display: "flex", fontSize: 25, color: "#A9BBC7" }}>
-            {e ? fechaLarga(slug) : "El boletín de IA de adoOps"}
+            {e ? fechaLarga(e.fecha) : "El boletín de IA de adoOps"}
           </div>
           <div style={{ display: "flex", fontSize: 27, fontWeight: 700, color: "#FFFFFF" }}>
             ado<span style={{ color: "#2ED477" }}>Ops</span>
