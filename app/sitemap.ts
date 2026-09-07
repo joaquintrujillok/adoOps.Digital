@@ -13,6 +13,11 @@ import { SITE_URL as BASE } from "@/lib/site";
  * Se revalida cada hora. Un sitemap que se regenera en cada request es una
  * consulta a la base por cada visita de rastreador, y no gana nada: Google no
  * lo lee tan seguido.
+ *
+ * **Consecuencia, para no perseguir un fantasma:** una edición recién publicada
+ * puede tardar hasta una hora en aparecer acá. Es lo esperado, no un bug. Si
+ * pasada la hora sigue sin salir, ahí sí hay algo que mirar —empezando por si
+ * la edición quedó con `publicada = false`—.
  */
 export const revalidate = 3600;
 
