@@ -22,6 +22,20 @@
       "when": 1788797162103,
       "tag": "0002_moaning_jack_murdock",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790636415391,
+      "tag": "0003_vanni",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790636968141,
+      "tag": "0004_vanni_tomado",
+      "breakpoints": true
     }
   ]
 }

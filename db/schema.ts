@@ -393,3 +393,11 @@ export * from "./conocimiento";
 // -----------------------------------------------------------------------------
 
 export * from "./externas";
+
+// -----------------------------------------------------------------------------
+// Vanni Chile (/vanni) — piloto de reactivación y tienda por WhatsApp. Las
+// tablas viven en db/vanni.ts y se reexportan acá por el mismo motivo que las
+// demás: drizzle-kit solo mira este archivo.
+// -----------------------------------------------------------------------------
+
+export * from "./vanni";

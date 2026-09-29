@@ -15,7 +15,8 @@
     "db:inventario": "node scripts/inventario-db.mjs",
     "db:verificar": "node scripts/verificar-schema.mjs",
     "db:migrate": "drizzle-kit migrate",
-    "db:baseline": "node scripts/baseline-migraciones.mjs"
+    "db:baseline": "node scripts/baseline-migraciones.mjs",
+    "vanni:catalogo": "NODE_EXTRA_CA_CERTS=scripts/certs/globalsign-alphassl-2025.crt node scripts/vanni-importar-catalogo.mjs"
   },
   "dependencies": {
     "@getbrevo/brevo": "^5.0.4",
@@ -31,7 +32,8 @@
     "openai": "^6.44.0",
     "qrcode": "^1.5.4",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "read-excel-file": "^9.3.10"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

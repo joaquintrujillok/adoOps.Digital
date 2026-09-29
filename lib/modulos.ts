@@ -147,6 +147,20 @@ export const MODULOS: Modulo[] = [
     nota: "Sistema interno de otra empresa alojado acá: agricultores reales y cuentas con contraseña desde el día uno.",
   },
   {
+    id: "vanni",
+    nombre: "Vanni · Reactivación y tienda WhatsApp",
+    ruta: "/vanni",
+    estado: "produccion",
+    // `mixtos`: la base de inactivos que carga Vanni son clientes reales, y al
+    // lado conviven filas de ejemplo para mostrar el tablero (columna `ejemplo`,
+    // marcada en pantalla y borrable de un botón). El catálogo es real pero sus
+    // precios y stock son inventados, y lo dice `precio_ficticio`.
+    datos: "mixtos",
+    audiencia: "una ejecutiva de Vanni que llama a los interesados",
+    tablas: ["vanni_"],
+    nota: "Piloto de otra empresa con su base real de clientes inactivos desde el primer envío.",
+  },
+  {
     id: "showroom",
     nombre: "Captura de showroom",
     ruta: "/showroom",

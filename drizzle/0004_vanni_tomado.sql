@@ -1,0 +1,1 @@
+ALTER TABLE "vanni_envios" ADD COLUMN "tomado_at" timestamp with time zone;

@@ -60,6 +60,9 @@ const D360: Credencial = { cookie: "adoops_d360_session", env: "D360_SESSION_SEC
 // empresa, alojado acá. Cookie y secreto propios, sin excepción de doble
 // credencial: una sesión de adoOps no abre nada de Tuniche.
 const TUNICHE: Credencial = { cookie: "tuniche_session", env: "TUNICHE_SESSION_SECRET" };
+// Vanni Chile: mismo caso que Tuniche. Es el piloto de otra empresa, con su
+// base de clientes real adentro: cookie y secreto propios, sin excepciones.
+const VANNI: Credencial = { cookie: "vanni_session", env: "VANNI_SESSION_SECRET" };
 
 // El orden importa: `find` toma la PRIMERA que calce, y /dashboard360/motor
 // también empieza por /dashboard360. La zona del motor va antes o quedaría
@@ -107,6 +110,17 @@ const AREAS: Area[] = [
     // que nunca existió. Una excepción de seguridad que apunta a la nada no hace
     // daño hoy, pero le enseña al siguiente lector un mapa que no es el real.
     apiPublica: [],
+  },
+  {
+    prefijos: ["/vanni", "/api/vanni"],
+    credenciales: [VANNI],
+    login: "/vanni/login",
+    // Tres entradas sin cookie, cada una con su propia defensa:
+    // - el webhook de WhatsApp lo llama WaSender (firma VANNI_WASENDER_WEBHOOK_SECRET);
+    // - el cron de la cola lo llama Vercel o la propia cola (CRON_SECRET);
+    // - la página de pago la abre el cliente final desde WhatsApp, y lo que la
+    //   protege es el token del link: sin él no se llega a ningún pedido.
+    apiPublica: ["/api/vanni/whatsapp", "/api/vanni/cron", "/vanni/pagar"],
   },
   {
     prefijos: ["/dashboard360", "/api/dashboard360"],
@@ -275,5 +289,8 @@ export const config = {
     // Sistema Tuniche: todo bajo sesión. No hay pantalla pública.
     "/tuniche/:path*",
     "/api/tuniche/:path*",
+    // Vanni Chile: todo bajo sesión salvo el webhook, el cron y el pago (ver AREAS).
+    "/vanni/:path*",
+    "/api/vanni/:path*",
   ],
 };
