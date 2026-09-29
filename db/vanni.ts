@@ -34,6 +34,7 @@ import {
   varchar,
   vector,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 // ─── Equipo ──────────────────────────────────────────────────────────────────
 
@@ -139,10 +140,25 @@ export const vanniCampanas = pgTable("vanni_campanas", {
   sucursales: jsonb("sucursales").$type<string[]>().notNull().default([]),
   /** Horas tras el envío para un recordatorio único. `null` = sin recordatorio. */
   recordatorioHoras: integer("recordatorio_horas"),
+  /** Pieza gráfica que sale con el mensaje (imagen con el texto de epígrafe). */
+  imagenUrl: text("imagen_url"),
+  /** Por qué se pausó sola (corte por errores). `null` si la pausó una persona. */
+  pausaMotivo: text("pausa_motivo"),
   ejemplo: boolean("ejemplo").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   iniciadaAt: timestamp("iniciada_at", { withTimezone: true }),
   terminadaAt: timestamp("terminada_at", { withTimezone: true }),
+});
+
+/**
+ * Turno de la cola de campañas: una sola fila (`id = 1`). Quien la toma envía;
+ * el resto espera. Sin esto, el cron y una cadena de la cola corriendo a la vez
+ * mandarían dos mensajes seguidos sin la separación que protege al número.
+ */
+export const vanniCola = pgTable("vanni_cola", {
+  id: integer("id").primaryKey(),
+  ocupadaHasta: timestamp("ocupada_hasta", { withTimezone: true }).notNull(),
+  dueno: varchar("dueno", { length: 40 }),
 });
 
 /** Cada campaña prueba hasta tres textos. El tablero dice cuál convirtió más. */
@@ -301,7 +317,14 @@ export const vanniMensajes = pgTable(
     waMsgId: varchar("wa_msg_id", { length: 64 }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (t) => [index("vanni_mensajes_telefono_idx").on(t.telefono, t.createdAt)],
+  (t) => [
+    index("vanni_mensajes_telefono_idx").on(t.telefono, t.createdAt),
+    // WaSender puede entregar el mismo mensaje dos veces (received y upsert, a
+    // milisegundos). Solo la primera inserción gana y solo esa se responde.
+    uniqueIndex("vanni_mensajes_entrante_wa_idx")
+      .on(t.waMsgId)
+      .where(sql`${t.direccion} = 'in' and ${t.waMsgId} is not null`),
+  ],
 );
 
 // ─── Catálogo ────────────────────────────────────────────────────────────────

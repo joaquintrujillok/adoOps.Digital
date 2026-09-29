@@ -19,16 +19,23 @@ export async function guardarMensaje(m: {
   imagenUrl?: string | null;
   simulado?: boolean;
   waMsgId?: string | null;
-}): Promise<void> {
-  await db.insert(vanniMensajes).values({
-    telefono: m.telefono,
-    flujo: m.flujo,
-    direccion: m.direccion,
-    texto: m.texto,
-    imagenUrl: m.imagenUrl ?? null,
-    simulado: m.simulado ?? false,
-    waMsgId: m.waMsgId ?? null,
-  });
+}): Promise<boolean> {
+  // `false` = ese mensaje entrante ya estaba guardado (WaSender lo mandó dos
+  // veces). Quien recibe `false` no debe responderlo.
+  const r = await db
+    .insert(vanniMensajes)
+    .values({
+      telefono: m.telefono,
+      flujo: m.flujo,
+      direccion: m.direccion,
+      texto: m.texto,
+      imagenUrl: m.imagenUrl ?? null,
+      simulado: m.simulado ?? false,
+      waMsgId: m.waMsgId ?? null,
+    })
+    .onConflictDoNothing()
+    .returning({ id: vanniMensajes.id });
+  return r.length > 0;
 }
 
 /**

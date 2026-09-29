@@ -57,6 +57,13 @@
       "when": 1790684219841,
       "tag": "0007_vanni_cupones",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790717348459,
+      "tag": "0008_vanni_ritmo_y_dedup",
+      "breakpoints": true
     }
   ]
 }

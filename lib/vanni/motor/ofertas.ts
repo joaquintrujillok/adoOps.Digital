@@ -1,9 +1,10 @@
 // Flujo `#Ofertas`: la respuesta de un cliente inactivo a la campaña.
 //
-// El agente no vende ni cotiza. Hace tres cosas, que son las del deck:
-// detectar interés, responder lo que la promoción permite y derivar a la
-// ejecutiva con el contexto. Todo lo que no sea la promoción (precios, stock,
-// descuentos distintos) se deriva: el agente nunca inventa condiciones.
+// El agente no vende ni cotiza. El mensaje de la campaña pide un OK; con el OK
+// (o cualquier señal de interés) se deriva a la ejecutiva y el hilo se cierra:
+// no se piden productos ni cantidades, eso lo conversa la ejecutiva al llamar.
+// Todo lo que no sea la promoción (precios, stock, medidas) también se deriva:
+// el agente nunca inventa condiciones.
 //
 // La decisión tiene dos fuentes que devuelven la misma forma (`Decision`): el
 // modelo, cuando hay llave y presupuesto, y reglas por palabras cuando no. El
@@ -36,7 +37,7 @@ export type Intencion =
 export interface Decision {
   intencion: Intencion;
   /** `derivar` crea la oportunidad y avisa a la ejecutiva. */
-  accion: "responder" | "preguntar_detalle" | "derivar" | "baja" | "cerrar";
+  accion: "responder" | "derivar" | "baja" | "cerrar";
   interes: string | null;
   resumen: string | null;
   /** Texto para el cliente. En `derivar` se reemplaza por una confirmación fija. */
@@ -49,37 +50,31 @@ interface Contexto {
   contacto: VanniContacto;
   campana: VanniCampana;
   envioId: number | null;
-  esperandoDetalle: boolean;
   simulado: boolean;
 }
 
 // ─── Reglas ──────────────────────────────────────────────────────────────────
 
 const R = {
-  baja: /\b(de\s*baja|darme de baja|no me (escriban|env[ií]en|manden|contacten|molesten)|dejen de|stop|desuscrib|elimin(a|en)me|borr(a|en)me)/i,
+  // "BAJA" sola es lo que pide el mensaje de la campaña.
+  baja: /^\W*baja\W*$|\b(de\s*baja|darme de baja|no me (escriban|env[ií]en|manden|contacten|molesten)|dejen de|stop|desuscrib|elimin(a|en)me|borr(a|en)me)/i,
   reclamo: /(reclamo|queja|p[eé]simo|mal servicio|nunca lleg|me cobraron|devoluci|problema con (mi|el) (pedido|despacho|producto))/i,
   noInteresa: /^(no|nop|nope|no gracias|no por ahora|ahora no|no me interesa|no, gracias)\b|no me interesa|no necesito/i,
   precio: /(precio|cu[aá]nto (sale|cuesta|vale|es)|valor|stock|disponib|lista de precios)/i,
-  interes: /\b(s[ií]|si+|me interesa|interesad|quiero|dale|ok|okay|bueno|claro|ll[aá]m(en|ame|ar)|cont[aá]ct|cotiz|necesito|me sirve|perfecto|genial)\b/i,
+  interes:
+    /\b(s[ií]+p?o?|me interesa|interesad|quiero|dale|de una|ok[a-z]*|oki|bueno|claro|ya|ya po|listo|ll[aá]m(en|ame|ar|enme)|cont[aá]ct|cotiz|necesito|me sirve|perfecto|genial|bac[aá]n|me tinca)\b|👍|🙌|👌/i,
   pregunta: /(\?|c[oó]mo|hasta cu[aá]ndo|condiciones|aplica|v[aá]lid|qu[eé] (incluye|productos))/i,
 };
 
-export function decidirConReglas(texto: string, esperandoDetalle: boolean): Decision {
+export function decidirConReglas(texto: string): Decision {
   const t = texto.trim();
   const base = { interes: null, resumen: null, respuesta: null };
   if (R.baja.test(t)) return { ...base, intencion: "baja", accion: "baja" };
   if (R.reclamo.test(t)) return { ...base, intencion: "reclamo", accion: "derivar", interes: t };
   if (R.noInteresa.test(t)) return { ...base, intencion: "no_interesado", accion: "cerrar" };
   if (R.precio.test(t)) return { ...base, intencion: "precio_stock", accion: "derivar", interes: t };
-  // Ya se le preguntó qué necesita: lo que conteste ahora es el detalle.
-  if (esperandoDetalle) return { ...base, intencion: "interesado", accion: "derivar", interes: t };
-  if (R.interes.test(t)) {
-    // "Sí" a secas no dice qué necesita; una frase larga probablemente sí.
-    const conDetalle = t.split(/\s+/).length >= 5;
-    return conDetalle
-      ? { ...base, intencion: "interesado", accion: "derivar", interes: t }
-      : { ...base, intencion: "interesado", accion: "preguntar_detalle" };
-  }
+  // Un OK basta: no se pregunta qué necesita, eso lo ve la ejecutiva al llamar.
+  if (R.interes.test(t)) return { ...base, intencion: "interesado", accion: "derivar", interes: t.split(/\s+/).length >= 3 ? t : null };
   if (R.pregunta.test(t)) return { ...base, intencion: "pregunta", accion: "responder" };
   return { ...base, intencion: "otro", accion: "responder" };
 }
@@ -91,12 +86,11 @@ Le escribiste a un cliente que hace tiempo no compra, con una promoción. Ahora 
 
 Tu trabajo es decidir qué hacer con su respuesta y redactar tu mensaje. Reglas firmes:
 - Solo puedes ofrecer la promoción de la campaña, con sus condiciones. Nunca inventes precios, descuentos, stock ni plazos.
-- Si pregunta precios, stock o algo que no está en las condiciones: deriva a la ejecutiva ("precio_stock", accion "derivar").
-- Si muestra interés pero no dijo qué necesita y todavía no se lo preguntaste: accion "preguntar_detalle" y pregunta qué productos o cantidades le interesan.
-- Si muestra interés y ya dijo qué necesita (o ya se le preguntó): accion "derivar".
+- El mensaje de la campaña le pidió responder OK para que una ejecutiva lo llame. Cualquier aceptación o señal de interés ("ok", "oka", "ya", "sí", "dale", "me interesa", un 👍, o decir qué producto necesita) es accion "derivar". NUNCA preguntes qué productos, cantidades o medidas necesita: eso lo conversa la ejecutiva.
+- Si pregunta precios, stock, medidas, gramajes o algo que no está en las condiciones: accion "derivar" con intencion "precio_stock".
 - Si tiene un reclamo: accion "derivar" con intencion "reclamo". No ofrezcas nada.
 - Si no le interesa: accion "cerrar", agradece y no insistas.
-- Si pide no ser contactado: accion "baja".
+- Si pide no ser contactado o escribe "baja": accion "baja".
 - Si pregunta por la promoción y las condiciones lo responden: accion "responder".
 Estilo: español de Chile, cordial y breve (máximo 3 líneas), tuteo. Formato WhatsApp: *negrita* con un asterisco, nunca ## ni **.`;
 
@@ -111,7 +105,7 @@ async function decidirConModelo(ctx: Contexto): Promise<Decision> {
       `Cliente: ${ctx.contacto.nombre ?? "sin nombre"}${ctx.contacto.categoriaHabitual ? ` (compraba ${ctx.contacto.categoriaHabitual})` : ""}\n` +
       `Promoción: ${ctx.campana.promocion}\n` +
       `Condiciones: ${ctx.campana.condiciones ?? "no hay condiciones adicionales escritas"}\n` +
-      `¿Ya se le preguntó qué necesita?: ${ctx.esperandoDetalle ? "sí" : "no"}\n\n` +
+      "\n" +
       `Conversación hasta ahora:\n${conversacion}\n\nÚltimo mensaje del cliente: """${ctx.texto}"""`,
     tools: [
       {
@@ -127,7 +121,7 @@ async function decidirConModelo(ctx: Contexto): Promise<Decision> {
               type: "string",
               enum: ["interesado", "pregunta", "precio_stock", "no_interesado", "baja", "reclamo", "otro"],
             },
-            accion: { type: "string", enum: ["responder", "preguntar_detalle", "derivar", "baja", "cerrar"] },
+            accion: { type: "string", enum: ["responder", "derivar", "baja", "cerrar"] },
             interes: { type: ["string", "null"], description: "Qué le interesa, en sus palabras. null si no aplica." },
             resumen: { type: ["string", "null"], description: "La conversación en una o dos líneas, para la ejecutiva." },
             respuesta: { type: "string", description: "Tu mensaje para el cliente." },
@@ -233,27 +227,66 @@ async function derivar(ctx: Contexto, d: Decision): Promise<string> {
       .where(eq(vanniOportunidades.id, oportunidadId));
   }
 
-  const quien = primerNombre(ejecutiva?.nombre) || "una ejecutiva";
+  const quien = primerNombre(ejecutiva?.nombre);
   const nombre = primerNombre(ctx.contacto.nombre);
   if (tipo === "reclamo") {
-    return `Lamento lo que pasó${nombre ? `, ${nombre}` : ""}. Le paso tu caso a *${quien}* para que te contacte y lo resuelva hoy.`;
+    return `Lamento lo que pasó${nombre ? `, ${nombre}` : ""}. Le paso tu caso a ${quien ? `*${quien}*` : "una ejecutiva"} para que te contacte y lo resuelva.`;
   }
-  return `¡Buenísimo${nombre ? `, ${nombre}` : ""}! Le paso tus datos a *${quien}*, del equipo de Vanni, y te va a llamar para ayudarte con eso. 🙌`;
+  return (
+    `¡Perfecto${nombre ? `, ${nombre}` : ""}! 🙌 ${quien ? `*${quien}*, tu ejecutiva de Vanni,` : "Una ejecutiva de Vanni"} ` +
+    `te llamará dentro de las próximas 24 horas para aplicar tu *${ctx.campana.promocion}*.\n¡Gracias por preferirnos!`
+  );
+}
+
+/** La oportunidad que ya se abrió con este cliente en esta campaña, si la hay. */
+async function oportunidadAbierta(ctx: Contexto) {
+  const [o] = await db
+    .select()
+    .from(vanniOportunidades)
+    .where(
+      and(
+        eq(vanniOportunidades.contactoId, ctx.contacto.id),
+        eq(vanniOportunidades.campanaId, ctx.campana.id),
+        eq(vanniOportunidades.estado, "por_llamar"),
+      ),
+    )
+    .limit(1);
+  return o ?? null;
 }
 
 export async function responderOfertas(ctx: Contexto): Promise<Salida[]> {
-  let d: Decision;
-  const usarModelo = hayModelo() && (await hayPresupuesto());
-  try {
-    d = usarModelo ? await decidirConModelo(ctx) : decidirConReglas(ctx.texto, ctx.esperandoDetalle);
-  } catch (err) {
-    console.error("[vanni] decisión con modelo falló, uso reglas", err);
-    d = decidirConReglas(ctx.texto, ctx.esperandoDetalle);
+  const nombre = primerNombre(ctx.contacto.nombre);
+
+  // Ya dio el OK: el hilo está cerrado. Lo que escriba se suma a la ficha para
+  // la ejecutiva (sin volver a sonarle el teléfono) y el bot no pregunta nada.
+  const abierta = R.baja.test(ctx.texto.trim()) ? null : await oportunidadAbierta(ctx);
+  if (abierta) {
+    const resumen = [abierta.resumen, ctx.texto.trim()].filter(Boolean).join(" · ").slice(0, 1000);
+    await db
+      .update(vanniOportunidades)
+      .set({ resumen, updatedAt: new Date() })
+      .where(eq(vanniOportunidades.id, abierta.id));
+    await guardarSesion({
+      telefono: ctx.telefono,
+      flujo: "ofertas" satisfies Flujo,
+      contactoId: ctx.contacto.id,
+      campanaId: ctx.campana.id,
+      estado: { carrito: [] },
+    });
+    return [{ texto: `Anotado${nombre ? `, ${nombre}` : ""} 👍 Se lo paso a tu ejecutiva para que lo vean cuando te llame.` }];
   }
 
-  const nombre = primerNombre(ctx.contacto.nombre);
+  let d: Decision;
+  // La baja no pasa por el modelo: tiene que funcionar siempre, igual.
+  const usarModelo = !R.baja.test(ctx.texto.trim()) && hayModelo() && (await hayPresupuesto());
+  try {
+    d = usarModelo ? await decidirConModelo(ctx) : decidirConReglas(ctx.texto);
+  } catch (err) {
+    console.error("[vanni] decisión con modelo falló, uso reglas", err);
+    d = decidirConReglas(ctx.texto);
+  }
+
   let texto: string;
-  let esperandoDetalle = false;
 
   switch (d.accion) {
     case "baja":
@@ -274,18 +307,11 @@ export async function responderOfertas(ctx: Contexto): Promise<Salida[]> {
       await marcarEnvio(ctx.envioId, d.intencion === "reclamo" ? "reclamo" : "interesado");
       texto = await derivar(ctx, d);
       break;
-    case "preguntar_detalle":
-      await marcarEnvio(ctx.envioId, "interesado");
-      esperandoDetalle = true;
-      texto =
-        d.respuesta ||
-        `¡Qué bueno${nombre ? `, ${nombre}` : ""}! ¿Qué productos o cantidades te interesan? Así la ejecutiva te llama con todo listo.`;
-      break;
     default:
       await marcarEnvio(ctx.envioId, "pregunta");
       texto =
         d.respuesta ||
-        `La promoción es: *${ctx.campana.promocion}*.${ctx.campana.condiciones ? `\n${ctx.campana.condiciones}` : ""}\n¿Te interesa que una ejecutiva te contacte?`;
+        `La promoción es: *${ctx.campana.promocion}*.${ctx.campana.condiciones ? `\n${ctx.campana.condiciones}` : ""}\nSi te interesa, responde *OK* y una ejecutiva te llama dentro de 24 horas.`;
   }
 
   await guardarSesion({
@@ -293,7 +319,7 @@ export async function responderOfertas(ctx: Contexto): Promise<Salida[]> {
     flujo: "ofertas" satisfies Flujo,
     contactoId: ctx.contacto.id,
     campanaId: ctx.campana.id,
-    estado: { carrito: [], esperandoDetalle },
+    estado: { carrito: [] },
   });
   return [{ texto }];
 }

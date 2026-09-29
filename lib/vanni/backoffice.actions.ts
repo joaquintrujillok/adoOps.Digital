@@ -25,13 +25,13 @@ import { dispararCola, origenActual } from "./cola";
 import { cargarBaseMaestra, type ResultadoBase } from "./captura";
 import { agregarContacto, cargarFilas, parsearCsv, type ResultadoCarga } from "./contactos";
 import { borrarEjemplo, cargarEjemplo } from "./ejemplo";
-import { actualizarEstados, encolarCampana, procesarCola } from "./envios";
+import { actualizarEstados, debeEncadenar, encolarCampana, procesarCola } from "./envios";
 import { renderPlantilla } from "./formato";
 import { guardarMensaje } from "./motor/conversacion";
 import { cambiarEstadoPedido } from "./pedidos";
 import { hashPassword, problemaDeClave } from "./session";
 import { normalizarTelefono } from "./telefono";
-import { enviarTexto } from "./wa";
+import { enviarImagen, enviarTexto } from "./wa";
 
 // ─── Contactos ───────────────────────────────────────────────────────────────
 
@@ -107,6 +107,18 @@ export async function borrarEjemploAction(): Promise<void> {
 
 // ─── Campañas ────────────────────────────────────────────────────────────────
 
+/** Solo URLs de nuestro Blob: el campo es oculto, pero igual viene del navegador. */
+function imagenDeFormulario(formData: FormData): string | null {
+  const url = String(formData.get("imagenUrl") ?? "").trim();
+  return /^https:\/\/[a-z0-9]+\.public\.blob\.vercel-storage\.com\/vanni\/campanas\//.test(url) ? url : null;
+}
+
+export async function guardarImagenCampanaAction(id: number, formData: FormData): Promise<void> {
+  await requireAdmin();
+  await db.update(vanniCampanas).set({ imagenUrl: imagenDeFormulario(formData) }).where(eq(vanniCampanas.id, id));
+  revalidatePath(`/vanni/campanas/${id}`);
+}
+
 export async function crearCampanaAction(
   _prev: { error?: string } | null,
   formData: FormData,
@@ -137,6 +149,7 @@ export async function crearCampanaAction(
       segmentos: formData.getAll("segmentos").map(String),
       sucursales: formData.getAll("sucursales").map(String),
       recordatorioHoras: horas > 0 ? horas : null,
+      imagenUrl: imagenDeFormulario(formData),
       ejemplo: formData.get("ejemplo") === "1",
     })
     .returning();
@@ -153,7 +166,7 @@ export async function lanzarCampanaAction(id: number): Promise<void> {
     // encadena el endpoint de la cola.
     after(async () => {
       const r = await procesarCola(45_000);
-      if (r.pendientes > 0) await dispararCola(origen);
+      if (debeEncadenar(r)) await dispararCola(origen);
     });
   }
   revalidatePath(`/vanni/campanas/${id}`);
@@ -163,7 +176,7 @@ export async function pausarCampanaAction(id: number, pausar: boolean): Promise<
   await requireAdmin();
   await db
     .update(vanniCampanas)
-    .set({ estado: pausar ? "pausada" : "enviando" })
+    .set({ estado: pausar ? "pausada" : "enviando", pausaMotivo: null })
     .where(eq(vanniCampanas.id, id));
   if (!pausar) {
     const origen = await origenActual();
@@ -198,8 +211,8 @@ export async function enviarPruebaAction(
     promocion: c.promocion,
     categoria: "bandejas y envases",
   });
-  const r = await enviarTexto(tel, `[Prueba] ${texto}`);
-  await guardarMensaje({ telefono: tel, flujo: "ofertas", direccion: "out", texto, simulado: r.simulado, waMsgId: r.msgId ?? null });
+  const r = c.imagenUrl ? await enviarImagen(tel, c.imagenUrl, `[Prueba] ${texto}`) : await enviarTexto(tel, `[Prueba] ${texto}`);
+  await guardarMensaje({ telefono: tel, flujo: "ofertas", direccion: "out", texto, imagenUrl: c.imagenUrl, simulado: r.simulado, waMsgId: r.msgId ?? null });
   if (!r.ok) return { error: r.error ?? "No se pudo enviar" };
   return { ok: r.simulado ? "Enviado en modo simulado (sin VANNI_WASENDER_API_KEY)" : `Enviado a +${tel}` };
 }

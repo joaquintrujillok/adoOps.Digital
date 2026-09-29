@@ -2,19 +2,33 @@
 
 import { useActionState } from "react";
 import { crearCampanaAction } from "@/lib/vanni/backoffice.actions";
+import SubirImagen from "./SubirImagen";
 
+// Las tres terminan igual: piden un OK (con eso se deriva a la ejecutiva, sin
+// más preguntas) y dicen cómo darse de baja. Cambia el gancho, no el cierre.
 const PLANTILLAS = {
   A: {
-    nombre: "Descuento directo",
-    texto: "Hola {nombre}, este mes tienes {promocion} en {categoria}. ¿Te llama tu ejecutiva de Vanni?",
+    nombre: "Te extrañamos",
+    texto:
+      "Hola {nombre} 👋 Te escribimos de *Vanni Chile*.\n\n" +
+      "Hace un tiempo que no te vemos en nuestras sucursales y queremos regalarte una *promoción exclusiva*: *{promocion}* en {categoria}.\n\n" +
+      "Si te interesa, respóndenos *OK* y una ejecutiva te llamará dentro de las próximas 24 horas para cerrar tu pedido. ¡Será un gusto atenderte!\n\n" +
+      "_Si no quieres recibir más mensajes, responde BAJA._",
   },
   B: {
-    nombre: "Novedades del mes",
-    texto: "Hola {nombre}, llegaron novedades en {categoria} y tenemos {promocion} para ti. ¿Quieres que una ejecutiva te cuente?",
+    nombre: "Beneficio reservado",
+    texto:
+      "Hola {nombre}, ¿cómo estás? Somos *Vanni Chile* 🙌\n\n" +
+      "Te reservamos *{promocion}* en {categoria}, solo para clientes como tú.\n\n" +
+      "Responde *OK* y una ejecutiva te contacta en menos de 24 horas para aplicarlo.\n\n" +
+      "_Si no quieres recibir más mensajes, responde BAJA._",
   },
   C: {
-    nombre: "Recordatorio de cuenta",
-    texto: "Hola {nombre}, hace tiempo no te vemos en Vanni. Te guardamos {promocion}. ¿Te contactamos?",
+    nombre: "Directo",
+    texto:
+      "Hola {nombre}, te habla *Vanni Chile*. Tienes *{promocion}* en {categoria} esperándote 🎁\n\n" +
+      "¿Lo aprovechamos? Responde *OK* y una ejecutiva te llama dentro de 24 horas.\n\n" +
+      "_Si no quieres recibir más mensajes, responde BAJA._",
   },
 };
 
@@ -83,12 +97,18 @@ export default function FormCampana({
       </section>
 
       <section className="vn-card" style={{ display: "grid", gap: 12 }}>
+        <h2>La imagen</h2>
+        <p className="vn-sub">La pieza del descuento. Va en todas las variantes, con el texto como epígrafe.</p>
+        <SubirImagen name="imagenUrl" />
+      </section>
+
+      <section className="vn-card" style={{ display: "grid", gap: 12 }}>
         <h2>Los mensajes</h2>
         <p className="vn-sub">Variables: {"{nombre}"}, {"{promocion}"}, {"{categoria}"}, {"{sucursal}"}. Deja vacía una variante para no usarla.</p>
         {(["A", "B", "C"] as const).map((k) => (
           <div key={k} className="vn-grid" style={{ gridTemplateColumns: "180px 1fr", gap: 10, alignItems: "start" }}>
             <div><label className="vn-label">Variante {k}</label><input name={`nombre${k}`} defaultValue={PLANTILLAS[k].nombre} className="vn-input" /></div>
-            <div><label className="vn-label">Texto</label><textarea name={`plantilla${k}`} defaultValue={PLANTILLAS[k].texto} className="vn-textarea" /></div>
+            <div><label className="vn-label">Texto</label><textarea name={`plantilla${k}`} defaultValue={PLANTILLAS[k].texto} className="vn-textarea" rows={8} /></div>
           </div>
         ))}
       </section>

@@ -137,7 +137,7 @@ async function iniciarOfertas(telefono: string, contacto: VanniContacto, simulad
     .returning();
 
   await guardarSesion({ telefono, flujo: "ofertas", contactoId: contacto.id, campanaId: campana.id, estado: { carrito: [] } });
-  return { campana, envio, texto };
+  return { campana, envio, texto, imagenUrl: campana.imagenUrl };
 }
 
 /**
@@ -211,7 +211,7 @@ async function decidir(e: Entrada, telefono: string): Promise<{ flujo: Flujo | "
     if (!inicio) {
       return { flujo: "sistema", salidas: [{ texto: "Por ahora no hay una campaña activa. Escribe *#tienda-whatsapp* para ver el catálogo." }] };
     }
-    return { flujo: "ofertas", salidas: [{ texto: inicio.texto }] };
+    return { flujo: "ofertas", salidas: [{ texto: inicio.texto, imagenUrl: inicio.imagenUrl }] };
   }
   if (LLAVE_TIENDA.test(texto)) {
     const contacto = await contactoDe(telefono);
@@ -250,7 +250,6 @@ async function decidir(e: Entrada, telefono: string): Promise<{ flujo: Flujo | "
           contacto,
           campana,
           envioId: envio?.id ?? null,
-          esperandoDetalle: Boolean(sesion?.flujo === "ofertas" && sesion.estado?.esperandoDetalle),
           simulado,
         }),
       };
@@ -273,7 +272,7 @@ export async function procesarMensaje(e: Entrada): Promise<SalidaEnviada[]> {
     : LLAVE_OFERTAS.test(e.texto) || LLAVE_DESCUENTO.test(e.texto)
       ? "ofertas"
       : (flujoPrevio ?? "sistema");
-  await guardarMensaje({
+  const nuevo = await guardarMensaje({
     telefono,
     flujo: flujoEntrada,
     direccion: "in",
@@ -281,6 +280,9 @@ export async function procesarMensaje(e: Entrada): Promise<SalidaEnviada[]> {
     simulado: e.simulado,
     waMsgId: e.waMsgId ?? null,
   });
+  // Mismo mensaje entregado dos veces por el webhook: ya lo está respondiendo
+  // la otra llamada. El índice único de `wa_msg_id` hace que solo una gane.
+  if (!nuevo) return [];
 
   const { flujo, salidas } = await decidir(e, telefono);
 

@@ -5,11 +5,13 @@ import { db } from "@/db";
 import { vanniCampanas, vanniContactos, vanniEnvios, vanniUsuarios, vanniVariantes } from "@/db/vanni";
 import EnviarPrueba from "@/components/vanni/EnviarPrueba";
 import Refrescar from "@/components/vanni/Refrescar";
-import { actualizarEstadosAction, lanzarCampanaAction, pausarCampanaAction } from "@/lib/vanni/backoffice.actions";
+import SubirImagen from "@/components/vanni/SubirImagen";
+import { actualizarEstadosAction, guardarImagenCampanaAction, lanzarCampanaAction, pausarCampanaAction } from "@/lib/vanni/backoffice.actions";
 import { ENTREGA, ESTADO_CAMPANA, RESULTADO } from "@/lib/vanni/etiquetas";
 import { fechaHora, miles, pct } from "@/lib/vanni/formato";
 import { embudo, porVariante } from "@/lib/vanni/metricas";
 import { formatoTelefono } from "@/lib/vanni/telefono";
+import { describirRitmo } from "@/lib/vanni/ritmo";
 import { modoWhatsApp } from "@/lib/vanni/wa";
 
 export const dynamic = "force-dynamic";
@@ -70,6 +72,11 @@ export default async function DetalleCampana({ params }: { params: Promise<{ id:
         </p>
       )}
 
+      {c.estado === "pausada" && c.pausaMotivo && (
+        <p className="vn-aviso vn-aviso-rojo" style={{ marginBottom: 14 }}>{c.pausaMotivo}</p>
+      )}
+      {!c.ejemplo && <p className="vn-ayuda" style={{ marginBottom: 14 }}>Ritmo de salida, para cuidar el número: {describirRitmo()}</p>}
+
       <div className="vn-grid vn-grid-kpi" style={{ marginBottom: 16 }}>
         <div className="vn-kpi"><label>Enviados</label><b>{miles(e.enviados)}</b><span>{pendientes > 0 ? `${pendientes} en cola` : "cola vacía"}{e.errores ? ` · ${e.errores} con error` : ""}</span></div>
         <div className="vn-kpi"><label>Entregados</label><b>{miles(e.entregados)}</b><span>{pct(e.entregados, e.enviados)} · {e.leidos} leídos</span></div>
@@ -89,7 +96,7 @@ export default async function DetalleCampana({ params }: { params: Promise<{ id:
                 return (
                   <tr key={v.id}>
                     <td><b>{v.codigo}</b> · {v.nombre}</td>
-                    <td style={{ fontSize: 13.5 }}>{v.plantilla}</td>
+                    <td style={{ fontSize: 13.5, whiteSpace: "pre-line" }}>{v.plantilla}</td>
                     <td className="vn-num">{m?.enviados ?? 0}</td>
                     <td className="vn-num">{pct(m?.interesados ?? 0, m?.enviados ?? 0)}</td>
                   </tr>
@@ -103,6 +110,18 @@ export default async function DetalleCampana({ params }: { params: Promise<{ id:
           <p className="vn-sub" style={{ marginBottom: 10 }}>Te llega el mensaje tal como lo verá un cliente.</p>
           <EnviarPrueba campanaId={id} variantes={variantes.map((v) => v.codigo)} />
           {c.condiciones && <p className="vn-ayuda" style={{ marginTop: 12 }}><b>Condiciones:</b> {c.condiciones}</p>}
+          <h2 style={{ marginTop: 18 }}>Imagen</h2>
+          {c.estado === "borrador" || c.estado === "pausada" ? (
+            <form action={guardarImagenCampanaAction.bind(null, id)} style={{ display: "grid", gap: 8, marginTop: 8 }}>
+              <SubirImagen name="imagenUrl" inicial={c.imagenUrl} />
+              <div><button className="vn-btn vn-btn-sm">Guardar imagen</button></div>
+            </form>
+          ) : c.imagenUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- la pieza tal cual salió
+            <img src={c.imagenUrl} alt="Imagen de la campaña" style={{ maxWidth: 260, borderRadius: 10, marginTop: 8 }} />
+          ) : (
+            <p className="vn-ayuda" style={{ marginTop: 8 }}>Salió sin imagen.</p>
+          )}
         </section>
       </div>
 
