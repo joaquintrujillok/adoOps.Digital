@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { vanniOportunidades, vanniPedidos } from "@/db/vanni";
@@ -56,7 +57,10 @@ export default async function VanniAppLayout({ children }: { children: React.Rea
     <div className="vn-shell">
       <aside className="vn-side">
         <div className="vn-brand">
-          <b>Vanni</b>
+          {/* El logo es gris sobre transparente: sobre el fondo oscuro no se lee, por eso va en su placa clara. */}
+          <div className="vn-brand-placa">
+            <Image src="/clientes/vanni-logo.png" alt="Vanni" width={160} height={63} priority />
+          </div>
           <span>Backoffice WhatsApp</span>
         </div>
         {!sesion.debeCambiarClave && <Nav grupos={grupos} />}

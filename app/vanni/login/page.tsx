@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { redirect } from "next/navigation";
 import LoginForm from "@/components/vanni/LoginForm";
 import { sesionVigente } from "@/lib/vanni/auth.actions";
@@ -13,8 +14,8 @@ export default async function LoginVanni({ searchParams }: { searchParams: Promi
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <div style={{ width: "100%", maxWidth: 380 }}>
         <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <div className="vn-display" style={{ fontSize: 30, fontWeight: 600 }}>Vanni</div>
-          <div style={{ marginTop: 4, fontSize: 12, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--vn-teal)", fontWeight: 600 }}>
+          <Image src="/clientes/vanni-logo.png" alt="Vanni" width={214} height={84} priority style={{ margin: "0 auto" }} />
+          <div style={{ marginTop: 10, fontSize: 12, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--vn-teal)", fontWeight: 600 }}>
             Reactivación y tienda WhatsApp
           </div>
         </div>

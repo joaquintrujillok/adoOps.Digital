@@ -56,8 +56,9 @@
   padding: 22px 14px; gap: 18px; overflow-y: auto;
 }
 .vn-brand { padding: 0 10px; }
-.vn-brand b { display: block; font-family: var(--font-vn-display), sans-serif; font-size: 20px; font-weight: 600; }
-.vn-brand span { display: block; margin-top: 2px; font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: #7fd1b9; }
+.vn-brand-placa { background: #fdfcfa; border-radius: 12px; padding: 10px 12px; display: flex; justify-content: center; }
+.vn-brand-placa img { width: 100%; max-width: 160px; height: auto; }
+.vn-brand span { display: block; margin-top: 10px; font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: #7fd1b9; }
 .vn-nav-grupo { display: flex; flex-direction: column; gap: 2px; }
 .vn-nav-titulo { padding: 0 10px 4px; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: #9fb4ae; }
 .vn-nav a {
