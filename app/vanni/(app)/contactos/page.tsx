@@ -3,11 +3,21 @@ import { and, asc, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { vanniContactos } from "@/db/vanni";
 import AgregarContacto from "@/components/vanni/AgregarContacto";
+import Barras from "@/components/vanni/Barras";
+import { ComposicionSegmentos, ConversionSegmentos, MapaRfm } from "@/components/vanni/GraficosBase";
 import SubirPlanilla from "@/components/vanni/SubirPlanilla";
 import { cambiarEstadoContactoAction } from "@/lib/vanni/backoffice.actions";
 import { sucursales } from "@/lib/vanni/contactos";
-import { clp, miles } from "@/lib/vanni/formato";
-import { contactosPorSegmento } from "@/lib/vanni/metricas";
+import { clp, clpCompacto, miles, pct } from "@/lib/vanni/formato";
+import {
+  composicionPorSegmento,
+  contactosPorSegmento,
+  contactosPorSucursal,
+  conversionPorSegmento,
+  mapaRfm,
+  recencia,
+  resumenBase,
+} from "@/lib/vanni/metricas";
 import { SEGMENTOS } from "@/lib/vanni/rfm";
 import { formatoTelefono } from "@/lib/vanni/telefono";
 
@@ -32,12 +42,21 @@ export default async function Contactos({
   }
   const donde = and(...filtros);
 
-  const [filas, [total], resumen, listaSucursales] = await Promise.all([
+  const [filas, [total], resumen, listaSucursales, base, composicion, celdas, conversion, tramos, porSucursal] = await Promise.all([
     db.select().from(vanniContactos).where(donde).orderBy(asc(vanniContactos.segmento), desc(vanniContactos.montoTotal)).limit(POR_PAGINA).offset((pagina - 1) * POR_PAGINA),
     db.select({ n: sql<number>`count(*)::int` }).from(vanniContactos).where(donde),
     contactosPorSegmento(ejemplo),
     sucursales(false),
+    resumenBase(ejemplo),
+    composicionPorSegmento(ejemplo),
+    mapaRfm(ejemplo),
+    conversionPorSegmento(ejemplo),
+    recencia(ejemplo),
+    contactosPorSucursal(ejemplo),
   ]);
+  const ordenSegmentos = SEGMENTOS.map((x) => x.nombre as string);
+  const descripcion = new Map<string, string>(SEGMENTOS.map((x) => [x.nombre, x.descripcion]));
+  const composicionOrdenada = [...composicion].sort((a, b) => ordenSegmentos.indexOf(a.segmento) - ordenSegmentos.indexOf(b.segmento));
   const porSegmento = new Map(resumen.map((r) => [r.segmento, r]));
   const totalBase = resumen.reduce((s, r) => s + r.n, 0);
   const paginas = Math.max(1, Math.ceil((total?.n ?? 0) / POR_PAGINA));
@@ -61,17 +80,70 @@ export default async function Contactos({
         </div>
       </div>
 
-      {!ejemplo && (
-        <div className="vn-grid vn-grid-2" style={{ marginBottom: 16 }}>
-          <section className="vn-card"><h2>Cargar planilla</h2><p className="vn-sub" style={{ marginBottom: 10 }}>Excel (.xlsx) o CSV. Si el teléfono ya existe, se actualiza; una baja nunca se revierte desde una planilla.</p><SubirPlanilla /></section>
-          <section className="vn-card"><h2>Agregar uno por uno</h2><p className="vn-sub" style={{ marginBottom: 10 }}>Sin datos de compra queda como “Sin historial”, y se puede contactar igual.</p><AgregarContacto sucursales={listaSucursales} /></section>
-        </div>
-      )}
       {ejemplo && <p className="vn-aviso" style={{ marginBottom: 16 }}>Contactos de ejemplo: teléfonos inventados (569000…) que nunca reciben mensajes.</p>}
 
+      {!ejemplo && (
+        <details className="vn-card" style={{ marginBottom: 16 }} open={base.total === 0}>
+          <summary style={{ cursor: "pointer", fontWeight: 600, fontSize: 16 }}>Cargar contactos · planilla o uno por uno</summary>
+          <div className="vn-grid vn-grid-2" style={{ marginTop: 14 }}>
+            <section><h2>Cargar planilla</h2><p className="vn-sub" style={{ marginBottom: 10 }}>Excel (.xlsx) o CSV. Si el teléfono ya existe, se actualiza; una baja nunca se revierte desde una planilla.</p><SubirPlanilla /></section>
+            <section><h2>Agregar uno por uno</h2><p className="vn-sub" style={{ marginBottom: 10 }}>Sin datos de compra queda como “Sin historial”, y se puede contactar igual.</p><AgregarContacto sucursales={listaSucursales} /></section>
+          </div>
+        </details>
+      )}
+
+      {base.total > 0 && (
+        <>
+          <div className="vn-grid vn-grid-kpi" style={{ marginBottom: 16 }}>
+            <div className="vn-kpi"><label>Contactos</label><b>{miles(base.total)}</b><span>en la base {ejemplo ? "de ejemplo" : "real"}</span></div>
+            <div className="vn-kpi vn-kpi-hi"><label>Contactables</label><b>{miles(base.activos)}</b><span>{pct(base.activos, base.total)} de la base</span></div>
+            <div className="vn-kpi"><label>Bajas</label><b>{miles(base.bajas)}</b><span>pidieron no ser contactados</span></div>
+            <div className="vn-kpi"><label>Con historial</label><b>{pct(base.conHistorial, base.total)}</b><span>{miles(base.conHistorial)} con segmento RFM</span></div>
+            <div className="vn-kpi" title={clp(base.montoTotal)}><label>Monto histórico</label><b>{clpCompacto(base.montoTotal)}</b><span>lo que compraron antes de irse</span></div>
+          </div>
+
+          <div className="vn-grid vn-grid-2" style={{ marginBottom: 16, gridTemplateColumns: "minmax(0,1.25fr) minmax(0,1fr)" }}>
+            <section className="vn-card">
+              <h2>Composición de la base</h2>
+              <p className="vn-sub">Qué parte de los contactos es cada segmento, y qué parte del monto histórico concentra</p>
+              <div style={{ marginTop: 10 }}><ComposicionSegmentos filas={composicionOrdenada} descripcion={descripcion} /></div>
+            </section>
+            <section className="vn-card">
+              <h2>Mapa RFM</h2>
+              <p className="vn-sub">Contactos por recencia y frecuencia de compra</p>
+              <div style={{ marginTop: 12 }}><MapaRfm celdas={celdas} /></div>
+            </section>
+          </div>
+
+          <div className="vn-grid vn-grid-2" style={{ marginBottom: 16, gridTemplateColumns: "minmax(0,1.25fr) minmax(0,1fr)" }}>
+            <section className="vn-card">
+              <h2>Conversión por segmento</h2>
+              <p className="vn-sub">De enviado a respuesta, interés y cotización, en todas las campañas</p>
+              <div style={{ marginTop: 10 }}><ConversionSegmentos filas={conversion} orden={ordenSegmentos} /></div>
+            </section>
+            <div style={{ display: "grid", gap: 16, alignContent: "start" }}>
+              <section className="vn-card">
+                <h2>Tiempo sin comprar</h2>
+                <p className="vn-sub">Contactos por tramo desde su última compra</p>
+                <div style={{ marginTop: 8 }}>
+                  <Barras anchoNombre={96} filas={tramos.filter((t) => t.n > 0).map((t) => ({ nombre: t.tramo, valor: t.n, etiqueta: `${miles(t.n)} · ${pct(t.n, base.total)}` }))} />
+                </div>
+              </section>
+              <section className="vn-card">
+                <h2>Por sucursal</h2>
+                <p className="vn-sub">Contactos, y cuántos mostraron interés</p>
+                <div style={{ marginTop: 8 }}>
+                  <Barras anchoNombre={110} filas={porSucursal.map((x) => ({ nombre: x.sucursal, valor: x.n, etiqueta: miles(x.n), dato: <span>{x.interesados} interesados</span> }))} />
+                </div>
+              </section>
+            </div>
+          </div>
+        </>
+      )}
+
       <section className="vn-card" style={{ marginBottom: 16 }}>
-        <h2>Segmentos RFM</h2>
-        <p className="vn-sub">{miles(totalBase)} contactos · Recencia, Frecuencia y Monto puntuados de 1 a 5 por quintiles</p>
+        <h2>Listado por segmento</h2>
+        <p className="vn-sub">{miles(totalBase)} contactos · Recencia en días desde la última compra; Frecuencia y Monto por quintiles dentro de la base</p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
           <Link href={enlace({ segmento: undefined, pagina: undefined })} className={`vn-chip ${!sp.segmento ? "vn-chip-oscuro" : ""}`} style={{ padding: "6px 12px" }}>Todos · {miles(totalBase)}</Link>
           {SEGMENTOS.filter((s) => porSegmento.has(s.nombre)).map((s) => (

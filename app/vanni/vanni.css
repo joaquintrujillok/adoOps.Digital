@@ -152,7 +152,7 @@
 .vn-barra-pista { flex: 1; display: flex; align-items: center; min-width: 60px; }
 .vn-barra { height: 18px; background: var(--vn-teal-bar); border-radius: 0 4px 4px 0; min-width: 2px; }
 .vn-barra-suave { background: var(--vn-teal-bar-soft); }
-.vn-barra-pista em { font-style: normal; font-weight: 600; font-size: 14px; margin-left: 8px; font-variant-numeric: tabular-nums; }
+.vn-barra-pista em { font-style: normal; font-weight: 600; font-size: 14px; margin-left: 8px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .vn-barra-dato { width: 118px; text-align: right; font-size: 13.5px; line-height: 1.3; }
 .vn-barra-dato b { font-size: 15px; }
 .vn-barra-dato span { color: var(--vn-muted); }
@@ -169,3 +169,29 @@
 .vn-burbuja-out { align-self: flex-start; background: var(--vn-teal-soft); }
 .vn-burbuja img { display: block; width: 220px; max-width: 100%; border-radius: 8px; margin-bottom: 6px; }
 .vn-burbuja time { display: block; font-size: 11px; color: var(--vn-muted); margin-top: 3px; text-align: right; }
+
+/* Composición por segmento: dos barras por fila, cada una con su escala. */
+.vn-comp-cabecera, .vn-comp-fila { display: grid; grid-template-columns: minmax(150px, 1.1fr) 1fr 1fr; gap: 14px; align-items: center; }
+.vn-comp-cabecera { font-size: 12.5px; font-weight: 600; color: var(--vn-muted); padding-bottom: 6px; border-bottom: 1px solid var(--vn-border); }
+.vn-comp-fila { padding: 7px 0; border-bottom: 1px solid var(--vn-line); }
+.vn-comp-fila:last-child { border-bottom: none; }
+.vn-comp-abs { margin-left: 6px; font-size: 12.5px; color: var(--vn-muted); }
+.vn-barra-naranjo { background: #c9793f; }
+
+/* Mapa RFM */
+.vn-rfm { display: flex; gap: 8px; }
+.vn-rfm-eje-y { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 12.5px; color: var(--vn-muted); text-align: center; }
+.vn-rfm-grilla { flex: 1; display: grid; gap: 4px; }
+.vn-rfm-fila { display: grid; grid-template-columns: 82px repeat(5, minmax(0, 1fr)); gap: 4px; }
+.vn-rfm-etq { font-size: 12.5px; color: var(--vn-ink-2); display: flex; align-items: center; }
+.vn-rfm-etq-x { font-size: 12px; color: var(--vn-muted); text-align: center; }
+.vn-rfm-eje-x { font-size: 12.5px; color: var(--vn-muted); text-align: center; padding-left: 86px; }
+.vn-rfm-celda { height: 46px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 15px; font-variant-numeric: tabular-nums; }
+.vn-rfm-leyenda { display: flex; align-items: center; gap: 4px; margin-top: 10px; font-size: 12px; color: var(--vn-muted); }
+.vn-rfm-leyenda i { width: 22px; height: 10px; border-radius: 2px; display: inline-block; }
+
+/* Tasa con mini barra en tabla */
+.vn-tasa { display: flex; align-items: center; gap: 8px; min-width: 120px; }
+.vn-tasa-pista { flex: 1; background: var(--vn-line); border-radius: 3px; height: 12px; overflow: hidden; }
+.vn-tasa-pista .vn-barra { max-width: 100%; }
+.vn-tasa span { font-size: 13.5px; font-weight: 600; font-variant-numeric: tabular-nums; width: 46px; text-align: right; }
