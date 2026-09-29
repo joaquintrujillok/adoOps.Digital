@@ -1,18 +1,19 @@
 // Motor de WhatsApp de Vanni: la puerta de entrada de cada mensaje.
 //
-// **Por qué hay llaves.** Un mismo número atiende dos demos. Sin una regla
-// explícita, "sí" podría ser la respuesta a una oferta o a "¿lo agrego al
-// carrito?", y el cliente terminaría en el flujo equivocado. El orden de
-// decisión es:
+// **Tres entradas, un número.** La campaña la empujamos nosotros; el cupón lo
+// pide el cliente desde el QR de la sala; y todo lo demás es alguien que le
+// escribe a Vanni para comprar. El orden de decisión es:
 //
-//   1. Llave en el mensaje → cambia de flujo, siempre.
-//        #Ofertas          → campaña de inactivos
-//        #tienda-whatsapp  → tienda (también #tienda)
-//        #salir            → cierra la sesión
-//   2. Sesión vigente (7 días) → sigue en su flujo.
-//   3. Recibió una campaña hace menos de 14 días → `ofertas`. Es el caso real:
-//      un cliente inactivo que contesta la promoción no escribe ninguna llave.
-//   4. Nada de lo anterior → se le explica cómo entrar.
+//   1. Cupón ("quiero mi cupón (código VN-…)", el botón del QR) → su cupón.
+//   2. Respuesta a una campaña con el hilo abierto → `ofertas`. Abierto =
+//      recibió la campaña hace menos de 14 días y todavía no dijo OK, no, ni
+//      BAJA. Una vez cerrado, lo que escriba ya no es respuesta a la campaña.
+//   3. Todo lo demás → tienda. Sin llave: quien escribe "necesito servilletas"
+//      quiere comprar.
+//
+// Llaves internas, para el simulador y los ensayos (no se le muestran a nadie):
+// `#Ofertas` simula que al teléfono le llegó la campaña vigente;
+// `#tienda-whatsapp` fuerza la tienda; `#salir` cierra la sesión.
 //
 // El motor recibe y devuelve texto: no sabe si el mensaje vino de WhatsApp o del
 // simulador del backoffice. Enviar es responsabilidad de quien lo llama, salvo
@@ -42,10 +43,6 @@ export const LLAVE_DESCUENTO = /#\s*(descuento|cup[oó]n)\b|(aplicar|activar|usa
 
 const SESION_VIGENTE_MS = 7 * 86_400_000;
 
-export const MENSAJE_LLAVES =
-  "¡Hola! Soy el asistente de *Vanni Chile* por WhatsApp.\n" +
-  "Escribe *#tienda-whatsapp* para ver el catálogo y comprar por aquí,\n" +
-  "o *#Ofertas* para conocer la promoción vigente.";
 
 export interface Entrada {
   telefono: string;
@@ -192,7 +189,7 @@ async function decidir(e: Entrada, telefono: string): Promise<{ flujo: Flujo | "
 
   if (LLAVE_SALIR.test(texto)) {
     await cerrarSesion(telefono);
-    return { flujo: "sistema", salidas: [{ texto: "Listo, cerré la conversación. " + MENSAJE_LLAVES }] };
+    return { flujo: "sistema", salidas: [{ texto: "Listo, cerré la conversación. Si necesitas algo, escríbenos cuando quieras. 👋" }] };
   }
 
   const sesion = await leerSesion(telefono);
@@ -205,11 +202,11 @@ async function decidir(e: Entrada, telefono: string): Promise<{ flujo: Flujo | "
   if (LLAVE_OFERTAS.test(texto)) {
     const contacto = await asegurarContacto(telefono, e.nombre ?? null);
     if (contacto.estado === "baja") {
-      return { flujo: "ofertas", salidas: [{ texto: "Pediste no recibir promociones, así que no te enviaremos ofertas. Si quieres comprar, escribe *#tienda-whatsapp*." }] };
+      return { flujo: "ofertas", salidas: [{ texto: "Pediste no recibir promociones, así que no te enviaremos ofertas. Si quieres comprar, escríbenos lo que buscas." }] };
     }
     const inicio = await iniciarOfertas(telefono, contacto, simulado);
     if (!inicio) {
-      return { flujo: "sistema", salidas: [{ texto: "Por ahora no hay una campaña activa. Escribe *#tienda-whatsapp* para ver el catálogo." }] };
+      return { flujo: "sistema", salidas: [{ texto: "Por ahora no hay una campaña activa. Escríbenos lo que buscas y te ayudamos a comprar." }] };
     }
     return { flujo: "ofertas", salidas: [{ texto: inicio.texto, imagenUrl: inicio.imagenUrl }] };
   }
@@ -221,43 +218,50 @@ async function decidir(e: Entrada, telefono: string): Promise<{ flujo: Flujo | "
     };
   }
 
-  // 2. Sesión vigente
-  if (sesionViva && sesion.flujo === "tienda") {
-    const contacto = await contactoDe(telefono);
+  // 2. Respuesta a una campaña, mientras el hilo siga abierto.
+  const hilo = await hiloDeCampana(telefono, sesionViva && sesion.flujo === "ofertas" ? sesion.campanaId : null);
+  if (hilo) {
     return {
-      flujo: "tienda",
-      salidas: await responderTienda({ telefono, texto, contacto, nombrePush: e.nombre ?? null, estado: estadoTienda(sesion), simulado }),
+      flujo: "ofertas",
+      salidas: await responderOfertas({ telefono, texto, contacto: hilo.contacto, campana: hilo.campana, envioId: hilo.envioId, simulado }),
     };
   }
 
-  // 2 y 3. Ofertas: por sesión o por haber recibido la campaña.
-  const reciente = await envioReciente(telefono);
-  if ((sesionViva && sesion.flujo === "ofertas" && sesion.campanaId) || reciente) {
-    const contacto = await asegurarContacto(telefono, e.nombre ?? null);
-    const campanaId = sesionViva && sesion?.campanaId ? sesion.campanaId : reciente!.campana.id;
-    const [campana] = await db.select().from(vanniCampanas).where(eq(vanniCampanas.id, campanaId));
-    const [envio] = await db
-      .select({ id: vanniEnvios.id })
-      .from(vanniEnvios)
-      .where(and(eq(vanniEnvios.campanaId, campanaId), eq(vanniEnvios.contactoId, contacto.id)))
-      .limit(1);
-    if (campana) {
-      return {
-        flujo: "ofertas",
-        salidas: await responderOfertas({
-          telefono,
-          texto,
-          contacto,
-          campana,
-          envioId: envio?.id ?? null,
-          simulado,
-        }),
-      };
-    }
-  }
+  // 3. Todo lo demás: la tienda. Si ya venía comprando, con su carrito.
+  const contacto = await contactoDe(telefono);
+  return {
+    flujo: "tienda",
+    salidas: await responderTienda({
+      telefono,
+      texto,
+      contacto,
+      nombrePush: e.nombre ?? null,
+      estado: sesionViva && sesion.flujo === "tienda" ? estadoTienda(sesion) : { carrito: [] },
+      simulado,
+    }),
+  };
+}
 
-  // 4. Nadie sabe quién es: se le explica cómo entrar.
-  return { flujo: "sistema", salidas: [{ texto: MENSAJE_LLAVES }] };
+/**
+ * La campaña a la que este mensaje responde, si el hilo sigue abierto: la de su
+ * sesión, o la que recibió en los últimos 14 días. Cerrado = ya hay un resultado
+ * que termina la conversación (dijo OK, no, BAJA o hizo un reclamo). Una duda
+ * sobre la promoción ("pregunta") lo deja abierto.
+ */
+async function hiloDeCampana(telefono: string, campanaSesion: number | null | undefined) {
+  const contacto = await contactoDe(telefono);
+  if (!contacto) return null;
+  const campanaId = campanaSesion ?? (await envioReciente(telefono))?.campana.id;
+  if (!campanaId) return null;
+  const [fila] = await db
+    .select({ envio: vanniEnvios, campana: vanniCampanas })
+    .from(vanniEnvios)
+    .innerJoin(vanniCampanas, eq(vanniCampanas.id, vanniEnvios.campanaId))
+    .where(and(eq(vanniEnvios.campanaId, campanaId), eq(vanniEnvios.contactoId, contacto.id)))
+    .limit(1);
+  if (!fila) return null;
+  if (fila.envio.resultado && fila.envio.resultado !== "pregunta") return null;
+  return { contacto, campana: fila.campana, envioId: fila.envio.id };
 }
 
 export async function procesarMensaje(e: Entrada): Promise<SalidaEnviada[]> {
@@ -271,7 +275,7 @@ export async function procesarMensaje(e: Entrada): Promise<SalidaEnviada[]> {
     ? "tienda"
     : LLAVE_OFERTAS.test(e.texto) || LLAVE_DESCUENTO.test(e.texto)
       ? "ofertas"
-      : (flujoPrevio ?? "sistema");
+      : (flujoPrevio ?? "tienda");
   const nuevo = await guardarMensaje({
     telefono,
     flujo: flujoEntrada,

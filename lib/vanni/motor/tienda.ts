@@ -1,4 +1,4 @@
-// Flujo `#tienda-whatsapp`: comprar por WhatsApp, de la búsqueda al link de pago.
+// Flujo de tienda: comprar por WhatsApp, de la búsqueda al link de pago. Es la entrada por defecto.
 //
 // Con modelo, es un agente con herramientas (buscar, ver, agregar, carrito,
 // pagar, estado): el cliente escribe como habla —"necesito bandejas para 50

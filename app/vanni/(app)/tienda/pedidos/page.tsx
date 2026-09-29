@@ -52,7 +52,7 @@ export default async function Pedidos() {
               ))}
             </tbody>
           </table>
-          {!pedidos.length && <p className="vn-vacio">Todavía no hay pedidos. Escribe <b>#tienda-whatsapp</b> al número de Vanni, o prueba en el simulador.</p>}
+          {!pedidos.length && <p className="vn-vacio">Todavía no hay pedidos. Escríbele al número de Vanni lo que quieres comprar, o prueba en el simulador.</p>}
         </div>
       </section>
     </>

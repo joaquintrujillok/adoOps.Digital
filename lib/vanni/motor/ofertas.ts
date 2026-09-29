@@ -1,4 +1,4 @@
-// Flujo `#Ofertas`: la respuesta de un cliente inactivo a la campaña.
+// Flujo de campaña: la respuesta de un cliente inactivo a la promoción que le enviamos.
 //
 // El agente no vende ni cotiza. El mensaje de la campaña pide un OK; con el OK
 // (o cualquier señal de interés) se deriva a la ejecutiva y el hilo se cierra:

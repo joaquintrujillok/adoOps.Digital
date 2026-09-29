@@ -35,7 +35,7 @@ function FormatoWhatsApp({ texto }: { texto: string }) {
   );
 }
 
-const NOMBRE_FLUJO: Record<string, string> = { ofertas: "#Ofertas", tienda: "#tienda-whatsapp", sistema: "menú de llaves" };
+const NOMBRE_FLUJO: Record<string, string> = { ofertas: "Campaña", tienda: "Tienda", sistema: "Sistema" };
 
 function iniciales(nombre: string | null, telefono: string): string {
   const base = (nombre ?? "").replace(/[^\p{L}\s]/gu, " ").trim();

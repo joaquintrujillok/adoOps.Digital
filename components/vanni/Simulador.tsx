@@ -52,7 +52,7 @@ export default function Simulador({ telefonoInicial }: { telefonoInicial: string
             </div>
           ))}
           {pendiente && <div className="vn-burbuja vn-burbuja-out" style={{ color: "var(--vn-muted)" }}>escribiendo…</div>}
-          {!mensajes.length && !pendiente && <p className="vn-vacio">Escribe <b>#Ofertas</b> o <b>#tienda-whatsapp</b> para empezar.</p>}
+          {!mensajes.length && !pendiente && <p className="vn-vacio">Escribe lo que quieres comprar (ej: <b>servilletas</b>), o <b>#Ofertas</b> para simular que te llegó la campaña.</p>}
           <div ref={fin} />
         </div>
         <form

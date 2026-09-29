@@ -30,7 +30,7 @@ export default async function VanniAppLayout({ children }: { children: React.Rea
   const grupos: GrupoNav[] = [
     { titulo: "General", items: [{ href: "/vanni", etiqueta: "Resumen" }] },
     {
-      titulo: "Campaña #Ofertas",
+      titulo: "Campaña de reactivación",
       items: [
         { href: "/vanni/contactos", etiqueta: "Contactos y segmentos" },
         { href: "/vanni/campanas", etiqueta: "Campañas" },
@@ -42,7 +42,7 @@ export default async function VanniAppLayout({ children }: { children: React.Rea
       items: [{ href: "/vanni/captura", etiqueta: "QR, RUT y descuentos" }],
     },
     {
-      titulo: "Tienda #tienda-whatsapp",
+      titulo: "Tienda por WhatsApp",
       items: [
         { href: "/vanni/tienda/productos", etiqueta: "Productos" },
         { href: "/vanni/tienda/pedidos", etiqueta: "Pedidos", contador: porPreparar?.n },

@@ -7,8 +7,8 @@ import type { ResumenChat } from "@/lib/vanni/conversaciones";
 
 const FILTROS = [
   { id: "todas", texto: "Todas" },
-  { id: "ofertas", texto: "#Ofertas" },
-  { id: "tienda", texto: "#Tienda" },
+  { id: "ofertas", texto: "Campaña" },
+  { id: "tienda", texto: "Tienda" },
   { id: "sistema", texto: "Menú" },
 ] as const;
 
