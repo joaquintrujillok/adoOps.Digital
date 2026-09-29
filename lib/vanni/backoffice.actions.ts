@@ -264,7 +264,9 @@ export async function crearUsuarioAction(
   const username = String(formData.get("username") ?? "").trim().toLowerCase();
   const nombre = String(formData.get("nombre") ?? "").trim();
   const clave = String(formData.get("clave") ?? "");
-  if (!/^[a-z0-9._-]{3,40}$/.test(username)) return { error: "Usuario: 3 a 40 letras minúsculas, números o . _ -" };
+  if (!/^[a-z0-9._-]{3,40}$/.test(username)) {
+    return { error: `“${username}” no sirve como usuario: usa 3 a 40 letras minúsculas o números, sin espacios, tildes ni @ (ej: ejecutiva).` };
+  }
   if (!nombre) return { error: "Falta el nombre" };
   const problema = problemaDeClave(clave);
   if (problema) return { error: problema };

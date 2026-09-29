@@ -8,7 +8,7 @@ export default function FormUsuario() {
   return (
     <form action={accion} style={{ display: "grid", gap: 10 }}>
       <div className="vn-grid vn-grid-2" style={{ gap: 10 }}>
-        <div><label className="vn-label">Usuario *</label><input name="username" required className="vn-input" placeholder="mgonzalez" /></div>
+        <div><label className="vn-label">Usuario *</label><input name="username" required className="vn-input" placeholder="mgonzalez" autoComplete="off" autoCapitalize="none" spellCheck={false} pattern="[a-zA-Z0-9._\-]{3,40}" title="3 a 40 letras o números, sin espacios, tildes ni @" /></div>
         <div><label className="vn-label">Nombre *</label><input name="nombre" required className="vn-input" placeholder="María González" /></div>
         <div><label className="vn-label">WhatsApp (recibe los avisos)</label><input name="telefono" className="vn-input" placeholder="+56 9 …" /></div>
         <div><label className="vn-label">Email (recibe los avisos)</label><input name="email" type="email" className="vn-input" /></div>
