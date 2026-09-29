@@ -1,12 +1,13 @@
 import QRCode from "qrcode";
 import { asc, desc } from "drizzle-orm";
 import { db } from "@/db";
-import { vanniCapturas, vanniPromociones } from "@/db/vanni";
+import { vanniCapturas, vanniCupones, vanniPromociones } from "@/db/vanni";
 import Barras from "@/components/vanni/Barras";
 import SubirBaseMaestra from "@/components/vanni/SubirBaseMaestra";
 import { borrarPromocionAction, guardarPromocionAction } from "@/lib/vanni/backoffice.actions";
 import { capturasPorSucursal, embudoCaptura, sucursalesConocidas } from "@/lib/vanni/captura";
-import { fechaHora, miles, pct } from "@/lib/vanni/formato";
+import { embudoCupones, estadoEfectivo } from "@/lib/vanni/cupones";
+import { clpCompacto, fechaHora, miles, pct } from "@/lib/vanni/formato";
 import { formatoRut } from "@/lib/vanni/rut";
 import { SITE_URL } from "@/lib/site";
 
@@ -15,12 +16,14 @@ export const dynamic = "force-dynamic";
 const ORIGEN_TEL: Record<string, string> = { confirmado: "Confirmó el de la base", nuevo: "Nuevo (la base no tenía)", corregido: "Corrigió el de la base" };
 
 export default async function Captura() {
-  const [e, sucs, porSucursal, promos, recientes] = await Promise.all([
+  const [e, sucs, porSucursal, promos, recientes, c, cupones] = await Promise.all([
     embudoCaptura(),
     sucursalesConocidas(),
     capturasPorSucursal(),
     db.select().from(vanniPromociones).orderBy(asc(vanniPromociones.orden), asc(vanniPromociones.id)),
     db.select().from(vanniCapturas).orderBy(desc(vanniCapturas.createdAt)).limit(30),
+    embudoCupones(),
+    db.select().from(vanniCupones).orderBy(desc(vanniCupones.createdAt)).limit(30),
   ]);
 
   // Un QR por sucursal más uno general. El SVG sale de QRCode, no de una entrada
@@ -36,14 +39,17 @@ export default async function Captura() {
       <div className="vn-top">
         <div>
           <h1>Captura en tienda</h1>
-          <p>QR en cada sucursal: el cliente ingresa su RUT, ve su descuento, confirma o deja su WhatsApp y llega al bot. Así la base gana teléfonos y permiso para contactar.</p>
+          <p>Fase 1: QR en cada sucursal → el cliente ingresa su RUT, ve su descuento, confirma o deja su WhatsApp y se lleva un <b>cupón con QR</b> que canjea en caja. La base gana teléfonos y permiso para contactar, sin depender del e-commerce.</p>
         </div>
-        <a className="vn-btn vn-btn-sec" href="/vanni/descuento" target="_blank" rel="noreferrer">Ver el formulario</a>
+        <div className="vn-top-acciones">
+          <a className="vn-btn vn-btn-sec" href="/vanni/descuento" target="_blank" rel="noreferrer">Ver el formulario</a>
+          <a className="vn-btn vn-btn-sec" href="/vanni/canje" target="_blank" rel="noreferrer">Pantalla de caja</a>
+        </div>
       </div>
 
       {!numero && (
         <p className="vn-aviso" style={{ marginBottom: 14 }}>
-          Falta <b>VANNI_WHATSAPP_NUMERO</b> (el número de WhatsApp de Vanni, formato 569XXXXXXXX). Sin él, el formulario funciona pero el botón final no puede abrir WhatsApp.
+          Falta <b>VANNI_WHATSAPP_NUMERO</b> (el número de WhatsApp de Vanni, formato 569XXXXXXXX). Sin él, el cupón se emite igual pero no aparece el botón “Recibirlo por WhatsApp”.
         </p>
       )}
 
@@ -53,6 +59,13 @@ export default async function Captura() {
         <div className="vn-kpi vn-kpi-hi"><label>Dejaron o confirmaron teléfono</label><b>{miles(e.completadas)}</b><span>{pct(e.completadas, e.ingresos)} de los que ingresaron</span></div>
         <div className="vn-kpi"><label>Aceptaron ofertas</label><b>{miles(e.consentimiento)}</b><span>{pct(e.consentimiento, e.completadas)} de los que completaron</span></div>
         <div className="vn-kpi"><label>Llegaron a WhatsApp</label><b>{miles(e.whatsapp)}</b><span>{pct(e.whatsapp, e.completadas)} de los que completaron</span></div>
+      </div>
+
+      <div className="vn-grid vn-grid-kpi" style={{ marginBottom: 16, gridTemplateColumns: "repeat(4, minmax(0,1fr))" }}>
+        <div className="vn-kpi"><label>Cupones emitidos</label><b>{miles(c.emitidos)}</b><span>uno vigente por RUT</span></div>
+        <div className="vn-kpi vn-kpi-hi"><label>Canjeados en caja</label><b>{miles(c.canjeados)}</b><span>{pct(c.canjeados, c.emitidos)} de los emitidos</span></div>
+        <div className="vn-kpi"><label>Vigentes sin usar</label><b>{miles(c.vigentes)}</b><span>{c.vencidos ? `${c.vencidos} vencidos` : "ninguno vencido"}</span></div>
+        <div className="vn-kpi" title="Suma de los montos que la caja registró al canjear"><label>Venta con cupón</label><b>{clpCompacto(c.montoCanjeado)}</b><span>según lo registrado en caja</span></div>
       </div>
 
       <div className="vn-grid vn-grid-2" style={{ marginBottom: 16 }}>
@@ -87,7 +100,7 @@ export default async function Captura() {
         </section>
         <section className="vn-card">
           <h2>Descuentos vigentes</h2>
-          <p className="vn-sub" style={{ marginBottom: 10 }}>Lo que el bot le cuenta a quien llega desde el QR. Solo aparecen los activos.</p>
+          <p className="vn-sub" style={{ marginBottom: 10 }}>El primero activo es el descuento del cupón para quien no está en la base maestra.</p>
           <div style={{ display: "grid", gap: 8 }}>
             {promos.map((p) => (
               <form key={p.id} action={guardarPromocionAction} className="vn-promo-fila">
@@ -121,6 +134,32 @@ export default async function Captura() {
               <figcaption><b>{q.nombre}</b><span>{q.url.replace("https://", "")}</span></figcaption>
             </figure>
           ))}
+        </div>
+      </section>
+
+      <section className="vn-card" style={{ marginBottom: 16 }}>
+        <h2>Últimos cupones</h2>
+        <div className="vn-scroll" style={{ marginTop: 8 }}>
+          <table className="vn-tabla">
+            <thead><tr><th>Código</th><th>RUT</th><th>Descuento</th><th>Estado</th><th>Canje</th><th className="vn-num">Monto</th><th>Emitido</th></tr></thead>
+            <tbody>
+              {cupones.map((x) => {
+                const est = estadoEfectivo(x);
+                return (
+                  <tr key={x.id}>
+                    <td><a href={`/vanni/cupon/${x.token}`} target="_blank" rel="noreferrer" style={{ color: "var(--vn-teal)", fontWeight: 600 }}>{x.codigo}</a></td>
+                    <td>{formatoRut(x.rut)}</td>
+                    <td>{x.descuento}</td>
+                    <td><span className={`vn-chip ${est === "canjeado" ? "vn-chip-teal" : est === "vigente" ? "" : "vn-chip-rojo"}`}>{est}</span></td>
+                    <td>{x.canjeadoAt ? `${x.sucursalCanje ?? ""} · ${fechaHora(x.canjeadoAt)}` : "—"}</td>
+                    <td className="vn-num">{x.montoCompra ? clpCompacto(x.montoCompra) : "—"}</td>
+                    <td>{fechaHora(x.createdAt)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {!cupones.length && <p className="vn-vacio">Todavía no se emite ningún cupón.</p>}
         </div>
       </section>
 

@@ -121,8 +121,17 @@ const AREAS: Area[] = [
     // - la página de pago la abre el cliente final desde WhatsApp, y lo que la
     //   protege es el token del link: sin él no se llega a ningún pedido.
     // - el formulario del QR de sala (/vanni/descuento) lo abre un cliente sin
-    //   cuenta; lo protege un límite de intentos y que no muestra datos completos.
-    apiPublica: ["/api/vanni/whatsapp", "/api/vanni/cron", "/vanni/pagar", "/vanni/descuento"],
+    //   cuenta; lo protege un límite de intentos y que no muestra datos completos;
+    // - la ficha del cupón y su imagen (/vanni/cupon, /api/vanni/cupon) las abre
+    //   el cliente con su QR; las protege el token. El canje sí pide sesión.
+    apiPublica: [
+      "/api/vanni/whatsapp",
+      "/api/vanni/cron",
+      "/api/vanni/cupon",
+      "/vanni/pagar",
+      "/vanni/descuento",
+      "/vanni/cupon",
+    ],
   },
   {
     prefijos: ["/dashboard360", "/api/dashboard360"],

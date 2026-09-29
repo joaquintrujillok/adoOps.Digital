@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Tu descuento Vanni",
-  description: "Ingresa tu RUT y activa tu descuento por WhatsApp.",
+  description: "Ingresa tu RUT y obtén tu cupón de descuento para usar en tienda.",
   robots: { index: false, follow: false },
 };
 
@@ -24,7 +24,7 @@ export default async function Descuento({ searchParams }: { searchParams: Promis
         <Image src="/clientes/vanni-logo.png" alt="Vanni" width={180} height={71} priority />
       </div>
       <FormDescuento sucursal={sucursal} />
-      <p className="vn-qr-pie">Tus datos se usan solo para aplicar tu descuento y, si lo aceptas, enviarte ofertas.</p>
+      <p className="vn-qr-pie">Tus datos se usan solo para emitir y aplicar tu descuento y, si lo aceptas, enviarte ofertas.</p>
     </div>
   );
 }

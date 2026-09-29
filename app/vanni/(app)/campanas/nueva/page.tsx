@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { vanniUsuarios } from "@/db/vanni";
 import FormCampana from "@/components/vanni/FormCampana";
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export default async function NuevaCampana() {
   await requireAdmin();
   const [ejecutivas, resumen, sucs] = await Promise.all([
-    db.select({ id: vanniUsuarios.id, nombre: vanniUsuarios.nombre }).from(vanniUsuarios).where(and(eq(vanniUsuarios.activo, true))).orderBy(asc(vanniUsuarios.nombre)),
+    db.select({ id: vanniUsuarios.id, nombre: vanniUsuarios.nombre }).from(vanniUsuarios).where(and(eq(vanniUsuarios.activo, true), ne(vanniUsuarios.rol, "caja"))).orderBy(asc(vanniUsuarios.nombre)),
     contactosPorSegmento(false),
     sucursales(false),
   ]);

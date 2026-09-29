@@ -282,3 +282,11 @@
 .vn-qr-fig figcaption { text-align: center; display: grid; gap: 2px; }
 .vn-qr-fig figcaption span { font-size: 11px; color: var(--vn-muted); word-break: break-all; }
 @media print { .vn-side, .vn-top-acciones, form, .vn-kpi { display: none !important; } }
+
+/* Cupón */
+.vn-cupon { text-align: center; justify-items: center; border: 2px dashed var(--vn-teal); }
+.vn-cupon-etiqueta { font-size: 12.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--vn-teal); font-weight: 700; }
+.vn-cupon-descuento { font-family: var(--font-vn-display), sans-serif; font-size: 28px; line-height: 1.15; }
+.vn-cupon-qr { background: #fff; padding: 10px; border-radius: 12px; border: 1px solid var(--vn-border); }
+.vn-cupon-qr svg { width: 210px; height: 210px; display: block; }
+.vn-cupon-codigo { font-family: var(--font-vn-display), monospace; font-size: 22px; font-weight: 700; letter-spacing: 0.12em; }

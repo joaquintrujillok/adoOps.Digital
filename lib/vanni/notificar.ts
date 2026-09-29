@@ -3,7 +3,7 @@
 // otro: si Brevo no está configurado, el WhatsApp sale igual, y al revés.
 
 import { BrevoClient } from "@getbrevo/brevo";
-import { and, asc, eq, isNotNull } from "drizzle-orm";
+import { and, asc, eq, isNotNull, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { vanniUsuarios, type VanniUsuario } from "@/db/vanni";
 import { SITE_URL } from "@/lib/site";
@@ -33,7 +33,8 @@ export async function ejecutivaPara(id: number | null | undefined): Promise<Vann
   const [respaldo] = await db
     .select()
     .from(vanniUsuarios)
-    .where(and(eq(vanniUsuarios.activo, true), isNotNull(vanniUsuarios.telefono)))
+    // La cuenta de caja no atiende interesados: solo canjea.
+    .where(and(eq(vanniUsuarios.activo, true), isNotNull(vanniUsuarios.telefono), ne(vanniUsuarios.rol, "caja")))
     .orderBy(asc(vanniUsuarios.id))
     .limit(1);
   return respaldo ?? null;

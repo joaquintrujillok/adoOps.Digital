@@ -16,6 +16,7 @@ import {
   vanniPromociones,
   type VanniCaptura,
 } from "@/db/vanni";
+import { emitirCupon, qrSvg, urlCupon } from "./cupones";
 import { normalizarRut } from "./rut";
 import { normalizarTelefono } from "./telefono";
 
@@ -84,14 +85,25 @@ export async function buscarRut(rutEntrada: string, sucursal: string | null, ori
   };
 }
 
+export interface CuponEmitido {
+  token: string;
+  codigo: string;
+  descuento: string;
+  vence: string;
+  url: string;
+  qrSvg: string;
+}
+
 export interface ResultadoCaptura {
   ok: boolean;
   error?: string;
-  whatsappUrl?: string;
+  cupon?: CuponEmitido;
+  /** Para recibir el cupón por WhatsApp. `null` si falta VANNI_WHATSAPP_NUMERO. */
+  whatsappUrl?: string | null;
 }
 
 export function mensajeWhatsApp(codigo: string): string {
-  return `Hola, quiero aplicar mi descuento 🎁 (código ${codigo})`;
+  return `Hola, quiero mi cupón de descuento 🎁 (código ${codigo})`;
 }
 
 export function urlWhatsApp(codigo: string): string | null {
@@ -165,9 +177,35 @@ export async function completarCaptura(d: {
     await db.insert(vanniContactos).values({ telefono, ...datos, origen: "qr", ejemplo: telefono.startsWith("569000") });
   }
 
-  const url = urlWhatsApp(cap.codigo);
-  if (!url) return { ok: false, error: "El WhatsApp de Vanni todavía no está configurado. Avísale a alguien de la tienda." };
-  return { ok: true, whatsappUrl: url };
+  // Fase 1: el cierre es un cupón que se canjea en caja. El descuento es el de
+  // su RUT; si no estaba en la base, el primer descuento vigente de la sala.
+  const [promo] = await promocionesActivas();
+  const cupon = await emitirCupon({
+    rut: cap.rut,
+    telefono,
+    nombre: cliente?.nombre ?? null,
+    descuento: cliente?.descuento || promo?.titulo || "Descuento de bienvenida",
+    capturaId: cap.id,
+  });
+  if (cupon.estado === "canjeado") {
+    const cuando = cupon.canjeadoAt?.toLocaleDateString("es-CL", { day: "numeric", month: "long", timeZone: "America/Santiago" });
+    return {
+      ok: false,
+      error: `Ya usaste tu descuento “${cupon.descuento}”${cuando ? ` el ${cuando}` : ""}${cupon.sucursalCanje ? ` en ${cupon.sucursalCanje}` : ""}. Te avisaremos cuando tengas uno nuevo.`,
+    };
+  }
+  return {
+    ok: true,
+    cupon: {
+      token: cupon.token,
+      codigo: cupon.codigo,
+      descuento: cupon.descuento,
+      vence: cupon.venceAt.toISOString(),
+      url: urlCupon(cupon.token),
+      qrSvg: await qrSvg(urlCupon(cupon.token)),
+    },
+    whatsappUrl: urlWhatsApp(cupon.codigo),
+  };
 }
 
 // ─── Lado del bot ────────────────────────────────────────────────────────────

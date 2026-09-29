@@ -14,7 +14,7 @@ export default function FormUsuario() {
         <div><label className="vn-label">Email (recibe los avisos)</label><input name="email" type="email" className="vn-input" /></div>
         <div>
           <label className="vn-label">Rol</label>
-          <select name="rol" className="vn-select"><option value="ejecutiva">Ejecutiva</option><option value="admin">Administrador</option></select>
+          <select name="rol" className="vn-select"><option value="ejecutiva">Ejecutiva</option><option value="caja">Caja (solo canjea cupones)</option><option value="admin">Administrador</option></select>
         </div>
         <div><label className="vn-label">Clave inicial *</label><input name="clave" required minLength={12} className="vn-input" autoComplete="new-password" /><p className="vn-ayuda">Se le pedirá cambiarla al entrar.</p></div>
       </div>

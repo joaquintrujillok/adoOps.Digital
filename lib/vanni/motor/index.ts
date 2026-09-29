@@ -25,7 +25,8 @@ import { renderPlantilla } from "../formato";
 import { normalizarTelefono } from "../telefono";
 import { enviarImagen, enviarTexto } from "../wa";
 import { cerrarSesion, estadoTienda, guardarMensaje, guardarSesion, leerSesion, type Flujo } from "./conversacion";
-import { capturaPorCodigo, capturaPorTelefono, marcarWhatsApp, nombreDeCaptura, promocionesActivas } from "../captura";
+import { capturaPorCodigo, capturaPorTelefono, marcarWhatsApp } from "../captura";
+import { cuponDeCaptura, cuponPorCodigo, estadoEfectivo, urlQrCupon } from "../cupones";
 import { envioReciente, responderOfertas } from "./ofertas";
 import { responderTienda } from "./tienda";
 import type { Salida } from "./tipos";
@@ -37,7 +38,7 @@ export const LLAVE_SALIR = /#\s*salir\b/i;
  * El mensaje que arma el botón del formulario del QR ("Hola, quiero aplicar mi
  * descuento (código ABC123)"), o `#descuento` escrito a mano. Entra a la tienda.
  */
-export const LLAVE_DESCUENTO = /#\s*descuento\b|(aplicar|activar|usar|canjear)\s+(mi\s+)?descuento/i;
+export const LLAVE_DESCUENTO = /#\s*(descuento|cup[oó]n)\b|(aplicar|activar|usar|canjear)\s+(mi\s+)?descuento|(quiero|mandame|m[aá]ndame|env[ií]ame)\s+(mi\s+)?cup[oó]n/i;
 
 const SESION_VIGENTE_MS = 7 * 86_400_000;
 
@@ -140,30 +141,49 @@ async function iniciarOfertas(telefono: string, contacto: VanniContacto, simulad
 }
 
 /**
- * Llegó desde el QR de la sala. El código del mensaje une esta conversación con
- * la captura (y así con su RUT); si no viene, se busca la última captura de
- * este teléfono. El bot no conoce el descuento personal todavía: cuenta los
- * descuentos vigentes y sigue con la compra.
+ * Llegó desde el QR de la sala (fase 1: cupón para canjear en caja).
+ *
+ * El código del mensaje identifica el cupón; si no viene, se busca el cupón de
+ * la última captura de este teléfono. La respuesta es la imagen del QR del
+ * cupón, para que quede guardado en el chat y se muestre en caja. No entra a la
+ * tienda: la compra por WhatsApp es la fase 2 y depende de la pasarela de pago.
  */
 async function entrarPorDescuento(telefono: string, texto: string, nombrePush: string | null): Promise<Salida[]> {
-  const codigo = texto.match(/c[oó]digo\s*:?\s*([A-Z0-9]{5,8})/i)?.[1];
-  const captura = (codigo ? await capturaPorCodigo(codigo) : null) ?? (await capturaPorTelefono(telefono));
-  if (captura) await marcarWhatsApp(captura.id);
+  const codigo = texto.match(/c[oó]digo\s*:?\s*(VN-?[A-Z0-9]{5}|[A-Z0-9]{5,8})/i)?.[1];
+  let cupon = codigo && /^VN/i.test(codigo) ? await cuponPorCodigo(codigo) : null;
+  const captura = !cupon ? ((codigo ? await capturaPorCodigo(codigo) : null) ?? (await capturaPorTelefono(telefono))) : null;
+  if (!cupon && captura) cupon = await cuponDeCaptura(captura.id);
+  if (cupon?.capturaId) await marcarWhatsApp(cupon.capturaId);
+  else if (captura) await marcarWhatsApp(captura.id);
 
   const contacto = await contactoDe(telefono);
-  const nombre =
-    (captura ? await nombreDeCaptura(captura) : null) ?? (contacto?.nombre ?? nombrePush ?? "").trim().split(/\s+/)[0] ?? null;
-  const promos = await promocionesActivas();
+  const nombre = (cupon?.nombre ?? contacto?.nombre ?? nombrePush ?? "").trim().split(/\s+/)[0] || null;
+  await guardarSesion({ telefono, flujo: "ofertas", contactoId: contacto?.id ?? null, estado: { carrito: [] } });
 
-  const saludo = `¡Perfecto${nombre ? `, ${nombre}` : ""}! 🎁`;
-  const cuerpo = promos.length
-    ? "Estos son los descuentos que tenemos hoy:\n" +
-      promos.map((p) => `• *${p.titulo}*${p.detalle ? ` — ${p.detalle}` : ""}`).join("\n")
-    : "Tu descuento quedó registrado y lo aplicamos al confirmar tu pedido.";
-  const cierre = "\n\nCuéntame qué productos buscas (ej: *bandejas*, *servilletas*) o escribe *categorías*, y armamos tu pedido.";
-
-  await guardarSesion({ telefono, flujo: "tienda", contactoId: contacto?.id ?? null, estado: { carrito: [] } });
-  return [{ texto: `${saludo} ${cuerpo}${cierre}` }];
+  if (!cupon) {
+    return [
+      {
+        texto:
+          `¡Hola${nombre ? `, ${nombre}` : ""}! No encontré un cupón asociado a este número. ` +
+          "Escanea el QR de la sala e ingresa tu RUT para obtener el tuyo. 🎁",
+      },
+    ];
+  }
+  const estado = estadoEfectivo(cupon);
+  if (estado !== "vigente") {
+    const motivo = { canjeado: "ya fue usado", anulado: "fue anulado", vencido: "está vencido" }[estado];
+    return [{ texto: `Tu cupón *${cupon.codigo}* ${motivo}. Si crees que es un error, respóndenos por aquí.` }];
+  }
+  const vence = cupon.venceAt.toLocaleDateString("es-CL", { day: "numeric", month: "long", timeZone: "America/Santiago" });
+  return [
+    {
+      imagenUrl: urlQrCupon(cupon.token),
+      texto:
+        `¡Listo${nombre ? `, ${nombre}` : ""}! 🎁 Este es tu cupón: *${cupon.descuento}*\n` +
+        `Código *${cupon.codigo}* · válido hasta el ${vence}.\n\n` +
+        "Muestra este QR en caja en cualquier sucursal Vanni y te aplicamos el descuento.",
+    },
+  ];
 }
 
 async function decidir(e: Entrada, telefono: string): Promise<{ flujo: Flujo | "sistema"; salidas: Salida[] }> {
@@ -180,7 +200,7 @@ async function decidir(e: Entrada, telefono: string): Promise<{ flujo: Flujo | "
 
   // 1. Llaves
   if (LLAVE_DESCUENTO.test(texto)) {
-    return { flujo: "tienda", salidas: await entrarPorDescuento(telefono, texto, e.nombre ?? null) };
+    return { flujo: "ofertas", salidas: await entrarPorDescuento(telefono, texto, e.nombre ?? null) };
   }
   if (LLAVE_OFERTAS.test(texto)) {
     const contacto = await asegurarContacto(telefono, e.nombre ?? null);
@@ -248,9 +268,9 @@ export async function procesarMensaje(e: Entrada): Promise<SalidaEnviada[]> {
   // El entrante se guarda antes de decidir: el historial que lee el modelo
   // tiene que incluir lo que se le acaba de decir.
   const flujoPrevio = (await leerSesion(telefono))?.flujo as Flujo | undefined;
-  const flujoEntrada: Flujo | "sistema" = LLAVE_TIENDA.test(e.texto) || LLAVE_DESCUENTO.test(e.texto)
+  const flujoEntrada: Flujo | "sistema" = LLAVE_TIENDA.test(e.texto)
     ? "tienda"
-    : LLAVE_OFERTAS.test(e.texto)
+    : LLAVE_OFERTAS.test(e.texto) || LLAVE_DESCUENTO.test(e.texto)
       ? "ofertas"
       : (flujoPrevio ?? "sistema");
   await guardarMensaje({

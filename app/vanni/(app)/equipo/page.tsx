@@ -29,7 +29,7 @@ export default async function Equipo() {
               {usuarios.map((u) => (
                 <tr key={u.id}>
                   <td><b>{u.nombre}</b><div style={{ fontSize: 12.5, color: "var(--vn-muted)" }}>{u.username}</div></td>
-                  <td>{u.rol === "admin" ? "Administrador" : "Ejecutiva"}</td>
+                  <td>{u.rol === "admin" ? "Administrador" : u.rol === "caja" ? "Caja" : "Ejecutiva"}</td>
                   <td style={{ fontSize: 13 }}>{u.telefono ? formatoTelefono(u.telefono) : "—"}<br />{u.email ?? ""}</td>
                   <td>{fechaHora(u.ultimoIngreso)}</td>
                   <td>

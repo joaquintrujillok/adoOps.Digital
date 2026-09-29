@@ -43,8 +43,9 @@ import {
  * - `admin`     — todo: carga bases, lanza campañas, edita el catálogo, gestiona el equipo.
  * - `ejecutiva` — ve y gestiona sus oportunidades y los pedidos. Es quien recibe
  *                 el aviso de un cliente interesado, por WhatsApp y por correo.
+ * - `caja`      — solo canjea cupones en la sucursal. No ve la base de clientes.
  */
-export type VanniRol = "admin" | "ejecutiva";
+export type VanniRol = "admin" | "ejecutiva" | "caja";
 
 export const vanniUsuarios = pgTable(
   "vanni_usuarios",
@@ -497,6 +498,45 @@ export const vanniPromociones = pgTable("vanni_promociones", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+/**
+ * El cupón que se lleva el cliente del formulario del QR y canjea en la caja.
+ *
+ * Es la fase 1 de la captura: no depende del e-commerce ni de una pasarela de
+ * pago. El QR del cupón abre su ficha; con sesión de caja se marca canjeado.
+ * Un cupón vigente por RUT: volver a escanear devuelve el mismo, no uno nuevo.
+ */
+export const vanniCupones = pgTable(
+  "vanni_cupones",
+  {
+    id: serial("id").primaryKey(),
+    /** Va en el QR. Largo y aleatorio: quien no tiene el cupón no lo adivina. */
+    token: varchar("token", { length: 40 }).notNull(),
+    /** El código corto para dictar o escribir si el QR no se puede escanear. */
+    codigo: varchar("codigo", { length: 12 }).notNull(),
+    capturaId: integer("captura_id").references(() => vanniCapturas.id, { onDelete: "set null" }),
+    rut: varchar("rut", { length: 12 }).notNull(),
+    telefono: varchar("telefono", { length: 20 }),
+    nombre: varchar("nombre", { length: 160 }),
+    /** El descuento tal como se emitió: si la base cambia después, el cupón no. */
+    descuento: text("descuento").notNull(),
+    /** `vigente` | `canjeado` | `anulado`. Vencido se calcula con `vence_at`. */
+    estado: varchar("estado", { length: 12 }).notNull().default("vigente"),
+    venceAt: timestamp("vence_at", { withTimezone: true }).notNull(),
+    canjeadoAt: timestamp("canjeado_at", { withTimezone: true }),
+    canjeadoPor: integer("canjeado_por").references(() => vanniUsuarios.id, { onDelete: "set null" }),
+    sucursalCanje: varchar("sucursal_canje", { length: 80 }),
+    boleta: varchar("boleta", { length: 40 }),
+    montoCompra: integer("monto_compra"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("vanni_cupones_token_idx").on(t.token),
+    uniqueIndex("vanni_cupones_codigo_idx").on(t.codigo),
+    index("vanni_cupones_rut_idx").on(t.rut),
+  ],
+);
+
+export type VanniCupon = typeof vanniCupones.$inferSelect;
 export type VanniClienteMaestra = typeof vanniClientesMaestra.$inferSelect;
 export type VanniCaptura = typeof vanniCapturas.$inferSelect;
 export type VanniPromocion = typeof vanniPromociones.$inferSelect;

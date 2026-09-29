@@ -277,7 +277,7 @@ export async function crearUsuarioAction(
       nombre,
       email: String(formData.get("email") ?? "").trim() || null,
       telefono: tel,
-      rol: formData.get("rol") === "admin" ? "admin" : "ejecutiva",
+      rol: formData.get("rol") === "admin" ? "admin" : formData.get("rol") === "caja" ? "caja" : "ejecutiva",
       passwordHash: hashPassword(clave),
       debeCambiarClave: true,
     });

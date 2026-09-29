@@ -10,7 +10,7 @@ export default async function Cuenta() {
       <div className="vn-top">
         <div>
           <h1>Mi cuenta</h1>
-          <p>{s.nombre} · {s.username} · {s.rol === "admin" ? "Administrador" : "Ejecutiva"}</p>
+          <p>{s.nombre} · {s.username} · {s.rol === "admin" ? "Administrador" : s.rol === "caja" ? "Caja" : "Ejecutiva"}</p>
         </div>
       </div>
       <section className="vn-card" style={{ maxWidth: 440 }}>

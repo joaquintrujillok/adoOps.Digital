@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { redirect } from "next/navigation";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { vanniOportunidades, vanniPedidos } from "@/db/vanni";
@@ -13,6 +14,8 @@ export const dynamic = "force-dynamic";
 
 export default async function VanniAppLayout({ children }: { children: React.ReactNode }) {
   const sesion = await requireSesion();
+  // La cuenta de caja solo canjea cupones: no entra al backoffice ni ve la base.
+  if (sesion.rol === "caja") redirect("/vanni/canje");
 
   // Los contadores del menú son lo que espera acción: interesados por llamar y
   // pedidos pagados que hay que preparar.

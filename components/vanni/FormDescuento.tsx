@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { buscarRutAction, completarCapturaAction } from "@/lib/vanni/captura.actions";
-import type { ResultadoRut } from "@/lib/vanni/captura";
+import type { CuponEmitido, ResultadoRut } from "@/lib/vanni/captura";
 
 /** 12.345.678-5 mientras se escribe. */
 function formatearRut(v: string): string {
@@ -19,6 +19,7 @@ export default function FormDescuento({ sucursal }: { sucursal: string | null })
   const [telefono, setTelefono] = useState("");
   const [consentimiento, setConsentimiento] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [cupon, setCupon] = useState<CuponEmitido | null>(null);
   const [whatsapp, setWhatsapp] = useState<string | null>(null);
   const [pendiente, iniciar] = useTransition();
 
@@ -44,21 +45,26 @@ export default function FormDescuento({ sucursal }: { sucursal: string | null })
         telefono: confirma === true ? null : telefono,
         consentimiento,
       });
-      if (!r.ok || !r.whatsappUrl) return setError(r.error ?? "No pudimos guardar tus datos.");
-      // Botón y no redirección automática: varios navegadores de celular
-      // bloquean un salto a otra app que no nace directo de un toque.
-      setWhatsapp(r.whatsappUrl);
+      if (!r.ok || !r.cupon) return setError(r.error ?? "No pudimos guardar tus datos.");
+      setCupon(r.cupon);
+      setWhatsapp(r.whatsappUrl ?? null);
     });
   };
 
-  // ── Paso 3: a WhatsApp ────────────────────────────────────────────────────
-  if (whatsapp) {
+  // ── Paso 3: el cupón ──────────────────────────────────────────────────────
+  if (cupon) {
+    const vence = new Date(cupon.vence).toLocaleDateString("es-CL", { day: "numeric", month: "long" });
     return (
-      <div className="vn-card vn-qr-card" style={{ textAlign: "center" }}>
-        <div style={{ fontSize: 40 }}>🎁</div>
-        <h1 className="vn-qr-titulo">¡Tu descuento está listo!</h1>
-        <p>Abre WhatsApp y envía el mensaje que aparece escrito. Te contamos cómo usarlo y armamos tu pedido por ahí.</p>
-        <a href={whatsapp} className="vn-btn vn-qr-boton vn-qr-boton-wsp">Abrir WhatsApp</a>
+      <div className="vn-card vn-qr-card vn-cupon">
+        <span className="vn-cupon-etiqueta">Tu cupón Vanni</span>
+        <b className="vn-cupon-descuento">{cupon.descuento}</b>
+        <div className="vn-cupon-qr" dangerouslySetInnerHTML={{ __html: cupon.qrSvg }} />
+        <div className="vn-cupon-codigo">{cupon.codigo}</div>
+        <p><b>Muéstralo en caja</b> en cualquier sucursal Vanni antes del {vence}. Toma una captura de pantalla para tenerlo a mano.</p>
+        {whatsapp && (
+          <a href={whatsapp} className="vn-btn vn-qr-boton vn-qr-boton-wsp">Recibirlo por WhatsApp</a>
+        )}
+        <a href={cupon.url} className="vn-btn vn-btn-sec vn-qr-boton">Abrir mi cupón</a>
       </div>
     );
   }
@@ -148,8 +154,8 @@ export default function FormDescuento({ sucursal }: { sucursal: string | null })
             <span>Quiero recibir ofertas y novedades de Vanni por WhatsApp. Puedo darme de baja cuando quiera.</span>
           </label>
           {error && <p className="vn-aviso vn-aviso-rojo">{error}</p>}
-          <button className="vn-btn vn-qr-boton vn-qr-boton-wsp" disabled={pendiente}>
-            {pendiente ? "Un momento…" : "Activar mi descuento por WhatsApp"}
+          <button className="vn-btn vn-qr-boton" disabled={pendiente}>
+            {pendiente ? "Un momento…" : "Obtener mi cupón"}
           </button>
         </>
       )}
