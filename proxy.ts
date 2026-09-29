@@ -120,7 +120,9 @@ const AREAS: Area[] = [
     // - el cron de la cola lo llama Vercel o la propia cola (CRON_SECRET);
     // - la página de pago la abre el cliente final desde WhatsApp, y lo que la
     //   protege es el token del link: sin él no se llega a ningún pedido.
-    apiPublica: ["/api/vanni/whatsapp", "/api/vanni/cron", "/vanni/pagar"],
+    // - el formulario del QR de sala (/vanni/descuento) lo abre un cliente sin
+    //   cuenta; lo protege un límite de intentos y que no muestra datos completos.
+    apiPublica: ["/api/vanni/whatsapp", "/api/vanni/cron", "/vanni/pagar", "/vanni/descuento"],
   },
   {
     prefijos: ["/dashboard360", "/api/dashboard360"],

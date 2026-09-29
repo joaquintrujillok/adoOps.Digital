@@ -15,12 +15,14 @@ import {
   vanniContactos,
   vanniOportunidades,
   vanniProductos,
+  vanniPromociones,
   vanniUsuarios,
   vanniVariantes,
   type VanniEstadoPedido,
 } from "@/db/vanni";
 import { requireAdmin, requireSesion } from "./auth.actions";
 import { dispararCola, origenActual } from "./cola";
+import { cargarBaseMaestra, type ResultadoBase } from "./captura";
 import { agregarContacto, cargarFilas, parsearCsv, type ResultadoCarga } from "./contactos";
 import { borrarEjemplo, cargarEjemplo } from "./ejemplo";
 import { actualizarEstados, encolarCampana, procesarCola } from "./envios";
@@ -291,4 +293,51 @@ export async function activarUsuarioAction(id: number, activo: boolean): Promise
   if (s.userId === id && !activo) throw new Error("No puedes desactivar tu propia cuenta");
   await db.update(vanniUsuarios).set({ activo }).where(eq(vanniUsuarios.id, id));
   revalidatePath("/vanni/equipo");
+}
+
+// ─── Captura en tienda ───────────────────────────────────────────────────────
+
+export async function subirBaseMaestraAction(
+  _prev: ResultadoBase | { error: string } | null,
+  formData: FormData,
+): Promise<ResultadoBase | { error: string }> {
+  await requireAdmin();
+  const archivo = formData.get("archivo");
+  if (!(archivo instanceof File) || archivo.size === 0) return { error: "Elige un archivo .xlsx o .csv" };
+  if (archivo.size > 20 * 1024 * 1024) return { error: "El archivo pesa más de 20 MB" };
+  const nombre = archivo.name.toLowerCase();
+  let filas: unknown[][];
+  try {
+    if (nombre.endsWith(".xlsx")) filas = (await readSheet(Buffer.from(await archivo.arrayBuffer()))) as unknown[][];
+    else if (nombre.endsWith(".csv") || nombre.endsWith(".txt")) filas = parsearCsv(await archivo.text());
+    else return { error: "Formato no soportado. Usa .xlsx o .csv (el .xls antiguo hay que guardarlo como .xlsx)." };
+  } catch (err) {
+    console.error("[vanni] no se pudo leer la base maestra", err);
+    return { error: "No pude leer el archivo. ¿Está abierto en otro programa o dañado?" };
+  }
+  const r = await cargarBaseMaestra(filas);
+  revalidatePath("/vanni/captura");
+  return r;
+}
+
+export async function guardarPromocionAction(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const id = Number(formData.get("id") || 0);
+  const titulo = String(formData.get("titulo") ?? "").trim();
+  if (!titulo) return;
+  const valores = {
+    titulo,
+    detalle: String(formData.get("detalle") ?? "").trim() || null,
+    activa: formData.get("activa") === "on",
+    orden: Number(formData.get("orden") || 0),
+  };
+  if (id) await db.update(vanniPromociones).set(valores).where(eq(vanniPromociones.id, id));
+  else await db.insert(vanniPromociones).values(valores);
+  revalidatePath("/vanni/captura");
+}
+
+export async function borrarPromocionAction(id: number): Promise<void> {
+  await requireAdmin();
+  await db.delete(vanniPromociones).where(eq(vanniPromociones.id, id));
+  revalidatePath("/vanni/captura");
 }

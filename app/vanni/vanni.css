@@ -252,3 +252,33 @@
 .vn-chat-pie a { color: var(--vn-teal); font-weight: 600; }
 .vn-chat-vacio { flex: 1; display: flex; align-items: center; justify-content: center; text-align: center; padding: 32px; }
 .vn-chat-vacio > div { max-width: 380px; display: grid; gap: 8px; color: var(--vn-ink-2); }
+
+/* ── Formulario público del QR ─────────────────────────────────────────────── */
+.vn-qr { min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 22px 16px 32px; gap: 18px; background: var(--vn-plane); }
+.vn-qr-cabecera { background: #fdfcfa; border-radius: 16px; padding: 12px 20px; }
+.vn-qr-cabecera img { display: block; width: 180px; height: auto; }
+.vn-qr-card { width: 100%; max-width: 420px; display: grid; gap: 12px; padding: 22px 20px; }
+.vn-qr-card p { color: var(--vn-ink-2); line-height: 1.45; }
+.vn-qr-titulo { font-size: 24px; font-weight: 600; line-height: 1.2; }
+.vn-qr-input { font-size: 20px; padding: 12px 14px; letter-spacing: 0.02em; }
+.vn-qr-boton { width: 100%; padding: 14px 16px; font-size: 16.5px; border-radius: 12px; }
+.vn-qr-boton-wsp { background: #1f8f4f; }
+.vn-qr-boton-wsp:hover { background: #18773f; }
+.vn-qr-premio { background: var(--vn-teal); color: #f6f4ef; border-radius: 14px; padding: 16px 18px; display: grid; gap: 2px; }
+.vn-qr-premio span { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: #cfe7df; }
+.vn-qr-premio b { font-family: var(--font-vn-display), sans-serif; font-size: 24px; line-height: 1.2; }
+.vn-qr-bloque { display: grid; gap: 8px; border-top: 1px solid var(--vn-line); padding-top: 12px; }
+.vn-qr-telefono { font-size: 22px; font-weight: 700; color: var(--vn-ink) !important; letter-spacing: 0.03em; }
+.vn-qr-opciones { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.vn-qr-opciones .vn-btn { padding: 12px 10px; }
+.vn-qr-check { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; color: var(--vn-ink-2); }
+.vn-qr-check input { width: 20px; height: 20px; margin-top: 1px; accent-color: var(--vn-teal); flex-shrink: 0; }
+.vn-qr-link { background: none; border: none; color: var(--vn-teal); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; padding: 0; justify-self: center; }
+.vn-qr-pie { max-width: 420px; text-align: center; font-size: 12.5px; color: var(--vn-muted); }
+.vn-promo-fila { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 56px auto auto auto; gap: 6px; align-items: center; }
+.vn-qrs { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 12px; }
+.vn-qr-fig { background: #fdfcfa; border: 1px solid var(--vn-border); border-radius: 12px; padding: 12px; display: grid; gap: 6px; justify-items: center; width: 206px; }
+.vn-qr-fig svg { width: 180px; height: 180px; display: block; }
+.vn-qr-fig figcaption { text-align: center; display: grid; gap: 2px; }
+.vn-qr-fig figcaption span { font-size: 11px; color: var(--vn-muted); word-break: break-all; }
+@media print { .vn-side, .vn-top-acciones, form, .vn-kpi { display: none !important; } }

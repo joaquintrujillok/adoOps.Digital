@@ -35,6 +35,10 @@ export default async function VanniAppLayout({ children }: { children: React.Rea
       ],
     },
     {
+      titulo: "Captura en tienda",
+      items: [{ href: "/vanni/captura", etiqueta: "QR, RUT y descuentos" }],
+    },
+    {
       titulo: "Tienda #tienda-whatsapp",
       items: [
         { href: "/vanni/tienda/productos", etiqueta: "Productos" },

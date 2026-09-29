@@ -36,6 +36,20 @@
       "when": 1790636968141,
       "tag": "0004_vanni_tomado",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790682029455,
+      "tag": "0005_vanni_captura",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790682078445,
+      "tag": "0006_vanni_consentimiento",
+      "breakpoints": true
     }
   ]
 }

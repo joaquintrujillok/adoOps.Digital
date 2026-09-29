@@ -97,8 +97,15 @@ export const vanniContactos = pgTable(
 
     /** `activo` | `baja`. Quien pidió no ser contactado no vuelve a recibir nada. */
     estado: varchar("estado", { length: 20 }).notNull().default("activo"),
-    /** De dónde entró: `planilla` | `manual` | `whatsapp`. */
+    /** De dónde entró: `planilla` | `manual` | `whatsapp` | `qr`. */
     origen: varchar("origen", { length: 20 }).notNull().default("manual"),
+    /**
+     * Si aceptó recibir ofertas. `null` = no se le preguntó (la base que carga
+     * Vanni); `false` = se le preguntó en el QR y dijo que no, y entonces no
+     * entra en campañas aunque siga pudiendo escribirle al bot.
+     */
+    consentimiento: boolean("consentimiento"),
+    consentimientoAt: timestamp("consentimiento_at", { withTimezone: true }),
     ejemplo: boolean("ejemplo").notNull().default(false),
     bajaAt: timestamp("baja_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -418,6 +425,81 @@ export const vanniPresupuesto = pgTable("vanni_presupuesto", {
   costoUsd: numeric("costo_usd", { precision: 10, scale: 4 }).notNull().default("0"),
 });
 
+// ─── Captura en tienda (QR + RUT) ────────────────────────────────────────────
+
+/**
+ * La base maestra de clientes de Vanni, identificada por RUT. La carga Vanni:
+ * cada RUT trae el descuento que le corresponde según su comportamiento de
+ * compra. Es distinta de `vanni_contactos` porque acá el teléfono puede faltar
+ * —justamente lo que la captura en tienda viene a completar—, y un contacto de
+ * WhatsApp sin teléfono no existe.
+ */
+export const vanniClientesMaestra = pgTable(
+  "vanni_clientes_maestra",
+  {
+    id: serial("id").primaryKey(),
+    /** Normalizado: sin puntos, con guion y DV en mayúscula (12345678-K). */
+    rut: varchar("rut", { length: 12 }).notNull(),
+    nombre: varchar("nombre", { length: 160 }),
+    razonSocial: varchar("razon_social", { length: 200 }),
+    /** 569XXXXXXXX, o null si la base no lo tiene. */
+    telefono: varchar("telefono", { length: 20 }),
+    email: varchar("email", { length: 254 }),
+    sucursal: varchar("sucursal", { length: 80 }),
+    /** El descuento de este cliente, como se le muestra: "15% en bandejas". */
+    descuento: text("descuento"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("vanni_clientes_maestra_rut_idx").on(t.rut)],
+);
+
+/**
+ * Cada vez que alguien ingresa su RUT en el formulario del QR. Es el embudo de
+ * la captura: ingresó → estaba en la base → dejó o confirmó teléfono → llegó a
+ * WhatsApp.
+ */
+export const vanniCapturas = pgTable(
+  "vanni_capturas",
+  {
+    id: serial("id").primaryKey(),
+    /** Va en el mensaje de WhatsApp para unir la conversación con esta captura. */
+    codigo: varchar("codigo", { length: 12 }).notNull(),
+    rut: varchar("rut", { length: 12 }).notNull(),
+    clienteId: integer("cliente_id").references(() => vanniClientesMaestra.id, { onDelete: "set null" }),
+    encontrado: boolean("encontrado").notNull().default(false),
+    /** La sucursal del QR que se escaneó. */
+    sucursal: varchar("sucursal", { length: 80 }),
+    telefono: varchar("telefono", { length: 20 }),
+    /** `confirmado` (el de la base) · `nuevo` (la base no tenía) · `corregido` (dio otro). */
+    origenTelefono: varchar("origen_telefono", { length: 12 }),
+    consentimiento: boolean("consentimiento").notNull().default(false),
+    completadaAt: timestamp("completada_at", { withTimezone: true }),
+    whatsappAt: timestamp("whatsapp_at", { withTimezone: true }),
+    /** Hash de la IP, solo para limitar intentos: no se guarda la IP. */
+    origenHash: varchar("origen_hash", { length: 64 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("vanni_capturas_codigo_idx").on(t.codigo),
+    index("vanni_capturas_rut_idx").on(t.rut),
+    index("vanni_capturas_origen_idx").on(t.origenHash, t.createdAt),
+  ],
+);
+
+/** Los descuentos vigentes que el bot le cuenta a quien llega desde el QR. */
+export const vanniPromociones = pgTable("vanni_promociones", {
+  id: serial("id").primaryKey(),
+  titulo: varchar("titulo", { length: 160 }).notNull(),
+  detalle: text("detalle"),
+  activa: boolean("activa").notNull().default(true),
+  orden: integer("orden").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export type VanniClienteMaestra = typeof vanniClientesMaestra.$inferSelect;
+export type VanniCaptura = typeof vanniCapturas.$inferSelect;
+export type VanniPromocion = typeof vanniPromociones.$inferSelect;
 export type VanniUsuario = typeof vanniUsuarios.$inferSelect;
 export type VanniContacto = typeof vanniContactos.$inferSelect;
 export type VanniCampana = typeof vanniCampanas.$inferSelect;

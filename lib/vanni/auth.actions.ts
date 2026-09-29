@@ -50,8 +50,8 @@ export async function loginAction(
     debeCambiarClave: u.debeCambiarClave,
   });
 
-  // Solo rutas del módulo y nunca la página pública de pago.
-  redirect(from.startsWith(RAIZ) && !from.startsWith("/vanni/pagar") ? from : RAIZ);
+  // Solo rutas del módulo, y nunca sus páginas públicas (pago y descuento del QR).
+  redirect(from.startsWith(RAIZ) && !from.startsWith("/vanni/pagar") && !from.startsWith("/vanni/descuento") ? from : RAIZ);
 }
 
 export async function logoutAction(): Promise<void> {

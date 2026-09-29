@@ -34,7 +34,9 @@ export async function encolarCampana(campanaId: number): Promise<number> {
     .orderBy(asc(vanniVariantes.codigo));
   if (!variantes.length) throw new Error("La campaña no tiene mensajes");
 
-  const filtros = [eq(vanniContactos.estado, "activo")];
+  // Quien dijo que no a las ofertas en el QR no entra; `null` (nunca se le
+  // preguntó, la base de Vanni) sí.
+  const filtros = [eq(vanniContactos.estado, "activo"), or(isNull(vanniContactos.consentimiento), eq(vanniContactos.consentimiento, true))!];
   if (campana.segmentos.length) filtros.push(inArray(vanniContactos.segmento, campana.segmentos));
   if (campana.sucursales.length) filtros.push(inArray(vanniContactos.sucursal, campana.sucursales));
   // Una campaña de ejemplo solo toca contactos de ejemplo, y una real solo reales.
