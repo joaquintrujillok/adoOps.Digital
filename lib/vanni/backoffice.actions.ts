@@ -288,6 +288,26 @@ export async function crearUsuarioAction(
   return { ok: `Cuenta creada. ${nombre} deberá cambiar la clave al entrar.` };
 }
 
+/** Nombre y datos de contacto. Así los avisos pasan a otra persona sin crear otra cuenta. */
+export async function editarUsuarioAction(
+  id: number,
+  _prev: { error?: string; ok?: string } | null,
+  formData: FormData,
+): Promise<{ error?: string; ok?: string }> {
+  await requireAdmin();
+  const nombre = String(formData.get("nombre") ?? "").trim();
+  if (!nombre) return { error: "Falta el nombre" };
+  const telefono = String(formData.get("telefono") ?? "").trim();
+  const tel = telefono ? normalizarTelefono(telefono) : null;
+  if (telefono && !tel) return { error: "El teléfono no es válido" };
+  await db
+    .update(vanniUsuarios)
+    .set({ nombre, telefono: tel, email: String(formData.get("email") ?? "").trim() || null })
+    .where(eq(vanniUsuarios.id, id));
+  revalidatePath("/vanni/equipo");
+  return { ok: "Guardado" };
+}
+
 export async function activarUsuarioAction(id: number, activo: boolean): Promise<void> {
   const s = await requireAdmin();
   if (s.userId === id && !activo) throw new Error("No puedes desactivar tu propia cuenta");

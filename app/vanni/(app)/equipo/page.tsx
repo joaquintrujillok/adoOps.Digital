@@ -1,6 +1,7 @@
 import { asc } from "drizzle-orm";
 import { db } from "@/db";
 import { vanniUsuarios } from "@/db/vanni";
+import EditarUsuario from "@/components/vanni/EditarUsuario";
 import FormUsuario from "@/components/vanni/FormUsuario";
 import { activarUsuarioAction } from "@/lib/vanni/backoffice.actions";
 import { requireAdmin } from "@/lib/vanni/auth.actions";
@@ -32,7 +33,8 @@ export default async function Equipo() {
                   <td>{u.rol === "admin" ? "Administrador" : u.rol === "caja" ? "Caja" : "Ejecutiva"}</td>
                   <td style={{ fontSize: 13 }}>{u.telefono ? formatoTelefono(u.telefono) : "—"}<br />{u.email ?? ""}</td>
                   <td>{fechaHora(u.ultimoIngreso)}</td>
-                  <td>
+                  <td style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
+                    <EditarUsuario id={u.id} nombre={u.nombre} telefono={u.telefono} email={u.email} />
                     {u.id !== yo.userId && (
                       <form action={activarUsuarioAction.bind(null, u.id, !u.activo)}>
                         <button className="vn-btn vn-btn-sm vn-btn-sec">{u.activo ? "Desactivar" : "Activar"}</button>
