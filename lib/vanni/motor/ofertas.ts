@@ -238,15 +238,16 @@ async function derivar(ctx: Contexto, d: Decision): Promise<string> {
   if (tipo === "reclamo") {
     return `Lamento lo que pasó${nombre ? `, ${nombre}` : ""}. Le paso tu caso a ${quien ? `*${quien}*` : "una ejecutiva"} para que te contacte y lo resuelva.`;
   }
-  const ejecutivaDe = quien ? `*${quien}*, tu ejecutiva de Vanni,` : null;
+  // Sin género: el nombre de la cuenta puede ser de cualquiera del equipo.
+  const ejecutivaDe = quien ? `*${quien}*, del equipo comercial de Vanni,` : null;
   if (cuando) {
     return (
       `¡Perfecto${nombre ? `, ${nombre}` : ""}! 🙌 Recibimos tu OK. Nuestro horario de atención ya terminó, así que ` +
-      `${ejecutivaDe ?? "una ejecutiva de Vanni"} te llamará ${cuando} para aplicar tu *${ctx.campana.promocion}*.\n¡Gracias por preferirnos!`
+      `${ejecutivaDe ?? "alguien del equipo comercial de Vanni"} te llamará ${cuando} para aplicar tu *${ctx.campana.promocion}*.\n¡Gracias por preferirnos!`
     );
   }
   return (
-    `¡Perfecto${nombre ? `, ${nombre}` : ""}! 🙌 ${ejecutivaDe ?? "Una ejecutiva de Vanni"} ` +
+    `¡Perfecto${nombre ? `, ${nombre}` : ""}! 🙌 ${ejecutivaDe ?? "Alguien del equipo comercial de Vanni"} ` +
     `te llamará dentro de las próximas 24 horas para aplicar tu *${ctx.campana.promocion}*.\n¡Gracias por preferirnos!`
   );
 }
