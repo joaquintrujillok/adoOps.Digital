@@ -13,7 +13,7 @@ import { SITE_URL } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
-const ORIGEN_TEL: Record<string, string> = { confirmado: "Confirmó el de la base", nuevo: "Nuevo (la base no tenía)", corregido: "Corrigió el de la base" };
+const ORIGEN_TEL: Record<string, string> = { confirmado: "Igual al de la base", nuevo: "Nuevo (la base no tenía)", corregido: "Distinto al de la base" };
 
 export default async function Captura() {
   const [e, sucs, porSucursal, promos, recientes, c, cupones] = await Promise.all([
@@ -39,26 +39,26 @@ export default async function Captura() {
       <div className="vn-top">
         <div>
           <h1>Captura en tienda</h1>
-          <p>Fase 1: QR en cada sucursal → el cliente ingresa su RUT, ve su descuento, confirma o deja su WhatsApp y se lleva un <b>cupón con QR</b> que canjea en caja. La base gana teléfonos y permiso para contactar, sin depender del e-commerce.</p>
+          <p>Fase 1: QR en cada sucursal → abre el WhatsApp de Vanni con el mensaje ya escrito → el bot pide permiso para ofertas y el RUT → entrega un <b>cupón con QR</b> que se canjea en caja. El número llega solo: es el del teléfono que escribe. La base gana teléfonos y permiso para contactar, sin depender del e-commerce.</p>
         </div>
         <div className="vn-top-acciones">
-          <a className="vn-btn vn-btn-sec" href="/vanni/descuento" target="_blank" rel="noreferrer">Ver el formulario</a>
+          <a className="vn-btn vn-btn-sec" href="/vanni/descuento" target="_blank" rel="noreferrer">Probar el QR</a>
           <a className="vn-btn vn-btn-sec" href="/vanni/canje" target="_blank" rel="noreferrer">Pantalla de caja</a>
         </div>
       </div>
 
       {!numero && (
         <p className="vn-aviso" style={{ marginBottom: 14 }}>
-          Falta <b>VANNI_WHATSAPP_NUMERO</b> (el número de WhatsApp de Vanni, formato 569XXXXXXXX). Sin él, el cupón se emite igual pero no aparece el botón “Recibirlo por WhatsApp”.
+          Falta <b>VANNI_WHATSAPP_NUMERO</b> (el número de WhatsApp de Vanni, formato 569XXXXXXXX). Sin él, el QR de la sala no puede abrir WhatsApp.
         </p>
       )}
 
       <div className="vn-grid vn-grid-kpi" style={{ marginBottom: 16 }}>
         <div className="vn-kpi"><label>Base maestra</label><b>{miles(e.base)}</b><span>{pct(e.baseConTelefono, e.base)} con teléfono</span></div>
-        <div className="vn-kpi"><label>Ingresaron su RUT</label><b>{miles(e.ingresos)}</b><span>{pct(e.encontrados, e.ingresos)} estaba en la base</span></div>
-        <div className="vn-kpi vn-kpi-hi"><label>Dejaron o confirmaron teléfono</label><b>{miles(e.completadas)}</b><span>{pct(e.completadas, e.ingresos)} de los que ingresaron</span></div>
+        <div className="vn-kpi"><label>Dieron su RUT</label><b>{miles(e.ingresos)}</b><span>{pct(e.encontrados, e.ingresos)} estaba en la base</span></div>
+        <div className="vn-kpi vn-kpi-hi"><label>Recibieron su cupón</label><b>{miles(e.completadas)}</b><span>por WhatsApp, con su número</span></div>
         <div className="vn-kpi"><label>Aceptaron ofertas</label><b>{miles(e.consentimiento)}</b><span>{pct(e.consentimiento, e.completadas)} de los que completaron</span></div>
-        <div className="vn-kpi"><label>Llegaron a WhatsApp</label><b>{miles(e.whatsapp)}</b><span>{pct(e.whatsapp, e.completadas)} de los que completaron</span></div>
+        <div className="vn-kpi"><label>Números nuevos</label><b>{miles(e.nuevos)}</b><span>que la base no tenía</span></div>
       </div>
 
       <div className="vn-grid vn-grid-kpi" style={{ marginBottom: 16, gridTemplateColumns: "repeat(4, minmax(0,1fr))" }}>
@@ -71,23 +71,23 @@ export default async function Captura() {
       <div className="vn-grid vn-grid-2" style={{ marginBottom: 16 }}>
         <section className="vn-card">
           <h2>Teléfonos obtenidos</h2>
-          <p className="vn-sub">Qué pasó con el teléfono de cada cliente que completó el formulario</p>
+          <p className="vn-sub">El número de WhatsApp de cada cliente que pidió su cupón, comparado con la base</p>
           <div style={{ marginTop: 8 }}>
             <Barras
               anchoNombre={190}
               filas={[
-                { nombre: "Confirmó el de la base", valor: e.confirmados, etiqueta: miles(e.confirmados) },
+                { nombre: "Igual al de la base", valor: e.confirmados, etiqueta: miles(e.confirmados) },
                 { nombre: "Nuevo: la base no tenía", valor: e.nuevos, etiqueta: miles(e.nuevos) },
-                { nombre: "Corrigió el de la base", valor: e.corregidos, etiqueta: miles(e.corregidos) },
+                { nombre: "Distinto (no se reemplaza)", valor: e.corregidos, etiqueta: miles(e.corregidos) },
               ].filter((f) => e.completadas > 0)}
             />
           </div>
         </section>
         <section className="vn-card">
           <h2>Por sucursal</h2>
-          <p className="vn-sub">RUT ingresados y cuántos llegaron a WhatsApp</p>
+          <p className="vn-sub">RUT recibidos por WhatsApp en cada sala</p>
           <div style={{ marginTop: 8 }}>
-            <Barras anchoNombre={120} filas={porSucursal.map((s) => ({ nombre: s.sucursal, valor: s.ingresos, etiqueta: miles(s.ingresos), dato: <span>{s.whatsapp} a WhatsApp</span> }))} />
+            <Barras anchoNombre={120} filas={porSucursal.map((s) => ({ nombre: s.sucursal, valor: s.ingresos, etiqueta: miles(s.ingresos), dato: <span>{s.completadas} con cupón</span> }))} />
           </div>
         </section>
       </div>

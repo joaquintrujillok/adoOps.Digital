@@ -4,7 +4,9 @@
 // pide el cliente desde el QR de la sala; y todo lo demás es alguien que le
 // escribe a Vanni para comprar. El orden de decisión es:
 //
-//   1. Cupón ("quiero mi cupón (código VN-…)", el botón del QR) → su cupón.
+//   0. QR de la sala ("Quiero mi descuento Vanni (sala X)") → captura: permiso,
+//      RUT y cupón (ver `captura.ts`), mientras dure esa conversación.
+//   1. Cupón ("quiero mi cupón (código VN-…)") → su cupón vigente.
 //   2. Respuesta a una campaña con el hilo abierto → `ofertas`. Abierto =
 //      recibió la campaña hace menos de 14 días y todavía no dijo OK, no, ni
 //      BAJA. Una vez cerrado, lo que escriba ya no es respuesta a la campaña.
@@ -29,6 +31,7 @@ import { cerrarSesion, estadoTienda, guardarMensaje, guardarSesion, leerSesion, 
 import { capturaPorCodigo, capturaPorTelefono, marcarWhatsApp } from "../captura";
 import { cuponDeCaptura, cuponPorCodigo, estadoEfectivo, urlQrCupon } from "../cupones";
 import { envioReciente, responderOfertas } from "./ofertas";
+import { CAPTURA_VIGENTE_MS, iniciarCaptura, LLAVE_SALA, responderCaptura } from "./captura";
 import { responderTienda } from "./tienda";
 import type { Salida } from "./tipos";
 
@@ -36,8 +39,8 @@ export const LLAVE_OFERTAS = /#\s*ofertas?\b/i;
 export const LLAVE_TIENDA = /#\s*tienda(?:[-\s_]*whats?app)?\b/i;
 export const LLAVE_SALIR = /#\s*salir\b/i;
 /**
- * El mensaje que arma el botón del formulario del QR ("Hola, quiero aplicar mi
- * descuento (código ABC123)"), o `#descuento` escrito a mano. Entra a la tienda.
+ * Alguien que ya tiene cupón y lo vuelve a pedir ("quiero mi cupón (código
+ * VN-…)"), o `#descuento` escrito a mano: se le reenvía el suyo.
  */
 export const LLAVE_DESCUENTO = /#\s*(descuento|cup[oó]n)\b|(aplicar|activar|usar|canjear)\s+(mi\s+)?descuento|(quiero|mandame|m[aá]ndame|env[ií]ame)\s+(mi\s+)?cup[oó]n/i;
 
@@ -198,7 +201,22 @@ async function decidir(e: Entrada, telefono: string): Promise<{ flujo: Flujo | "
   const sesion = await leerSesion(telefono);
   const sesionViva = sesion && Date.now() - new Date(sesion.actualizadaAt).getTime() < SESION_VIGENTE_MS;
 
-  // 1. Llaves
+  // 1. Captura en sala: el mensaje que deja escrito el QR, y sus respuestas.
+  if (LLAVE_SALA.test(texto)) {
+    return { flujo: "captura", salidas: await iniciarCaptura(telefono, texto) };
+  }
+  if (
+    sesion?.flujo === "captura" &&
+    sesion.estado?.captura &&
+    Date.now() - new Date(sesion.actualizadaAt).getTime() < CAPTURA_VIGENTE_MS
+  ) {
+    return {
+      flujo: "captura",
+      salidas: await responderCaptura({ telefono, texto, estado: sesion.estado.captura, nombrePush: e.nombre ?? null }),
+    };
+  }
+
+  // Llaves
   if (LLAVE_DESCUENTO.test(texto)) {
     return { flujo: "ofertas", salidas: await entrarPorDescuento(telefono, texto, e.nombre ?? null) };
   }
@@ -277,7 +295,9 @@ export async function procesarMensaje(e: Entrada): Promise<SalidaEnviada[]> {
   // El entrante se guarda antes de decidir: el historial que lee el modelo
   // tiene que incluir lo que se le acaba de decir.
   const flujoPrevio = (await leerSesion(telefono))?.flujo as Flujo | undefined;
-  const flujoEntrada: Flujo | "sistema" = LLAVE_TIENDA.test(e.texto)
+  const flujoEntrada: Flujo | "sistema" = LLAVE_SALA.test(e.texto)
+    ? "captura"
+    : LLAVE_TIENDA.test(e.texto)
     ? "tienda"
     : LLAVE_OFERTAS.test(e.texto) || LLAVE_DESCUENTO.test(e.texto)
       ? "ofertas"

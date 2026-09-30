@@ -9,7 +9,7 @@ import {
   type VanniSesion,
 } from "@/db/vanni";
 
-export type Flujo = "ofertas" | "tienda";
+export type Flujo = "ofertas" | "tienda" | "captura";
 
 export async function guardarMensaje(m: {
   telefono: string;

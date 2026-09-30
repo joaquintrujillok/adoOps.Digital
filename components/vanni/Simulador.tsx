@@ -8,7 +8,7 @@ import {
   type MensajeChat,
 } from "@/lib/vanni/simulador.actions";
 
-const ATAJOS = ["#Ofertas", "Sí, me interesa", "Necesito bandejas para tortas", "#tienda-whatsapp", "servilletas", "1", "agregar 1 x 10", "carrito", "pagar Av. Siempre Viva 123", "estado", "#salir"];
+const ATAJOS = ["Hola 👋 Quiero mi descuento Vanni (sala Centro)", "sí", "12.345.678-5", "#Ofertas", "Sí, me interesa", "Necesito bandejas para tortas", "#tienda-whatsapp", "servilletas", "1", "agregar 1 x 10", "carrito", "pagar Av. Siempre Viva 123", "estado", "#salir"];
 
 export default function Simulador({ telefonoInicial }: { telefonoInicial: string }) {
   const [telefono, setTelefono] = useState(telefonoInicial);

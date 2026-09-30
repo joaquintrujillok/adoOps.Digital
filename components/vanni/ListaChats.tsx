@@ -9,6 +9,7 @@ const FILTROS = [
   { id: "todas", texto: "Todas" },
   { id: "ofertas", texto: "Campaña" },
   { id: "tienda", texto: "Tienda" },
+  { id: "captura", texto: "QR en sala" },
   { id: "sistema", texto: "Menú" },
 ] as const;
 

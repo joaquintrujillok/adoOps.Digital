@@ -277,6 +277,8 @@ export interface VanniEstadoTienda {
   ultimaLista?: "productos" | "categorias";
   /** En `#Ofertas`: ya se le preguntó qué necesita; la próxima respuesta se deriva. */
   esperandoDetalle?: boolean;
+  /** Captura en sala por WhatsApp: en qué pregunta va (ver lib/vanni/motor/captura.ts). */
+  captura?: { paso: "permiso" | "rut"; sucursal: string | null; consentimiento?: boolean; intentos: number };
 }
 
 /**

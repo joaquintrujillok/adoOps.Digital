@@ -1,12 +1,16 @@
-// Captura en tienda: QR en la sucursal → RUT → descuento → teléfono → WhatsApp.
+// Captura en tienda: QR en la sucursal → WhatsApp → opt-in → RUT → cupón.
 //
-// **Qué se muestra y qué no.** El formulario es público: cualquiera puede
-// escribir un RUT ajeno. Por eso solo se muestra el primer nombre y el teléfono
-// enmascarado (+56 9 ••••4321), nunca el número completo ni la razón social, y
-// los intentos por origen tienen un límite: sin él, el formulario sería una
-// forma de recorrer la base de clientes de Vanni probando RUTs.
+// **El QR abre WhatsApp, no un formulario.** El cliente inicia la conversación
+// con un mensaje ya escrito ("Quiero mi descuento Vanni (sala Centro)"), así
+// que su número llega solo y verificado: es el del teléfono que escribe. El
+// bot le pide el permiso para ofertas y el RUT (ver `motor/captura.ts`).
+//
+// **Qué se muestra y qué no.** Cualquiera puede escribir un RUT ajeno. Por eso
+// solo se muestra el primer nombre, y un teléfono distinto al de la base no lo
+// reemplaza: se registra en la captura y en el contacto, pero el de la base
+// sigue siendo el de la base hasta que alguien de Vanni lo confirme.
 
-import { createHash, randomBytes } from "crypto";
+import { randomBytes } from "crypto";
 import { and, asc, desc, eq, gte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -15,17 +19,14 @@ import {
   vanniContactos,
   vanniPromociones,
   type VanniCaptura,
+  type VanniCupon,
 } from "@/db/vanni";
-import { emitirCupon, qrSvg, urlCupon } from "./cupones";
+import { emitirCupon } from "./cupones";
 import { normalizarRut } from "./rut";
 import { normalizarTelefono } from "./telefono";
 
-/** Intentos por origen en 10 minutos. Una familia en la caja no llega a esto; un script sí. */
-const LIMITE_INTENTOS = 15;
-
-export function hashOrigen(ip: string | null): string {
-  return createHash("sha256").update(`vanni:${ip ?? "desconocido"}`).digest("hex");
-}
+/** RUT distintos que un mismo teléfono puede probar en 10 minutos. */
+const LIMITE_RUTS = 5;
 
 function codigoNuevo(): string {
   // Sin 0/O ni 1/I: se dicta y se lee en una pantalla chica.
@@ -33,136 +34,80 @@ function codigoNuevo(): string {
   return Array.from(randomBytes(6), (b) => abc[b % abc.length]).join("");
 }
 
-export function enmascarar(telefono: string): string {
-  return /^569\d{8}$/.test(telefono) ? `+56 9 ••••${telefono.slice(-4)}` : `••••${telefono.slice(-4)}`;
-}
-
 function primerNombre(n: string | null | undefined): string | null {
   const p = (n ?? "").trim().split(/\s+/)[0];
   return p ? p.charAt(0).toUpperCase() + p.slice(1).toLowerCase() : null;
 }
 
-export interface ResultadoRut {
-  ok: boolean;
-  error?: string;
-  codigo?: string;
-  encontrado?: boolean;
-  nombre?: string | null;
-  descuento?: string | null;
-  telefonoMascarado?: string | null;
+/** El mensaje que el QR de la sala deja escrito en WhatsApp. El bot lo reconoce. */
+export function mensajeSala(sucursal: string | null): string {
+  return `Hola 👋 Quiero mi descuento Vanni${sucursal ? ` (sala ${sucursal})` : ""}`;
 }
 
-export async function buscarRut(rutEntrada: string, sucursal: string | null, origen: string): Promise<ResultadoRut> {
-  const rut = normalizarRut(rutEntrada);
-  if (!rut) return { ok: false, error: "Ese RUT no es válido. Revisa los números y el dígito verificador." };
-
-  const [{ n }] = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(vanniCapturas)
-    .where(and(eq(vanniCapturas.origenHash, origen), gte(vanniCapturas.createdAt, new Date(Date.now() - 10 * 60_000))));
-  if (n >= LIMITE_INTENTOS) {
-    return { ok: false, error: "Demasiados intentos seguidos. Espera unos minutos y vuelve a probar." };
-  }
-
-  const [cliente] = await db.select().from(vanniClientesMaestra).where(eq(vanniClientesMaestra.rut, rut)).limit(1);
-  const codigo = codigoNuevo();
-  await db.insert(vanniCapturas).values({
-    codigo,
-    rut,
-    clienteId: cliente?.id ?? null,
-    encontrado: Boolean(cliente),
-    sucursal: sucursal?.slice(0, 80) || null,
-    origenHash: origen,
-  });
-
-  return {
-    ok: true,
-    codigo,
-    encontrado: Boolean(cliente),
-    nombre: primerNombre(cliente?.nombre ?? cliente?.razonSocial),
-    descuento: cliente?.descuento ?? null,
-    telefonoMascarado: cliente?.telefono ? enmascarar(cliente.telefono) : null,
-  };
-}
-
-export interface CuponEmitido {
-  token: string;
-  codigo: string;
-  descuento: string;
-  vence: string;
-  url: string;
-  qrSvg: string;
-}
-
-export interface ResultadoCaptura {
-  ok: boolean;
-  error?: string;
-  cupon?: CuponEmitido;
-  /** Para recibir el cupón por WhatsApp. `null` si falta VANNI_WHATSAPP_NUMERO. */
-  whatsappUrl?: string | null;
-}
-
-export function mensajeWhatsApp(codigo: string): string {
-  return `Hola, quiero mi cupón de descuento 🎁 (código ${codigo})`;
-}
-
-export function urlWhatsApp(codigo: string): string | null {
+/** A dónde lleva el QR de la sala. `null` si falta VANNI_WHATSAPP_NUMERO. */
+export function urlWhatsAppSala(sucursal: string | null): string | null {
   const numero = process.env.VANNI_WHATSAPP_NUMERO?.replace(/\D/g, "");
   if (!numero) return null;
-  return `https://wa.me/${numero}?text=${encodeURIComponent(mensajeWhatsApp(codigo))}`;
+  return `https://wa.me/${numero}?text=${encodeURIComponent(mensajeSala(sucursal))}`;
 }
 
+export type ResultadoCapturaWhatsApp =
+  | { ok: true; cupon: VanniCupon; nombre: string | null; encontrado: boolean }
+  | { ok: false; error: string };
+
 /**
- * Cierra la captura: fija el teléfono (el de la base confirmado, uno nuevo o
- * uno corregido), registra el consentimiento y deja al cliente como contacto,
- * para que el bot lo reconozca cuando escriba.
+ * Registra la captura hecha por WhatsApp y emite el cupón. El teléfono es el
+ * del chat: no se pregunta ni se confirma.
  */
-export async function completarCaptura(d: {
-  codigo: string;
-  confirmaTelefono: boolean;
-  telefono?: string | null;
+export async function capturarPorWhatsApp(d: {
+  telefono: string;
+  rut: string;
+  sucursal: string | null;
   consentimiento: boolean;
-}): Promise<ResultadoCaptura> {
-  const [cap] = await db.select().from(vanniCapturas).where(eq(vanniCapturas.codigo, d.codigo)).limit(1);
-  if (!cap) return { ok: false, error: "La sesión expiró. Vuelve a ingresar tu RUT." };
-  if (Date.now() - cap.createdAt.getTime() > 60 * 60_000) {
-    return { ok: false, error: "La sesión expiró. Vuelve a ingresar tu RUT." };
+  nombrePush: string | null;
+}): Promise<ResultadoCapturaWhatsApp> {
+  const rut = normalizarRut(d.rut);
+  if (!rut) return { ok: false, error: "rut" };
+  const telefono = normalizarTelefono(d.telefono);
+  if (!telefono) return { ok: false, error: "telefono" };
+
+  const [{ n }] = await db
+    .select({ n: sql<number>`count(distinct ${vanniCapturas.rut})::int` })
+    .from(vanniCapturas)
+    .where(and(eq(vanniCapturas.telefono, telefono), gte(vanniCapturas.createdAt, new Date(Date.now() - 10 * 60_000))));
+  if (n >= LIMITE_RUTS) return { ok: false, error: "limite" };
+
+  const [cliente] = await db.select().from(vanniClientesMaestra).where(eq(vanniClientesMaestra.rut, rut)).limit(1);
+  const origenTelefono = !cliente?.telefono ? "nuevo" : cliente.telefono === telefono ? "confirmado" : "corregido";
+  const [cap] = await db
+    .insert(vanniCapturas)
+    .values({
+      codigo: codigoNuevo(),
+      rut,
+      clienteId: cliente?.id ?? null,
+      encontrado: Boolean(cliente),
+      sucursal: d.sucursal?.slice(0, 80) || null,
+      telefono,
+      origenTelefono,
+      consentimiento: d.consentimiento,
+      completadaAt: new Date(),
+      whatsappAt: new Date(),
+    })
+    .returning();
+
+  // La base gana el teléfono que no tenía. Uno distinto no se pisa: podría ser
+  // alguien escribiendo un RUT ajeno.
+  if (cliente && !cliente.telefono) {
+    await db.update(vanniClientesMaestra).set({ telefono, updatedAt: new Date() }).where(eq(vanniClientesMaestra.id, cliente.id));
   }
-  const [cliente] = cap.clienteId
-    ? await db.select().from(vanniClientesMaestra).where(eq(vanniClientesMaestra.id, cap.clienteId))
-    : [null];
 
-  let telefono: string | null;
-  let origenTelefono: "confirmado" | "nuevo" | "corregido";
-  if (d.confirmaTelefono && cliente?.telefono) {
-    telefono = cliente.telefono;
-    origenTelefono = "confirmado";
-  } else {
-    telefono = normalizarTelefono(d.telefono);
-    if (!telefono) return { ok: false, error: "Ese teléfono no es válido. Escríbelo como +56 9 1234 5678." };
-    origenTelefono = cliente?.telefono ? "corregido" : "nuevo";
-  }
-
-  await db
-    .update(vanniCapturas)
-    .set({ telefono, origenTelefono, consentimiento: d.consentimiento, completadaAt: new Date() })
-    .where(eq(vanniCapturas.id, cap.id));
-
-  // Si la base no tenía el teléfono, o tenía otro, ahora lo tiene: es el dato
-  // que la captura en tienda viene a completar.
-  if (cliente && cliente.telefono !== telefono) {
-    await db
-      .update(vanniClientesMaestra)
-      .set({ telefono, updatedAt: new Date() })
-      .where(eq(vanniClientesMaestra.id, cliente.id));
-  }
-
+  const nombre = cliente?.nombre ?? d.nombrePush ?? null;
   const datos = {
-    rut: cap.rut,
-    nombre: cliente?.nombre ?? null,
+    rut,
+    nombre,
     razonSocial: cliente?.razonSocial ?? null,
     email: cliente?.email ?? null,
-    sucursal: cap.sucursal ?? cliente?.sucursal ?? null,
+    sucursal: d.sucursal ?? cliente?.sucursal ?? null,
     consentimiento: d.consentimiento,
     consentimientoAt: new Date(),
     updatedAt: new Date(),
@@ -177,35 +122,17 @@ export async function completarCaptura(d: {
     await db.insert(vanniContactos).values({ telefono, ...datos, origen: "qr", ejemplo: telefono.startsWith("569000") });
   }
 
-  // Fase 1: el cierre es un cupón que se canjea en caja. El descuento es el de
-  // su RUT; si no estaba en la base, el primer descuento vigente de la sala.
+  // El descuento es el de su RUT; si no estaba en la base, la primera promoción
+  // vigente de la sala.
   const [promo] = await promocionesActivas();
   const cupon = await emitirCupon({
-    rut: cap.rut,
+    rut,
     telefono,
-    nombre: cliente?.nombre ?? null,
+    nombre: cliente?.nombre ?? d.nombrePush ?? null,
     descuento: cliente?.descuento || promo?.titulo || "Descuento de bienvenida",
     capturaId: cap.id,
   });
-  if (cupon.estado === "canjeado") {
-    const cuando = cupon.canjeadoAt?.toLocaleDateString("es-CL", { day: "numeric", month: "long", timeZone: "America/Santiago" });
-    return {
-      ok: false,
-      error: `Ya usaste tu descuento “${cupon.descuento}”${cuando ? ` el ${cuando}` : ""}${cupon.sucursalCanje ? ` en ${cupon.sucursalCanje}` : ""}. Te avisaremos cuando tengas uno nuevo.`,
-    };
-  }
-  return {
-    ok: true,
-    cupon: {
-      token: cupon.token,
-      codigo: cupon.codigo,
-      descuento: cupon.descuento,
-      vence: cupon.venceAt.toISOString(),
-      url: urlCupon(cupon.token),
-      qrSvg: await qrSvg(urlCupon(cupon.token)),
-    },
-    whatsappUrl: urlWhatsApp(cupon.codigo),
-  };
+  return { ok: true, cupon, nombre: primerNombre(cliente?.nombre ?? cliente?.razonSocial ?? d.nombrePush), encontrado: Boolean(cliente) };
 }
 
 // ─── Lado del bot ────────────────────────────────────────────────────────────
