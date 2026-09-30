@@ -1,0 +1,1 @@
+ALTER TABLE "vanni_pedido_items" ADD COLUMN "stock_al_cotizar" integer;

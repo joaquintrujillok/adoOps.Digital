@@ -113,9 +113,11 @@ export function mensajeEstadoPedido(estado: string, codigo: string): string | nu
     case "preparacion":
       return `📦 Estamos preparando tu pedido *${codigo}*.`;
     case "despachado":
-      return `🚚 Tu pedido *${codigo}* salió de bodega.`;
+      return `🚚 Tu pedido *${codigo}* está saliendo de bodega.`;
     case "en_camino":
       return `🛣️ Tu pedido *${codigo}* va en camino. Te avisamos cuando llegue.`;
+    case "llega_hoy":
+      return `📍 Tu pedido *${codigo}* llega hoy. ¡Atento a la entrega!`;
     case "entregado":
       return `🏁 Tu pedido *${codigo}* llegó a destino. ¡Gracias por comprar en Vanni! Si algo no está bien, respóndenos por aquí.`;
     case "cancelado":

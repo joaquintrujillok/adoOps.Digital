@@ -34,8 +34,9 @@ const ETIQUETA_ESTADO: Record<string, string> = {
   pendiente_pago: "esperando el pago",
   pagado: "pagado, pasa a preparación",
   preparacion: "en preparación",
-  despachado: "despachado desde bodega",
+  despachado: "saliendo de bodega",
   en_camino: "en camino",
+  llega_hoy: "llega hoy",
   entregado: "entregado",
   cancelado: "cancelado",
 };

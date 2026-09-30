@@ -64,6 +64,13 @@
       "when": 1790717348459,
       "tag": "0008_vanni_ritmo_y_dedup",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790730892826,
+      "tag": "0009_vanni_stock_cotizado",
+      "breakpoints": true
     }
   ]
 }

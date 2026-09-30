@@ -124,10 +124,13 @@ const AREAS: Area[] = [
     //   cuenta; lo protege un límite de intentos y que no muestra datos completos;
     // - la ficha del cupón y su imagen (/vanni/cupon, /api/vanni/cupon) las abre
     //   el cliente con su QR; las protege el token. El canje sí pide sesión.
+    // - la boleta de un pedido pagado (/api/vanni/boleta) la descarga WaSender
+    //   para mandarla por WhatsApp; la protege el token del link de pago.
     apiPublica: [
       "/api/vanni/whatsapp",
       "/api/vanni/cron",
       "/api/vanni/cupon",
+      "/api/vanni/boleta",
       "/vanni/pagar",
       "/vanni/descuento",
       "/vanni/cupon",

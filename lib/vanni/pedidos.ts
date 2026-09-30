@@ -19,10 +19,15 @@ import {
 import { SITE_URL } from "@/lib/site";
 import { guardarMensaje } from "./motor/conversacion";
 import { mensajeEstadoPedido } from "./notificar";
-import { enviarTexto } from "./wa";
+import { enviarImagen, enviarTexto } from "./wa";
 
 export function linkDePago(token: string): string {
   return `${SITE_URL}/vanni/pagar/${token}`;
+}
+
+/** La boleta (de demostración) de un pedido pagado, como imagen. */
+export function urlBoleta(token: string): string {
+  return `${SITE_URL}/api/vanni/boleta/${token}`;
 }
 
 function codigoNuevo(): string {
@@ -42,12 +47,18 @@ export async function crearPedido(p: {
 
   // Precios vigentes al momento de confirmar, no los que quedaron en la sesión.
   const actuales = await db
-    .select({ id: vanniProductos.id, precio: vanniProductos.precio, nombre: vanniProductos.nombre })
+    .select({ id: vanniProductos.id, precio: vanniProductos.precio, nombre: vanniProductos.nombre, stock: vanniProductos.stock })
     .from(vanniProductos)
     .where(inArray(vanniProductos.id, p.carrito.map((c) => c.productoId)));
   const items = p.carrito.map((c) => {
     const a = actuales.find((x) => x.id === c.productoId);
-    return { productoId: c.productoId, nombre: a?.nombre ?? c.nombre, precio: a?.precio ?? c.precio, cantidad: c.cantidad };
+    return {
+      productoId: c.productoId,
+      nombre: a?.nombre ?? c.nombre,
+      precio: a?.precio ?? c.precio,
+      cantidad: c.cantidad,
+      stockAlCotizar: a?.stock ?? null,
+    };
   });
   const total = items.reduce((s, i) => s + i.precio * i.cantidad, 0);
   const ahora = new Date().toISOString();
@@ -137,6 +148,25 @@ export async function cambiarEstadoPedido(id: number, estado: VanniEstadoPedido)
       flujo: "tienda",
       direccion: "out",
       texto,
+      simulado: pedido.simulado || r.simulado,
+      waMsgId: r.msgId ?? null,
+    });
+  }
+
+  // Tras "Pago recibido", la boleta: el comprobante con productos y unidades.
+  if (estado === "pagado") {
+    const imagen = urlBoleta(pedido.tokenPago);
+    const epigrafe = `🧾 Tu boleta del pedido *${pedido.codigo}*. _Documento de demostración._`;
+    const r = pedido.simulado
+      ? { ok: true, simulado: true, msgId: undefined as string | undefined }
+      : await enviarImagen(pedido.telefono, imagen, epigrafe);
+    if (!r.ok) console.error("[vanni] no salió la boleta del pedido", pedido.codigo, r.error);
+    await guardarMensaje({
+      telefono: pedido.telefono,
+      flujo: "tienda",
+      direccion: "out",
+      texto: epigrafe,
+      imagenUrl: imagen,
       simulado: pedido.simulado || r.simulado,
       waMsgId: r.msgId ?? null,
     });

@@ -17,11 +17,12 @@ export const ESTADO_OPORTUNIDAD: Record<string, { texto: string; clase: string }
 };
 
 export const ESTADO_PEDIDO: Record<string, { texto: string; clase: string }> = {
-  pendiente_pago: { texto: "Esperando pago", clase: "vn-chip-aviso" },
+  pendiente_pago: { texto: "Cotizado · esperando pago", clase: "vn-chip-aviso" },
   pagado: { texto: "Pagado", clase: "vn-chip-naranjo" },
   preparacion: { texto: "En preparación", clase: "" },
-  despachado: { texto: "Despachado", clase: "" },
+  despachado: { texto: "Saliendo de bodega", clase: "" },
   en_camino: { texto: "En camino", clase: "" },
+  llega_hoy: { texto: "Llega hoy", clase: "" },
   entregado: { texto: "Entregado", clase: "vn-chip-teal" },
   cancelado: { texto: "Cancelado", clase: "vn-chip-rojo" },
 };

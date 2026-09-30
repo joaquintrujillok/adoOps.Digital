@@ -45,7 +45,7 @@ export default async function VanniAppLayout({ children }: { children: React.Rea
       titulo: "Tienda por WhatsApp",
       items: [
         { href: "/vanni/tienda/productos", etiqueta: "Productos" },
-        { href: "/vanni/tienda/pedidos", etiqueta: "Pedidos", contador: porPreparar?.n },
+        { href: "/vanni/tienda/pedidos", etiqueta: "Cotizaciones y pedidos", contador: porPreparar?.n },
       ],
     },
     {

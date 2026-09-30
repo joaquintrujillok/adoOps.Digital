@@ -41,6 +41,9 @@ export const LLAVE_SALIR = /#\s*salir\b/i;
  */
 export const LLAVE_DESCUENTO = /#\s*(descuento|cup[oó]n)\b|(aplicar|activar|usar|canjear)\s+(mi\s+)?descuento|(quiero|mandame|m[aá]ndame|env[ií]ame)\s+(mi\s+)?cup[oó]n/i;
 
+/** Órdenes que solo tienen sentido en la tienda. */
+const ORDEN_TIENDA = /^(agregar|quitar|carrito|pagar|confirmar|comprar|finalizar|estado|categor[ií]as?)\b/i;
+
 const SESION_VIGENTE_MS = 7 * 86_400_000;
 
 
@@ -218,8 +221,11 @@ async function decidir(e: Entrada, telefono: string): Promise<{ flujo: Flujo | "
     };
   }
 
-  // 2. Respuesta a una campaña, mientras el hilo siga abierto.
-  const hilo = await hiloDeCampana(telefono, sesionViva && sesion.flujo === "ofertas" ? sesion.campanaId : null);
+  // 2. Respuesta a una campaña, mientras el hilo siga abierto. Una orden de la
+  // tienda ("agregar 1 x 10", "pagar") nunca es respuesta a la promoción.
+  const hilo = ORDEN_TIENDA.test(texto)
+    ? null
+    : await hiloDeCampana(telefono, sesionViva && sesion.flujo === "ofertas" ? sesion.campanaId : null);
   if (hilo) {
     return {
       flujo: "ofertas",

@@ -385,6 +385,7 @@ export const VANNI_ESTADOS_PEDIDO = [
   "preparacion",
   "despachado",
   "en_camino",
+  "llega_hoy",
   "entregado",
   "cancelado",
 ] as const;
@@ -433,6 +434,8 @@ export const vanniPedidoItems = pgTable("vanni_pedido_items", {
   nombre: varchar("nombre", { length: 300 }).notNull(),
   precio: integer("precio").notNull(),
   cantidad: integer("cantidad").notNull(),
+  /** Stock del producto cuando el cliente cotizó. El pago lo descuenta del stock vivo. */
+  stockAlCotizar: integer("stock_al_cotizar"),
 });
 
 // ─── Presupuesto del modelo ──────────────────────────────────────────────────
