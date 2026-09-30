@@ -40,7 +40,7 @@ export default async function Cupon({ params }: { params: Promise<{ token: strin
   return (
     <div className="vn-qr">
       <div className="vn-qr-cabecera">
-        <Image src="/clientes/vanni-logo.png" alt="Vanni" width={180} height={71} priority />
+        <Image src="/clientes/vanni-logo.png" alt="Vanni" width={220} height={86} priority />
       </div>
 
       <div className="vn-card vn-qr-card vn-cupon" style={{ opacity: estado === "vigente" ? 1 : 0.85 }}>

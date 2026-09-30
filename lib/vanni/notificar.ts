@@ -44,6 +44,63 @@ function escapar(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }
 
+// Colores de la marca Vanni (los del logo y de las piezas de campaña).
+const VERDE = "#0e8027";
+const VERDE_LOGO = "#35a211";
+const TINTA = "#25292b";
+
+/**
+ * El correo del aviso, con la marca de Vanni. Tablas y estilos en línea: es lo
+ * único que Gmail y Outlook respetan. El logo va por URL absoluta.
+ */
+export function htmlAviso(a: AvisoInteresado, titulo: string, enlace: string): string {
+  const fila = (k: string, v: string | null) =>
+    v
+      ? `<tr><td style="padding:10px 0;border-bottom:1px solid #e6e9e3;color:#5a6570;width:130px;vertical-align:top;font-size:14px">${k}</td>` +
+        `<td style="padding:10px 0;border-bottom:1px solid #e6e9e3;color:${TINTA};font-size:15px">${escapar(v)}</td></tr>`
+      : "";
+  const tel = a.telefonoCliente.replace(/\D/g, "");
+  const boton = (href: string, texto: string, fondo: string, color: string, borde: string) =>
+    `<a href="${href}" style="display:inline-block;background:${fondo};color:${color};border:2px solid ${borde};padding:12px 20px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px;margin:0 8px 8px 0">${texto}</a>`;
+  const reclamo = a.tipo === "reclamo";
+  // El emoji del asunto no va en la franja: sobre el verde se ve como una mancha.
+  const encabezado = titulo.replace(/^[^\p{L}]+/u, "");
+  return `<!doctype html>
+<html lang="es"><body style="margin:0;padding:0;background:#f4f6f1">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f1;padding:24px 12px">
+<tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:14px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;border:1px solid #e1e5dc">
+  <tr><td align="center" style="padding:24px 24px 18px;border-bottom:4px solid ${VERDE_LOGO}">
+    <img src="${SITE_URL}/clientes/vanni-logo.png" width="180" alt="Vanni" style="display:block;width:180px;height:auto;border:0">
+  </td></tr>
+  <tr><td style="background:${reclamo ? "#8a3b12" : VERDE};padding:18px 28px">
+    <div style="color:#d9f0d2;font-size:12px;letter-spacing:2px;text-transform:uppercase;font-weight:700">${reclamo ? "Atender hoy" : "Por llamar"}</div>
+    <div style="color:#ffffff;font-size:22px;font-weight:700;line-height:1.3;margin-top:4px">${escapar(encabezado)}: ${escapar(a.nombreCliente)}</div>
+  </td></tr>
+  <tr><td style="padding:22px 28px 6px">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
+      ${fila("Teléfono", formatoTelefono(a.telefonoCliente))}
+      ${fila("Le interesa", a.interes)}
+      ${fila("Resumen", a.resumen)}
+      ${fila("Campaña", a.campana)}
+      ${fila("Sucursal", a.sucursal)}
+    </table>
+  </td></tr>
+  <tr><td style="padding:18px 28px 8px">
+    <p style="margin:0 0 14px;color:${TINTA};font-size:15px;font-weight:700">${reclamo ? "Contáctalo para resolverlo." : "Llámalo hoy: está esperando tu contacto."}</p>
+    ${boton(`tel:+${tel}`, "Llamar", VERDE, "#ffffff", VERDE)}
+    ${boton(`https://wa.me/${tel}`, "Escribirle por WhatsApp", "#ffffff", VERDE, VERDE)}
+    ${boton(enlace, "Ver en el backoffice", "#ffffff", TINTA, "#cfd5cb")}
+  </td></tr>
+  <tr><td style="padding:16px 28px 22px;color:#7a848c;font-size:12px;line-height:1.5;border-top:1px solid #eef0eb">
+    Aviso automático del asistente de WhatsApp de Vanni Chile. El cliente respondió a la campaña y ya sabe que lo vas a contactar.
+  </td></tr>
+</table>
+</td></tr>
+</table>
+</body></html>`;
+}
+
 export async function avisarEjecutiva(
   ejecutiva: VanniUsuario | null,
   a: AvisoInteresado,
@@ -75,27 +132,11 @@ export async function avisarEjecutiva(
   if (ejecutiva.email && apiKey) {
     try {
       const client = new BrevoClient({ apiKey });
-      const fila = (k: string, v: string | null) =>
-        v ? `<tr><td style="padding:6px 0;color:#5A6570;width:120px">${k}</td><td style="padding:6px 0">${escapar(v)}</td></tr>` : "";
       await client.transactionalEmails.sendTransacEmail({
         to: [{ email: ejecutiva.email, name: ejecutiva.nombre }],
         sender: { email: process.env.FROM_EMAIL || "noreply@adoops.ai", name: "Vanni · Reactivación" },
         subject: `${titulo}: ${a.nombreCliente}`,
-        htmlContent: `
-          <div style="font-family:'DM Sans',Arial,sans-serif;max-width:560px;margin:0 auto;color:#1B2A2F">
-            <div style="background:#1B2A2F;color:#F6F4EF;padding:20px 28px;border-radius:12px 12px 0 0;font-size:18px;font-weight:600">${escapar(titulo)}</div>
-            <div style="background:#FDFCFA;border:1px solid #D9D3C7;border-top:none;padding:24px 28px;border-radius:0 0 12px 12px">
-              <table style="width:100%;border-collapse:collapse;font-size:14px">
-                ${fila("Cliente", a.nombreCliente)}
-                ${fila("Teléfono", formatoTelefono(a.telefonoCliente))}
-                ${fila("Le interesa", a.interes)}
-                ${fila("Resumen", a.resumen)}
-                ${fila("Campaña", a.campana)}
-                ${fila("Sucursal", a.sucursal)}
-              </table>
-              <a href="${enlace}" style="display:inline-block;margin-top:18px;background:#17705B;color:#F6F4EF;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">Ver en el backoffice</a>
-            </div>
-          </div>`,
+        htmlContent: htmlAviso(a, titulo, enlace),
       });
       resultado.correo = true;
     } catch (err) {

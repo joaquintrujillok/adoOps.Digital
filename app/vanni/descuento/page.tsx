@@ -21,7 +21,7 @@ export default async function Descuento({ searchParams }: { searchParams: Promis
   return (
     <div className="vn-qr">
       <div className="vn-qr-cabecera">
-        <Image src="/clientes/vanni-logo.png" alt="Vanni" width={180} height={71} priority />
+        <Image src="/clientes/vanni-logo.png" alt="Vanni" width={220} height={86} priority />
       </div>
       <FormDescuento sucursal={sucursal} />
       <p className="vn-qr-pie">Tus datos se usan solo para emitir y aplicar tu descuento y, si lo aceptas, enviarte ofertas.</p>

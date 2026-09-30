@@ -254,9 +254,18 @@
 .vn-chat-vacio > div { max-width: 380px; display: grid; gap: 8px; color: var(--vn-ink-2); }
 
 /* ── Formulario público del QR ─────────────────────────────────────────────── */
-.vn-qr { min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 22px 16px 32px; gap: 18px; background: var(--vn-plane); }
-.vn-qr-cabecera { background: #fdfcfa; border-radius: 16px; padding: 12px 20px; }
-.vn-qr-cabecera img { display: block; width: 180px; height: auto; }
+/* Las páginas que ve el cliente (QR de sala, cupón, canje) llevan la marca de
+   Vanni, no la del backoffice: el verde del logo reemplaza al verde azulado. */
+.vn-qr {
+  min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 0 16px 32px; gap: 18px;
+  background: #f4f6f1;
+  --vn-teal: #0e8027; --vn-teal-dark: #0a6620; --vn-teal-soft: #e4f2dd;
+}
+.vn-qr-cabecera {
+  align-self: stretch; margin: 0 -16px; display: flex; justify-content: center;
+  background: #fff; padding: 20px 20px 16px; border-bottom: 4px solid #35a211;
+}
+.vn-qr-cabecera img { display: block; width: 220px; height: auto; }
 .vn-qr-card { width: 100%; max-width: 420px; display: grid; gap: 12px; padding: 22px 20px; }
 .vn-qr-card p { color: var(--vn-ink-2); line-height: 1.45; }
 .vn-qr-titulo { font-size: 24px; font-weight: 600; line-height: 1.2; }
