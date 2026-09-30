@@ -21,6 +21,7 @@ import {
   type VanniContacto,
 } from "@/db/vanni";
 import { cliente, hayModelo, hayPresupuesto, MODELO, registrarUso } from "../llm";
+import { proximaAtencion } from "../horario";
 import { avisarEjecutiva, ejecutivaPara } from "../notificar";
 import { guardarSesion, historial, type Flujo } from "./conversacion";
 import type { Salida } from "./tipos";
@@ -208,6 +209,10 @@ async function derivar(ctx: Contexto, d: Decision): Promise<string> {
     oportunidadId = nueva.id;
   }
 
+  // Fuera del horario de atención no se promete una llamada inmediata: al
+  // cliente se le dice cuándo, y a la ejecutiva, que llegó fuera de horario.
+  const cuando = proximaAtencion();
+
   // Un aviso por oportunidad: si el cliente agrega detalle, se actualiza la
   // ficha pero no se le vuelve a sonar el teléfono a la ejecutiva.
   if (!abierta?.notificadaAt && !ctx.simulado) {
@@ -220,6 +225,7 @@ async function derivar(ctx: Contexto, d: Decision): Promise<string> {
       resumen,
       campana: ctx.campana.nombre,
       sucursal: ctx.contacto.sucursal,
+      fueraDeHorario: cuando,
     });
     await db
       .update(vanniOportunidades)
@@ -232,8 +238,15 @@ async function derivar(ctx: Contexto, d: Decision): Promise<string> {
   if (tipo === "reclamo") {
     return `Lamento lo que pasó${nombre ? `, ${nombre}` : ""}. Le paso tu caso a ${quien ? `*${quien}*` : "una ejecutiva"} para que te contacte y lo resuelva.`;
   }
+  const ejecutivaDe = quien ? `*${quien}*, tu ejecutiva de Vanni,` : null;
+  if (cuando) {
+    return (
+      `¡Perfecto${nombre ? `, ${nombre}` : ""}! 🙌 Recibimos tu OK. Nuestro horario de atención ya terminó, así que ` +
+      `${ejecutivaDe ?? "una ejecutiva de Vanni"} te llamará ${cuando} para aplicar tu *${ctx.campana.promocion}*.\n¡Gracias por preferirnos!`
+    );
+  }
   return (
-    `¡Perfecto${nombre ? `, ${nombre}` : ""}! 🙌 ${quien ? `*${quien}*, tu ejecutiva de Vanni,` : "Una ejecutiva de Vanni"} ` +
+    `¡Perfecto${nombre ? `, ${nombre}` : ""}! 🙌 ${ejecutivaDe ?? "Una ejecutiva de Vanni"} ` +
     `te llamará dentro de las próximas 24 horas para aplicar tu *${ctx.campana.promocion}*.\n¡Gracias por preferirnos!`
   );
 }

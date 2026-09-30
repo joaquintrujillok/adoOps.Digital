@@ -19,6 +19,14 @@ export interface AvisoInteresado {
   resumen: string | null;
   campana: string | null;
   sucursal: string | null;
+  /** Si llegó fuera del horario de atención: cuándo se le prometió la llamada ("mañana"). */
+  fueraDeHorario?: string | null;
+}
+
+function llamado(a: AvisoInteresado): string {
+  if (a.tipo === "reclamo") return "Contáctalo para resolverlo.";
+  if (a.fueraDeHorario) return `Llegó fuera de horario: se le dijo que lo llamarías ${a.fueraDeHorario}.`;
+  return "Llámalo hoy: está esperando tu contacto.";
 }
 
 /** La ejecutiva a cargo, o en su defecto el primer admin con teléfono. */
@@ -87,7 +95,7 @@ export function htmlAviso(a: AvisoInteresado, titulo: string, enlace: string): s
     </table>
   </td></tr>
   <tr><td style="padding:18px 28px 8px">
-    <p style="margin:0 0 14px;color:${TINTA};font-size:15px;font-weight:700">${reclamo ? "Contáctalo para resolverlo." : "Llámalo hoy: está esperando tu contacto."}</p>
+    <p style="margin:0 0 14px;color:${TINTA};font-size:15px;font-weight:700">${escapar(llamado(a))}</p>
     ${boton(`tel:+${tel}`, "Llamar", VERDE, "#ffffff", VERDE)}
     ${boton(`https://wa.me/${tel}`, "Escribirle por WhatsApp", "#ffffff", VERDE, VERDE)}
     ${boton(enlace, "Ver en el backoffice", "#ffffff", TINTA, "#cfd5cb")}
@@ -118,7 +126,7 @@ export async function avisarEjecutiva(
     a.campana ? `Campaña: ${a.campana}` : null,
     a.sucursal ? `Sucursal: ${a.sucursal}` : null,
     "",
-    a.tipo === "reclamo" ? "Contáctalo para resolverlo." : "Llámalo hoy: está esperando tu contacto.",
+    llamado(a),
     enlace,
   ].filter((l): l is string => l !== null);
 
