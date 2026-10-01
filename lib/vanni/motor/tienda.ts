@@ -169,6 +169,40 @@ async function responderConfirmacion(e: VanniEstadoTienda, texto: string): Promi
   return [{ texto: `✅ ${agregado}${siguiente || "\n\n¿Algo más? Escríbeme otro producto, o *listo* para reservarlo y retirarlo en tienda."}` }];
 }
 
+// ─── Categorías ──────────────────────────────────────────────────────────────
+//
+// Las arma el código, numeradas, para que el cliente elija con un número y no
+// tenga que escribir el nombre (el modelo las listaba con viñetas).
+
+async function listarCategorias(e: VanniEstadoTienda): Promise<string> {
+  const cats = (await categoriasPrincipales()).slice(0, 15);
+  e.ultimasCategorias = cats.map((c) => c.nombre);
+  e.ultimaLista = "categorias";
+  return (
+    "*Categorías*\n" +
+    cats.map((c, i) => `${i + 1}. ${c.nombre} (${c.productos})`).join("\n") +
+    "\n\nResponde con el *número* de la categoría."
+  );
+}
+
+async function elegirCategoria(e: VanniEstadoTienda, i: number): Promise<string | null> {
+  const nombre = e.ultimasCategorias?.[i];
+  if (!nombre) return null;
+  const ps = await productosDeCategoria(nombre);
+  e.ultimosProductos = ps.map((p) => p.id);
+  e.ultimaLista = "productos";
+  return listar(ps, `*${nombre}*`);
+}
+
+/** Con las categorías a la vista, un número ("5", "la 5") elige una, sin modelo. */
+async function responderCategoria(e: VanniEstadoTienda, texto: string): Promise<Salida[] | null> {
+  if (e.ultimaLista !== "categorias") return null;
+  const m = texto.trim().match(/^(?:la|el|n[°º]|categor[ií]a)?\s*(\d{1,2})[.!]?$/i);
+  if (!m) return null;
+  const lista = await elegirCategoria(e, Number(m[1]) - 1);
+  return lista ? [{ texto: lista }] : [{ texto: `Elige un número del 1 al ${e.ultimasCategorias?.length ?? 0}.` }];
+}
+
 // ─── Cierre: pickup ──────────────────────────────────────────────────────────
 //
 // El modelo de la fase 2: cotiza por WhatsApp, retira (y paga) en la sucursal.
@@ -231,6 +265,9 @@ async function responderCierre(ctx: Contexto): Promise<Salida[] | null> {
     return [{ texto: await reservar(ctx, sucursal) }];
   }
   if (e.carrito.length && !e.porConfirmar && CIERRE.test(t)) return pedirSucursal(ctx);
+  // "pagar": el link sale del código, siempre completo.
+  const pagoM = t.match(/^[^\p{L}\d]*(?:quiero\s+)?(pagar|pago|paga(?:r)? ahora|link(?: de pago)?)(?!\p{L})[:\s]*(.*)$/iu);
+  if (pagoM && !e.porConfirmar) return [{ texto: await pagar(ctx, pagoM[2]?.trim() || null) }];
   return null;
 }
 
@@ -252,18 +289,8 @@ async function responderConReglas(ctx: Contexto): Promise<Salida[]> {
 
   if (/^(#\s*tienda.*|hola|men[uú]|ayuda|inicio|buenas.*)$/i.test(t)) return [{ texto: BIENVENIDA_TIENDA }];
 
-  if (/categor/i.test(minus)) {
-    const cats = (await categoriasPrincipales()).slice(0, 12);
-    e.ultimasCategorias = cats.map((c) => c.nombre);
-    e.ultimaLista = "categorias";
-    return [
-      {
-        texto:
-          "*Categorías*\n" +
-          cats.map((c, i) => `${i + 1}. ${c.nombre} (${c.productos})`).join("\n") +
-          "\n\nResponde con el número de la categoría.",
-      },
-    ];
+  if (/categor|qu[eé] m[aá]s tien|qu[eé] (otra cosa|venden|tienen)|cat[aá]logo/i.test(minus)) {
+    return [{ texto: await listarCategorias(e) }];
   }
 
   const agregarM = minus.match(/^(?:agrega(?:r|me)?|sumar?|a[ñn]adir|quiero)\s+(?:el\s+)?(\d+)(?:\s*(?:x|por|de|unidades?|u)?\s*(\d+))?/);
@@ -316,11 +343,9 @@ async function responderConReglas(ctx: Contexto): Promise<Salida[]> {
   const numero = t.match(/^(\d{1,2})$/);
   if (numero) {
     const i = Number(numero[1]) - 1;
-    if (e.ultimaLista === "categorias" && e.ultimasCategorias?.[i]) {
-      const ps = await productosDeCategoria(e.ultimasCategorias[i]);
-      e.ultimosProductos = ps.map((p) => p.id);
-      e.ultimaLista = "productos";
-      return [{ texto: listar(ps, `*${e.ultimasCategorias[i]}*`) }];
+    if (e.ultimaLista === "categorias") {
+      const lista = await elegirCategoria(e, i);
+      if (lista) return [{ texto: lista }];
     }
     const id = e.ultimosProductos?.[i];
     if (id) return [await verProducto(id)];
@@ -353,6 +378,7 @@ Ayudas a encontrar productos, armar el carrito y pagar. Usa SIEMPRE las herramie
 - El cierre es retiro en tienda (pickup): cuando el cliente termine, pídele que escriba *listo* y el sistema le pregunta la sucursal y reserva el pedido. No ofrezcas link de pago ni despacho; usa pagar solo si el cliente pide explícitamente pagar en línea.
 - Si quiere cerrar y quedan productos pendientes, pregúntale si los agrega antes o cierra así.
 - Para pagar, usa la herramienta pagar; si el cliente dio una dirección de despacho, pásala.
+- Si pregunta qué más tienen, el catálogo o las categorías, usa la herramienta categorias: el sistema le muestra la lista numerada.
 - Si pide ver una foto, usa ver_producto.
 - Si pregunta por su pedido, usa estado_pedido.
 - Aclara que los precios son referenciales de demostración si preguntan por ellos.
@@ -462,6 +488,10 @@ interface Turno {
   listaVisible: number[];
   /** Lo que eligió en este mensaje, a confirmar. */
   propuesta: { productoId: number; cantidad: number } | null;
+  /** Se pidieron las categorías: la lista numerada la escribe el código. */
+  categorias: string | null;
+  /** Se generó un link de pago: el texto con el link lo escribe el código. */
+  pago: string | null;
 }
 
 const normalizar = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
@@ -519,13 +549,15 @@ async function ejecutar(
       e.carrito = e.carrito.filter((c) => c.productoId !== Number(args.producto_id));
       return resumenCarrito(e);
     }
-    case "pagar":
-      return pagar(ctx, (args.direccion as string | null) ?? null);
+    case "pagar": {
+      turno.pago = await pagar(ctx, (args.direccion as string | null) ?? null);
+      return `${turno.pago}\n\n(El sistema le envía este texto tal cual, con el link. No lo reescribas.)`;
+    }
     case "estado_pedido":
       return estadoPedido(ctx.telefono);
     case "categorias": {
-      const cats = (await categoriasPrincipales()).slice(0, 15);
-      return JSON.stringify(cats);
+      turno.categorias = await listarCategorias(e);
+      return "El sistema le muestra al cliente las categorías numeradas para que elija con un número. No escribas otra lista.";
     }
     default:
       return "Herramienta desconocida.";
@@ -550,7 +582,7 @@ async function responderConModelo(ctx: Contexto): Promise<Salida[]> {
     },
   ];
 
-  const turno: Turno = { listaAbierta: false, listaVisible: [...(ctx.estado.ultimosProductos ?? [])], propuesta: null };
+  const turno: Turno = { listaAbierta: false, listaVisible: [...(ctx.estado.ultimosProductos ?? [])], propuesta: null, categorias: null, pago: null };
   for (let vuelta = 0; vuelta < 5; vuelta++) {
     const r = await cliente().responses.create({
       model: MODELO,
@@ -562,6 +594,9 @@ async function responderConModelo(ctx: Contexto): Promise<Salida[]> {
 
     const llamadas = r.output.filter((i) => i.type === "function_call");
     if (!llamadas.length) {
+      // Un link de pago no se parafrasea: va el texto exacto, con el link.
+      if (turno.pago) return [{ texto: turno.pago }];
+      if (turno.categorias && !turno.propuesta && !turno.listaAbierta) return [{ texto: turno.categorias }];
       if (turno.propuesta) {
         // Lo que se confirma lo escribe el código: es exactamente lo que se agregará.
         return [...salidas.filter((x) => x.imagenUrl), { texto: await proponer(ctx.estado, turno.propuesta.productoId, turno.propuesta.cantidad) }];
@@ -588,12 +623,15 @@ export async function responderTienda(ctx: Contexto): Promise<Salida[]> {
   const esSaludo = /^#\s*tienda/i.test(ctx.texto.trim());
   const confirmacion = esSaludo ? null : await responderConfirmacion(ctx.estado, ctx.texto);
   const cierre = esSaludo || confirmacion ? null : await responderCierre(ctx);
+  const categoria = esSaludo || confirmacion || cierre ? null : await responderCategoria(ctx.estado, ctx.texto);
   if (esSaludo) {
     salidas = [{ texto: BIENVENIDA_TIENDA }];
   } else if (confirmacion) {
     salidas = confirmacion;
   } else if (cierre) {
     salidas = cierre;
+  } else if (categoria) {
+    salidas = categoria;
   } else if (hayModelo() && (await hayPresupuesto())) {
     try {
       salidas = await responderConModelo(ctx);
