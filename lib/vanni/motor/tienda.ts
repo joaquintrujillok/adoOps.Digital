@@ -57,7 +57,7 @@ function lineaProducto(p: ProductoBreve, i: number): string {
 function listar(ps: ProductoBreve[], encabezado: string): string {
   return (
     `${encabezado}\n${ps.map(lineaProducto).join("\n")}\n\n` +
-    "Responde con el *número* para ver la foto, o *agregar 1 x 10* para sumarlo al carrito."
+    "Dime cuál y cuántas unidades, por ejemplo: *la 2, 10 unidades*. Con solo el número te muestro la foto."
   );
 }
 
@@ -102,6 +102,7 @@ async function pagar(ctx: Contexto, direccion: string | null): Promise<string> {
     simulado: ctx.simulado,
   });
   ctx.estado.carrito = [];
+  ctx.estado.pendientes = [];
   return (
     `Listo, tu pedido *${pedido.codigo}* quedó creado por *${clp(pedido.total)}*.\n` +
     `Paga aquí: ${linkDePago(pedido.tokenPago)}\n\n` +
@@ -116,6 +117,22 @@ async function estadoPedido(telefono: string): Promise<string> {
 }
 
 // ─── Ruta por reglas ────────────────────────────────────────────────────────
+
+/** "la 6", "el 2", "n° 3": la referencia a un número de la lista. */
+const REF_LISTA = /\b(?:la|el|n[°º]|nro\.?|n[uú]mero)\s*(\d{1,2})\b/g;
+/** "2 unidades", "10 cajas", "x 3": la cantidad. */
+const CANTIDAD = /(\d+)\s*(?:unidades?|uds?\b|u\b|cajas?|paquetes?|packs?)|\bx\s*(\d+)/i;
+
+/** Después de agregar: si pidió otros productos, se sigue con el siguiente. */
+async function siguientePendiente(e: VanniEstadoTienda): Promise<string> {
+  const siguiente = e.pendientes?.shift();
+  if (!siguiente) return "";
+  const ps = await buscarProductos(siguiente, 6);
+  if (!ps.length) return `\n\nNo encontré *${siguiente}*. Prueba con otra palabra.`;
+  e.ultimosProductos = ps.map((p) => p.id);
+  e.ultimaLista = "productos";
+  return `\n\n${listar(ps, `Ahora vamos con *${siguiente}*:`)}`;
+}
 
 async function responderConReglas(ctx: Contexto): Promise<Salida[]> {
   const t = ctx.texto.trim();
@@ -143,7 +160,24 @@ async function responderConReglas(ctx: Contexto): Promise<Salida[]> {
     const idx = Number(agregarM[1]) - 1;
     const id = e.ultimosProductos?.[idx];
     if (!id) return [{ texto: "Primero busca un producto y usa el número de la lista." }];
-    return [{ texto: await agregar(e, id, Number(agregarM[2] ?? 1)) }];
+    return [{ texto: (await agregar(e, id, Number(agregarM[2] ?? 1))) + (await siguientePendiente(e)) }];
+  }
+
+  // Elegir de la lista como se escribe: "la 6, 2 unidades", "6 x 2", "el 3".
+  if (e.ultimaLista === "productos" && e.ultimosProductos?.length) {
+    const refs = [...minus.matchAll(REF_LISTA)].map((m) => Number(m[1]));
+    const directo = minus.match(/^(\d{1,2})\s*(?:,|y|x|por|con)\s*(\d+)/);
+    if (refs.length > 1) {
+      return [{ texto: "Vamos de a uno 🙂 ¿Cuál de esta lista y cuántas unidades? Por ejemplo: *la 2, 10 unidades*." }];
+    }
+    const n = refs[0] ?? (directo ? Number(directo[1]) : null);
+    const id = n ? e.ultimosProductos[n - 1] : undefined;
+    if (n && !id) return [{ texto: `La lista tiene ${e.ultimosProductos.length} productos. ¿Cuál número quieres?` }];
+    if (id) {
+      const c = minus.match(CANTIDAD);
+      const cantidad = Number(c?.[1] ?? c?.[2] ?? directo?.[2] ?? 1);
+      return [{ texto: (await agregar(e, id, cantidad)) + (await siguientePendiente(e)) }];
+    }
   }
 
   if (/^(ver\s+)?carrito$/.test(minus)) return [{ texto: resumenCarrito(e) }];
@@ -181,21 +215,31 @@ async function responderConReglas(ctx: Contexto): Promise<Salida[]> {
     if (id) return [await verProducto(id)];
   }
 
-  const ps = await buscarProductos(t, 6);
+  // Varios productos en un mensaje ("servilletas y bolsas de basura"): de a uno.
+  const pedido = t.replace(/^(quiero|necesito|busco|me gustar[ií]a)\s+(comprar\s+)?/i, "");
+  const partes = pedido.split(/\s*(?:,|\by\b|\be\b)\s*/i).map((x) => x.trim()).filter((x) => x.length > 2);
+  const consulta = partes.length > 1 ? partes[0] : t;
+  if (partes.length > 1) e.pendientes = partes.slice(1, 6);
+
+  const ps = await buscarProductos(consulta, 6);
   if (!ps.length) {
     return [{ texto: "No encontré productos con eso. Prueba con otra palabra (ej: *vasos*, *servilletas*, *bolsas*) o escribe *categorías*." }];
   }
   e.ultimosProductos = ps.map((p) => p.id);
   e.ultimaLista = "productos";
-  return [{ texto: listar(ps, "Encontré esto:") }];
+  const encabezado = partes.length > 1 ? `Vamos de a uno 🙂 Primero, *${consulta}*:` : "Encontré esto:";
+  return [{ texto: listar(ps, encabezado) }];
 }
 
 // ─── Ruta con modelo (agente con herramientas) ──────────────────────────────
 
 const SISTEMA = `Eres el vendedor de la tienda de Vanni Chile por WhatsApp (envases, desechables, bandejas, bolsas, artículos de aseo).
 Ayudas a encontrar productos, armar el carrito y pagar. Usa SIEMPRE las herramientas para buscar y operar: nunca inventes productos, precios ni stock.
-- Al mostrar productos, numéralos 1, 2, 3 en el mismo orden que devolvió la herramienta y con su precio. El cliente puede responder con el número.
-- Para agregar, usa el id del producto. Si no dice cantidad, pregunta o usa 1 si es evidente.
+- Atiende UN producto a la vez. Si el cliente pide varios ("servilletas y bolsas de basura"), anota los demás con anotar_pendientes, busca solo el primero y muestra UNA sola lista. Cuando quede agregado, sigue con el siguiente pendiente ("Listo ✅ Ahora vamos con las bolsas de basura:") y búscalo.
+- Nunca muestres dos listas en un mismo mensaje. Los números que responde el cliente se refieren SIEMPRE a la última lista mostrada.
+- Al mostrar productos, numéralos 1, 2, 3 en el mismo orden que devolvió la herramienta y con su precio. Termina preguntando cuál quiere y cuántas unidades.
+- Para agregar, usa el id del producto. Agrega solo lo que el cliente eligió, una vez por producto. Si el mensaje se puede leer de dos formas (por ejemplo "la 6 y 2 unidades"), confirma antes de agregar ("¿La 6, 2 unidades?").
+- Si quiere pagar y quedan productos pendientes, pregúntale si los agrega antes o paga así.
 - Para pagar, usa la herramienta pagar; si el cliente dio una dirección de despacho, pásala.
 - Si pide ver una foto, usa ver_producto.
 - Si pregunta por su pedido, usa estado_pedido.
@@ -213,6 +257,18 @@ const HERRAMIENTAS: OpenAI.Responses.Tool[] = [
       additionalProperties: false,
       properties: { consulta: { type: "string" } },
       required: ["consulta"],
+    },
+  },
+  {
+    type: "function",
+    name: "anotar_pendientes",
+    description: "Anota los productos que el cliente pidió y que se atenderán después, de a uno.",
+    strict: true,
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      properties: { productos: { type: "array", items: { type: "string" } } },
+      required: ["productos"],
     },
   },
   {
@@ -286,13 +342,43 @@ const HERRAMIENTAS: OpenAI.Responses.Tool[] = [
   },
 ];
 
-async function ejecutar(nombre: string, args: Record<string, unknown>, ctx: Contexto, salidas: Salida[]): Promise<string> {
+/** Lo que pasó en este turno: la tienda va de a un producto y de a una lista. */
+interface Turno {
+  /** Ya se mostró una lista y el cliente todavía no elige de ella. */
+  listaAbierta: boolean;
+}
+
+const normalizar = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
+async function ejecutar(
+  nombre: string,
+  args: Record<string, unknown>,
+  ctx: Contexto,
+  salidas: Salida[],
+  turno: Turno,
+): Promise<string> {
   const e = ctx.estado;
   switch (nombre) {
+    case "anotar_pendientes": {
+      const nuevos = (Array.isArray(args.productos) ? args.productos : []).map(String).filter(Boolean);
+      e.pendientes = [...new Set([...(e.pendientes ?? []), ...nuevos])].slice(0, 6);
+      return `Pendientes: ${JSON.stringify(e.pendientes)}. Atiende uno a la vez.`;
+    }
     case "buscar_productos": {
-      const ps = await buscarProductos(String(args.consulta ?? ""), 6);
+      const consulta = String(args.consulta ?? "");
+      // Una lista por mensaje: si ya hay una abierta en este turno, la segunda
+      // búsqueda espera. Dos listas numeradas 1-6 a la vez confunden al
+      // cliente y al número que responde.
+      if (turno.listaAbierta) {
+        e.pendientes = [...new Set([...(e.pendientes ?? []), consulta])].slice(0, 6);
+        return `No busqué "${consulta}": ya hay una lista abierta en este mensaje. Quedó pendiente; atiéndelo cuando el cliente elija de la lista actual.`;
+      }
+      const ps = await buscarProductos(consulta, 6);
       e.ultimosProductos = ps.map((p) => p.id);
       e.ultimaLista = "productos";
+      turno.listaAbierta = ps.length > 0;
+      const c = normalizar(consulta);
+      e.pendientes = (e.pendientes ?? []).filter((p) => !c.includes(normalizar(p)) && !normalizar(p).includes(c));
       return JSON.stringify(ps.map((p) => ({ id: p.id, nombre: p.nombre, precio: p.precio, stock: p.stock })));
     }
     case "ver_producto": {
@@ -300,8 +386,16 @@ async function ejecutar(nombre: string, args: Record<string, unknown>, ctx: Cont
       salidas.push(s);
       return "Foto enviada al cliente.";
     }
-    case "agregar_al_carrito":
-      return agregar(e, Number(args.producto_id), Number(args.cantidad));
+    case "agregar_al_carrito": {
+      const id = Number(args.producto_id);
+      // Solo de la lista que el cliente tiene a la vista (o algo ya en el
+      // carrito). Es lo que evita agregar de una lista anterior por error.
+      const enLista = (e.ultimosProductos ?? []).includes(id) || e.carrito.some((c) => c.productoId === id);
+      if (!enLista) return "Ese producto no está en la lista que ve el cliente. Pregúntale cuál quiere de la lista actual.";
+      const r = await agregar(e, id, Number(args.cantidad));
+      turno.listaAbierta = false;
+      return e.pendientes?.length ? `${r} Quedan pendientes: ${JSON.stringify(e.pendientes)}. Sigue con el siguiente.` : r;
+    }
     case "ver_carrito":
       return resumenCarrito(e);
     case "quitar_del_carrito": {
@@ -333,11 +427,13 @@ async function responderConModelo(ctx: Contexto): Promise<Salida[]> {
       role: "user",
       content:
         `Carrito actual: ${JSON.stringify(ctx.estado.carrito)}\n` +
-        `Último listado mostrado (ids en orden): ${JSON.stringify(ctx.estado.ultimosProductos ?? [])}\n\n` +
+        `Último listado mostrado (ids en orden): ${JSON.stringify(ctx.estado.ultimosProductos ?? [])}\n` +
+        `Pendientes por atender, de a uno: ${JSON.stringify(ctx.estado.pendientes ?? [])}\n\n` +
         ctx.texto,
     },
   ];
 
+  const turno: Turno = { listaAbierta: false };
   for (let vuelta = 0; vuelta < 5; vuelta++) {
     const r = await cliente().responses.create({
       model: MODELO,
@@ -358,7 +454,7 @@ async function responderConModelo(ctx: Contexto): Promise<Salida[]> {
     entrada.push(...(r.output as OpenAI.Responses.ResponseInputItem[]));
     for (const ll of llamadas) {
       if (ll.type !== "function_call") continue;
-      const resultado = await ejecutar(ll.name, JSON.parse(ll.arguments || "{}"), ctx, salidas);
+      const resultado = await ejecutar(ll.name, JSON.parse(ll.arguments || "{}"), ctx, salidas, turno);
       entrada.push({ type: "function_call_output", call_id: ll.call_id, output: resultado });
     }
   }

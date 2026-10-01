@@ -275,6 +275,8 @@ export interface VanniEstadoTienda {
   ultimasCategorias?: string[];
   /** Qué se listó por última vez: decide qué significa un número suelto. */
   ultimaLista?: "productos" | "categorias";
+  /** Productos que el cliente pidió y todavía no se atienden: la tienda va de a uno. */
+  pendientes?: string[];
   /** En `#Ofertas`: ya se le preguntó qué necesita; la próxima respuesta se deriva. */
   esperandoDetalle?: boolean;
   /** Captura en sala por WhatsApp: en qué pregunta va (ver lib/vanni/motor/captura.ts). */
