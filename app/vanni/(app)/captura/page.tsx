@@ -9,6 +9,7 @@ import { capturasPorSucursal, embudoCaptura, sucursalesConocidas } from "@/lib/v
 import { embudoCupones, estadoEfectivo } from "@/lib/vanni/cupones";
 import { clpCompacto, fechaHora, miles, pct } from "@/lib/vanni/formato";
 import { formatoRut } from "@/lib/vanni/rut";
+import { formatoTelefono } from "@/lib/vanni/telefono";
 import { SITE_URL } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
@@ -167,17 +168,25 @@ export default async function Captura() {
         <h2>Últimas capturas</h2>
         <div className="vn-scroll" style={{ marginTop: 8 }}>
           <table className="vn-tabla">
-            <thead><tr><th>Cuándo</th><th>RUT</th><th>Sucursal</th><th>En la base</th><th>Teléfono</th><th>Ofertas</th><th>WhatsApp</th></tr></thead>
+            <thead><tr><th>Cuándo</th><th>RUT</th><th>WhatsApp</th><th>Sucursal</th><th>En la base</th><th>Opt-in ofertas</th><th>Número vs. base</th></tr></thead>
             <tbody>
               {recientes.map((c) => (
                 <tr key={c.id}>
                   <td>{fechaHora(c.createdAt)}</td>
-                  <td>{formatoRut(c.rut)}</td>
+                  <td style={{ whiteSpace: "nowrap" }}>{formatoRut(c.rut)}</td>
+                  <td style={{ whiteSpace: "nowrap" }}>{c.telefono ? formatoTelefono(c.telefono) : "—"}</td>
                   <td>{c.sucursal ?? "—"}</td>
                   <td>{c.encontrado ? <span className="vn-chip vn-chip-teal">Sí</span> : <span className="vn-chip">No</span>}</td>
-                  <td>{c.origenTelefono ? ORIGEN_TEL[c.origenTelefono] : <span style={{ color: "var(--vn-muted)" }}>No completó</span>}</td>
-                  <td>{c.completadaAt ? (c.consentimiento ? "Aceptó" : "No") : "—"}</td>
-                  <td>{c.whatsappAt ? <span className="vn-chip vn-chip-teal">Llegó</span> : "—"}</td>
+                  <td>
+                    {!c.completadaAt ? (
+                      <span style={{ color: "var(--vn-muted)" }}>No completó</span>
+                    ) : c.consentimiento ? (
+                      <span className="vn-chip vn-chip-teal">✓ Aceptó</span>
+                    ) : (
+                      <span className="vn-chip">No aceptó</span>
+                    )}
+                  </td>
+                  <td>{c.origenTelefono ? ORIGEN_TEL[c.origenTelefono] : "—"}</td>
                 </tr>
               ))}
             </tbody>
