@@ -37,7 +37,10 @@ export default async function DetallePedido({ params }: { params: Promise<{ id: 
       <div className="vn-top">
         <div>
           <p style={{ marginBottom: 4 }}><Link href="/vanni/tienda/pedidos" style={{ color: "var(--vn-teal)" }}>← Cotizaciones y pedidos</Link></p>
-          <h1>Pedido {p.codigo} <span className={`vn-chip ${ESTADO_PEDIDO[p.estado]?.clase ?? ""}`}>{ESTADO_PEDIDO[p.estado]?.texto}</span></h1>
+          <h1>
+            Pedido {p.codigo} <span className={`vn-chip ${ESTADO_PEDIDO[p.estado]?.clase ?? ""}`}>{ESTADO_PEDIDO[p.estado]?.texto}</span>
+            {retiro && <> <span className={`vn-chip ${p.pagadoAt ? "vn-chip-teal" : ""}`}>{p.pagadoAt ? "Pagado" : "Paga al retirar"}</span></>}
+          </h1>
           <p>
             {p.nombreCliente ?? "Cliente"} · <Link href={`/vanni/tienda/pedidos?q=${p.telefono}`} style={{ color: "var(--vn-teal)" }}>{formatoTelefono(p.telefono)}</Link> ·{" "}
             {p.direccion ?? "Sin dirección de despacho"} · cotizado el {fechaHora(p.createdAt)}

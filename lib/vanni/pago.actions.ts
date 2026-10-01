@@ -5,13 +5,15 @@
 // es el token del link (16 bytes aleatorios), no una cookie.
 
 import { revalidatePath } from "next/cache";
-import { cambiarEstadoPedido, pedidoPorToken } from "./pedidos";
+import { pedidoPorToken, registrarPago } from "./pedidos";
 
 export async function pagarPedidoAction(token: string): Promise<{ ok: boolean; error?: string }> {
   const encontrado = await pedidoPorToken(token);
   if (!encontrado) return { ok: false, error: "El link de pago no es válido." };
-  if (encontrado.pedido.estado !== "pendiente_pago") return { ok: true };
-  await cambiarEstadoPedido(encontrado.pedido.id, "pagado");
+  if (encontrado.pedido.estado === "cancelado") return { ok: false, error: "Este pedido fue cancelado." };
+  if (encontrado.pedido.pagadoAt) return { ok: true };
+  // Un pedido con despacho o una reserva de pickup: los dos se pueden pagar aquí.
+  await registrarPago(encontrado.pedido.id);
   revalidatePath(`/vanni/pagar/${token}`);
   return { ok: true };
 }

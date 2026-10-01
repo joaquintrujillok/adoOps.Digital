@@ -95,7 +95,17 @@ async function verProducto(productoId: number): Promise<Salida> {
 }
 
 async function pagar(ctx: Contexto, direccion: string | null): Promise<string> {
-  if (!ctx.estado.carrito.length) return "Tu carrito está vacío. Busca un producto para empezar.";
+  if (!ctx.estado.carrito.length) {
+    // Recién reservó y quiere pagar ahora en vez de en caja: el link de esa reserva.
+    const ultimo = await ultimoPedido(ctx.telefono);
+    if (ultimo && !ultimo.pagadoAt && !["cancelado", "retirado", "entregado"].includes(ultimo.estado)) {
+      return (
+        `Paga tu pedido *${ultimo.codigo}* por *${clp(ultimo.total)}* aquí:\n${linkDePago(ultimo.tokenPago)}\n\n` +
+        "Apenas se confirme te mando la boleta por este chat."
+      );
+    }
+    return "Tu carrito está vacío. Busca un producto para empezar.";
+  }
   const pedido = await crearPedido({
     telefono: ctx.telefono,
     contactoId: ctx.contacto?.id ?? null,
@@ -200,7 +210,8 @@ async function reservar(ctx: Contexto, sucursal: string): Promise<string> {
   e.esperandoSucursal = false;
   return (
     `✅ Listo: tu pedido *${pedido.codigo}* quedó *reservado para retiro en ${sucursal}* por *${clp(pedido.total)}*.\n\n` +
-    `Te aviso por aquí cuando esté listo para retirar. Pagas al retirar, en caja, con el código *${pedido.codigo}*.`
+    `Te aviso por aquí cuando esté listo para retirar. Puedes pagar al retirar, en caja, con el código *${pedido.codigo}*, ` +
+    "o escribir *pagar* y te mando el link para pagarlo ahora."
   );
 }
 

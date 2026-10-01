@@ -132,6 +132,65 @@ async function descontarStock(pedidoId: number): Promise<void> {
   }
 }
 
+async function avisar(pedido: VanniPedido, texto: string): Promise<void> {
+  const r = pedido.simulado
+    ? { ok: true, simulado: true, msgId: undefined as string | undefined }
+    : await enviarTexto(pedido.telefono, texto);
+  await guardarMensaje({
+    telefono: pedido.telefono,
+    flujo: "tienda",
+    direccion: "out",
+    texto,
+    simulado: pedido.simulado || r.simulado,
+    waMsgId: r.msgId ?? null,
+  });
+}
+
+async function enviarBoleta(pedido: VanniPedido): Promise<void> {
+  const imagen = urlBoleta(pedido.tokenPago);
+  const epigrafe = `🧾 Tu boleta del pedido *${pedido.codigo}*. _Documento de demostración._`;
+  const r = pedido.simulado
+    ? { ok: true, simulado: true, msgId: undefined as string | undefined }
+    : await enviarImagen(pedido.telefono, imagen, epigrafe);
+  if (!r.ok) console.error("[vanni] no salió la boleta del pedido", pedido.codigo, r.error);
+  await guardarMensaje({
+    telefono: pedido.telefono,
+    flujo: "tienda",
+    direccion: "out",
+    texto: epigrafe,
+    imagenUrl: imagen,
+    simulado: pedido.simulado || r.simulado,
+    waMsgId: r.msgId ?? null,
+  });
+}
+
+/**
+ * El pago desde el link. Un pedido con despacho pasa a "pagado" y sigue su
+ * recorrido; una reserva de pickup queda pagada pero sigue en su recorrido de
+ * retiro (reservado → preparación → listo → retirado): solo cambia que ya no
+ * paga en caja. En los dos casos llegan "Pago recibido" y la boleta.
+ */
+export async function registrarPago(id: number): Promise<void> {
+  const [actual] = await db.select().from(vanniPedidos).where(eq(vanniPedidos.id, id));
+  if (!actual || actual.pagadoAt || actual.estado === "cancelado") return;
+  const sucursal = sucursalDeRetiro(actual.direccion);
+  if (!sucursal) {
+    await cambiarEstadoPedido(id, "pagado");
+    return;
+  }
+  const [pedido] = await db
+    .update(vanniPedidos)
+    .set({
+      pagadoAt: new Date(),
+      updatedAt: new Date(),
+      historial: [...(actual.historial ?? []), { estado: "pagado", at: new Date().toISOString() }],
+    })
+    .where(eq(vanniPedidos.id, id))
+    .returning();
+  await avisar(pedido, `✅ Pago recibido. Tu pedido *${pedido.codigo}* quedó pagado; retíralo en *${sucursal}* cuando te avisemos que está listo.`);
+  await enviarBoleta(pedido);
+}
+
 export async function cambiarEstadoPedido(id: number, estado: VanniEstadoPedido): Promise<VanniPedido> {
   const [actual] = await db.select().from(vanniPedidos).where(eq(vanniPedidos.id, id));
   if (!actual) throw new Error("Pedido no encontrado");
@@ -151,7 +210,7 @@ export async function cambiarEstadoPedido(id: number, estado: VanniEstadoPedido)
 
   if (estado === "pagado" && actual.estado === "pendiente_pago") await descontarStock(id);
 
-  const texto = mensajeEstadoPedido(estado, pedido.codigo, sucursalDeRetiro(pedido.direccion));
+  const texto = mensajeEstadoPedido(estado, pedido.codigo, sucursalDeRetiro(pedido.direccion), Boolean(pedido.pagadoAt));
   if (texto) {
     const r = pedido.simulado
       ? { ok: true, simulado: true, msgId: undefined as string | undefined }
@@ -167,22 +226,6 @@ export async function cambiarEstadoPedido(id: number, estado: VanniEstadoPedido)
   }
 
   // Tras "Pago recibido", la boleta: el comprobante con productos y unidades.
-  if (estado === "pagado") {
-    const imagen = urlBoleta(pedido.tokenPago);
-    const epigrafe = `🧾 Tu boleta del pedido *${pedido.codigo}*. _Documento de demostración._`;
-    const r = pedido.simulado
-      ? { ok: true, simulado: true, msgId: undefined as string | undefined }
-      : await enviarImagen(pedido.telefono, imagen, epigrafe);
-    if (!r.ok) console.error("[vanni] no salió la boleta del pedido", pedido.codigo, r.error);
-    await guardarMensaje({
-      telefono: pedido.telefono,
-      flujo: "tienda",
-      direccion: "out",
-      texto: epigrafe,
-      imagenUrl: imagen,
-      simulado: pedido.simulado || r.simulado,
-      waMsgId: r.msgId ?? null,
-    });
-  }
+  if (estado === "pagado") await enviarBoleta(pedido);
   return pedido;
 }
