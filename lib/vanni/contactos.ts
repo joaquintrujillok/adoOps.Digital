@@ -5,10 +5,10 @@
 // resto se ignora. Una fila sin teléfono válido no se carga, y se informa cuál
 // y por qué: una fila que desaparece en silencio es un cliente que nadie llama.
 
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { vanniContactos } from "@/db/vanni";
-import { calcularRfm } from "./rfm";
+import { calcularRfm, SEGMENTO_DEMO } from "./rfm";
 import { normalizarTelefono } from "./telefono";
 
 type Campo =
@@ -201,7 +201,8 @@ export async function recalcularRfm(ejemplo: boolean): Promise<void> {
       montoTotal: vanniContactos.montoTotal,
     })
     .from(vanniContactos)
-    .where(eq(vanniContactos.ejemplo, ejemplo));
+    // Los de demostración tienen su segmento puesto a mano: no se recalculan.
+    .where(and(eq(vanniContactos.ejemplo, ejemplo), ne(vanniContactos.segmento, SEGMENTO_DEMO)));
   const puntajes = calcularRfm(todos);
   // Agrupados por combinación para hacer pocas escrituras aunque la base sea grande.
   const grupos = new Map<string, number[]>();

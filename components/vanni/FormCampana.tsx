@@ -4,40 +4,54 @@ import { useActionState } from "react";
 import { crearCampanaAction } from "@/lib/vanni/backoffice.actions";
 import SubirImagen from "./SubirImagen";
 
-// Las tres terminan igual: piden un OK (con eso se deriva a la ejecutiva, sin
-// más preguntas) y dicen cómo darse de baja. Cambia el gancho, no el cierre.
+// La campaña con que parte el formulario: la de bandejas y blondas, lista para
+// mostrar en vivo (texto, pieza y segmento Demo). Se puede cambiar todo antes de
+// crearla. Las tres variantes terminan igual: piden un OK (con eso se deriva al
+// ejecutivo, sin más preguntas) y dicen cómo darse de baja.
+const CAMPANA_INICIAL = {
+  nombre: "Reactivación bandejas y blondas",
+  promocion: "15% de descuento",
+  condiciones: "Aplica a bandejas y blondas.",
+  imagenUrl: "https://vo46dbyvby1mduok.public.blob.vercel-storage.com/vanni/campanas/promo1-bandejas-HYhi3e0x.png",
+  segmento: "Demo",
+};
+
+const CIERRE = "\n\n_Si no quieres recibir más mensajes, responde BAJA._";
+
 const PLANTILLAS = {
   A: {
     nombre: "Te extrañamos",
     texto:
       "Hola {nombre} 👋 Te escribimos de *Vanni Chile*.\n\n" +
-      "Hace un tiempo que no te vemos en nuestras sucursales y queremos regalarte una *promoción exclusiva*: *{promocion}* en {categoria}.\n\n" +
-      "Si te interesa, respóndenos *OK* y una ejecutiva te llamará dentro de las próximas 24 horas para cerrar tu pedido. ¡Será un gusto atenderte!\n\n" +
-      "_Si no quieres recibir más mensajes, responde BAJA._",
+      "Hace un tiempo que no te vemos en nuestras sucursales y queremos regalarte una *promoción exclusiva*: *{promocion}* en *bandejas y blondas*.\n\n" +
+      "Si te interesa, respóndenos *OK* y una ejecutiva te llamará dentro de las próximas 24 horas para cerrar tu pedido. ¡Será un gusto atenderte!" +
+      CIERRE,
   },
   B: {
     nombre: "Beneficio reservado",
     texto:
       "Hola {nombre}, ¿cómo estás? Somos *Vanni Chile* 🙌\n\n" +
-      "Te reservamos *{promocion}* en {categoria}, solo para clientes como tú.\n\n" +
-      "Responde *OK* y una ejecutiva te contacta en menos de 24 horas para aplicarlo.\n\n" +
-      "_Si no quieres recibir más mensajes, responde BAJA._",
+      "Te reservamos *{promocion}* en *bandejas y blondas*, solo para clientes como tú.\n\n" +
+      "Responde *OK* y una ejecutiva te contacta en menos de 24 horas para aplicarlo." +
+      CIERRE,
   },
   C: {
     nombre: "Directo",
     texto:
-      "Hola {nombre}, te habla *Vanni Chile*. Tienes *{promocion}* en {categoria} esperándote 🎁\n\n" +
-      "¿Lo aprovechamos? Responde *OK* y una ejecutiva te llama dentro de 24 horas.\n\n" +
-      "_Si no quieres recibir más mensajes, responde BAJA._",
+      "Hola {nombre}, te habla *Vanni Chile*. Tienes *{promocion}* en *bandejas y blondas* esperándote 🎁\n\n" +
+      "¿Lo aprovechamos? Responde *OK* y una ejecutiva te llama dentro de 24 horas." +
+      CIERRE,
   },
 };
 
 export default function FormCampana({
   ejecutivas,
+  ejecutivaPorDefecto,
   segmentos,
   sucursales,
 }: {
   ejecutivas: { id: number; nombre: string }[];
+  ejecutivaPorDefecto?: number | null;
   segmentos: { nombre: string; n: number }[];
   sucursales: string[];
 }) {
@@ -47,14 +61,14 @@ export default function FormCampana({
       <section className="vn-card" style={{ display: "grid", gap: 12 }}>
         <h2>La promoción</h2>
         <div className="vn-grid vn-grid-2" style={{ gap: 12 }}>
-          <div><label className="vn-label">Nombre de la campaña *</label><input name="nombre" required className="vn-input" placeholder="Reactivación octubre" /></div>
-          <div><label className="vn-label">Promoción *</label><input name="promocion" required className="vn-input" placeholder="15% de descuento" /><p className="vn-ayuda">Lo único que el agente puede ofrecer. Se inserta en {"{promocion}"}.</p></div>
+          <div><label className="vn-label">Nombre de la campaña *</label><input name="nombre" required className="vn-input" defaultValue={CAMPANA_INICIAL.nombre} /></div>
+          <div><label className="vn-label">Promoción *</label><input name="promocion" required className="vn-input" defaultValue={CAMPANA_INICIAL.promocion} /><p className="vn-ayuda">Lo único que el agente puede ofrecer. Se inserta en {"{promocion}"}.</p></div>
         </div>
-        <div><label className="vn-label">Condiciones</label><textarea name="condiciones" className="vn-textarea" placeholder="Válido hasta el 31 de octubre en compras sobre $50.000. No acumulable." /><p className="vn-ayuda">El agente las usa para responder preguntas sin inventar. Lo que no esté acá, lo deriva a la ejecutiva.</p></div>
+        <div><label className="vn-label">Condiciones</label><textarea name="condiciones" className="vn-textarea" defaultValue={CAMPANA_INICIAL.condiciones} /><p className="vn-ayuda">El agente las usa para responder preguntas sin inventar. Lo que no esté acá, lo deriva a la ejecutiva.</p></div>
         <div className="vn-grid vn-grid-2" style={{ gap: 12 }}>
           <div>
             <label className="vn-label">Ejecutiva que recibe a los interesados</label>
-            <select name="ejecutivaId" className="vn-select">
+            <select name="ejecutivaId" className="vn-select" defaultValue={ejecutivaPorDefecto ?? ""}>
               <option value="">La del contacto, o el administrador</option>
               {ejecutivas.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
             </select>
@@ -78,7 +92,7 @@ export default function FormCampana({
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
             {segmentos.map((s) => (
               <label key={s.nombre} style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 14 }}>
-                <input type="checkbox" name="segmentos" value={s.nombre} /> {s.nombre} <span style={{ color: "var(--vn-muted)" }}>({s.n})</span>
+                <input type="checkbox" name="segmentos" value={s.nombre} defaultChecked={s.nombre === CAMPANA_INICIAL.segmento} /> {s.nombre} <span style={{ color: "var(--vn-muted)" }}>({s.n})</span>
               </label>
             ))}
           </div>
@@ -99,7 +113,7 @@ export default function FormCampana({
       <section className="vn-card" style={{ display: "grid", gap: 12 }}>
         <h2>La imagen</h2>
         <p className="vn-sub">La pieza del descuento. Va en todas las variantes, con el texto como epígrafe.</p>
-        <SubirImagen name="imagenUrl" />
+        <SubirImagen name="imagenUrl" inicial={CAMPANA_INICIAL.imagenUrl} />
       </section>
 
       <section className="vn-card" style={{ display: "grid", gap: 12 }}>

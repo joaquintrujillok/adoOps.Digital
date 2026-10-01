@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export default async function NuevaCampana() {
   await requireAdmin();
   const [ejecutivas, resumen, sucs] = await Promise.all([
-    db.select({ id: vanniUsuarios.id, nombre: vanniUsuarios.nombre }).from(vanniUsuarios).where(and(eq(vanniUsuarios.activo, true), ne(vanniUsuarios.rol, "caja"))).orderBy(asc(vanniUsuarios.nombre)),
+    db.select({ id: vanniUsuarios.id, nombre: vanniUsuarios.nombre, rol: vanniUsuarios.rol }).from(vanniUsuarios).where(and(eq(vanniUsuarios.activo, true), ne(vanniUsuarios.rol, "caja"))).orderBy(asc(vanniUsuarios.nombre)),
     contactosPorSegmento(false),
     sucursales(false),
   ]);
@@ -25,7 +25,12 @@ export default async function NuevaCampana() {
     <>
       <div className="vn-top"><div><h1>Nueva campaña</h1><p>Se crea en borrador: puedes mandarte una prueba antes de lanzarla.</p></div></div>
       {!segmentos.length && <p className="vn-aviso" style={{ marginBottom: 14 }}>No hay contactos reales cargados. La campaña se puede crear, pero no tendrá a quién enviar hasta cargar la base.</p>}
-      <FormCampana ejecutivas={ejecutivas} segmentos={segmentos} sucursales={sucs} />
+      <FormCampana
+        ejecutivas={ejecutivas}
+        ejecutivaPorDefecto={ejecutivas.find((e) => e.rol === "ejecutiva")?.id ?? null}
+        segmentos={segmentos}
+        sucursales={sucs}
+      />
     </>
   );
 }

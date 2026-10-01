@@ -36,7 +36,14 @@ export const SEGMENTOS = [
   { nombre: "Hibernando", descripcion: "Compras bajas y esporádicas" },
   { nombre: "Perdidos", descripcion: "Hace mucho que no compran" },
   { nombre: "Sin historial", descripcion: "Sin datos de compra en la planilla" },
+  { nombre: "Demo", descripcion: "Teléfonos de prueba para demostraciones" },
 ] as const;
+
+/**
+ * Segmento puesto a mano, fuera del RFM: los teléfonos con los que se muestra
+ * una campaña en vivo. El recálculo del RFM no lo toca.
+ */
+export const SEGMENTO_DEMO = "Demo";
 
 export type NombreSegmento = (typeof SEGMENTOS)[number]["nombre"];
 
