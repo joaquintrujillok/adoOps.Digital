@@ -279,6 +279,8 @@ export interface VanniEstadoTienda {
   pendientes?: string[];
   /** Lo que eligió y falta que confirme: nada entra al carrito sin su "sí". */
   porConfirmar?: { productoId: number; cantidad: number };
+  /** Terminó de elegir y se le preguntó en qué sucursal retira. */
+  esperandoSucursal?: boolean;
   /** En `#Ofertas`: ya se le preguntó qué necesita; la próxima respuesta se deriva. */
   esperandoDetalle?: boolean;
   /** Captura en sala por WhatsApp: en qué pregunta va (ver lib/vanni/motor/captura.ts). */
@@ -393,6 +395,10 @@ export const VANNI_ESTADOS_PEDIDO = [
   "en_camino",
   "llega_hoy",
   "entregado",
+  // Pickup: se cotiza por WhatsApp, se reserva y se retira (y paga) en la sucursal.
+  "reservado",
+  "listo_retiro",
+  "retirado",
   "cancelado",
 ] as const;
 export type VanniEstadoPedido = (typeof VANNI_ESTADOS_PEDIDO)[number];

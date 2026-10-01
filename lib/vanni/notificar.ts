@@ -155,8 +155,15 @@ export async function avisarEjecutiva(
 }
 
 /** Lo que el cliente recibe en cada cambio de estado de su pedido. */
-export function mensajeEstadoPedido(estado: string, codigo: string): string | null {
+export function mensajeEstadoPedido(estado: string, codigo: string, sucursal: string | null = null): string | null {
+  const en = sucursal ? ` en *${sucursal}*` : " en tu sucursal";
   switch (estado) {
+    case "reservado":
+      return `🧾 Tu pedido *${codigo}* quedó reservado para retiro${en}. Te avisamos cuando esté listo.`;
+    case "listo_retiro":
+      return `🛍️ Tu pedido *${codigo}* está listo para retiro${en}. Muestra el código *${codigo}* en caja; pagas al retirar.`;
+    case "retirado":
+      return `🏁 Retiraste tu pedido *${codigo}*. ¡Gracias por comprar en Vanni!`;
     case "pagado":
       return `✅ Pago recibido. Tu pedido *${codigo}* está confirmado y pasa a preparación.`;
     case "preparacion":

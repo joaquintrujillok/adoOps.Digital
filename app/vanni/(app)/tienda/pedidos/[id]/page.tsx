@@ -6,13 +6,15 @@ import { vanniPedidoItems, vanniPedidos, vanniProductos } from "@/db/vanni";
 import { cambiarEstadoPedidoAction } from "@/lib/vanni/backoffice.actions";
 import { ESTADO_PEDIDO } from "@/lib/vanni/etiquetas";
 import { clp, fechaHora, miles } from "@/lib/vanni/formato";
-import { linkDePago, urlBoleta } from "@/lib/vanni/pedidos";
+import { linkDePago, sucursalDeRetiro, urlBoleta } from "@/lib/vanni/pedidos";
 import { formatoTelefono } from "@/lib/vanni/telefono";
 
 export const dynamic = "force-dynamic";
 
-/** El recorrido después del pago, en orden. Cada paso es un botón que avisa al cliente. */
-const RECORRIDO = ["pagado", "preparacion", "despachado", "en_camino", "llega_hoy", "entregado"] as const;
+/** El recorrido de un pedido, en orden. Cada paso es un botón que avisa al cliente. */
+const DESPACHO = ["pagado", "preparacion", "despachado", "en_camino", "llega_hoy", "entregado"];
+/** Pickup: reservado por WhatsApp, se prepara en la sucursal y se retira (y paga) ahí. */
+const RETIRO = ["reservado", "preparacion", "listo_retiro", "retirado"];
 
 export default async function DetallePedido({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -24,7 +26,10 @@ export default async function DetallePedido({ params }: { params: Promise<{ id: 
     .leftJoin(vanniProductos, eq(vanniProductos.id, vanniPedidoItems.productoId))
     .where(eq(vanniPedidoItems.pedidoId, p.id));
   const unidades = items.reduce((s, x) => s + x.i.cantidad, 0);
-  const paso = RECORRIDO.indexOf(p.estado as (typeof RECORRIDO)[number]);
+  const retiro = sucursalDeRetiro(p.direccion);
+  const RECORRIDO = retiro ? RETIRO : DESPACHO;
+  const paso = RECORRIDO.indexOf(p.estado);
+  const final = retiro ? "retirado" : "entregado";
   const cuando = new Map((p.historial ?? []).map((h) => [h.estado, h.at]));
 
   return (
@@ -47,7 +52,7 @@ export default async function DetallePedido({ params }: { params: Promise<{ id: 
       {p.simulado && <p className="vn-aviso" style={{ marginBottom: 14 }}>Pedido del simulador: los avisos de estado se registran pero no salen por WhatsApp.</p>}
 
       <section className="vn-card" style={{ marginBottom: 16 }}>
-        <h2>Despacho</h2>
+        <h2>{retiro ? `Retiro en ${retiro}` : "Despacho"}</h2>
         <p className="vn-sub" style={{ marginBottom: 12 }}>
           {p.estado === "pendiente_pago"
             ? "Cotización enviada: los pasos se activan cuando el cliente paga con su link."
@@ -72,7 +77,7 @@ export default async function DetallePedido({ params }: { params: Promise<{ id: 
               </form>
             );
           })}
-          {p.estado !== "cancelado" && p.estado !== "entregado" && (
+          {p.estado !== "cancelado" && p.estado !== final && (
             <form action={cambiarEstadoPedidoAction}>
               <input type="hidden" name="id" value={p.id} />
               <input type="hidden" name="estado" value="cancelado" />

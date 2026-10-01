@@ -23,6 +23,9 @@ export const ESTADO_PEDIDO: Record<string, { texto: string; clase: string }> = {
   despachado: { texto: "Saliendo de bodega", clase: "" },
   en_camino: { texto: "En camino", clase: "" },
   llega_hoy: { texto: "Llega hoy", clase: "" },
+  reservado: { texto: "Reservado para retiro", clase: "vn-chip-naranjo" },
+  listo_retiro: { texto: "Listo para retiro", clase: "" },
+  retirado: { texto: "Retirado", clase: "vn-chip-teal" },
   entregado: { texto: "Entregado", clase: "vn-chip-teal" },
   cancelado: { texto: "Cancelado", clase: "vn-chip-rojo" },
 };

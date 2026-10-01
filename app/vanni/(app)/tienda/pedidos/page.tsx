@@ -40,8 +40,9 @@ export default async function Pedidos({ searchParams }: { searchParams: Promise<
     db
       .select({
         n: sql<number>`count(*)::int`,
-        pagados: sql<number>`count(*) filter (where ${vanniPedidos.pagadoAt} is not null)::int`,
-        venta: sql<number>`coalesce(sum(${vanniPedidos.total}) filter (where ${vanniPedidos.pagadoAt} is not null), 0)::int`,
+        // Confirmada = pagada con link o reservada para retiro (pickup: se paga en la sucursal).
+        pagados: sql<number>`count(*) filter (where ${vanniPedidos.estado} not in ('pendiente_pago', 'cancelado'))::int`,
+        venta: sql<number>`coalesce(sum(${vanniPedidos.total}) filter (where ${vanniPedidos.estado} not in ('pendiente_pago', 'cancelado')), 0)::int`,
         pendientes: sql<number>`count(*) filter (where ${vanniPedidos.estado} = 'pendiente_pago')::int`,
       })
       .from(vanniPedidos)
@@ -65,14 +66,14 @@ export default async function Pedidos({ searchParams }: { searchParams: Promise<
 
       {unCliente && (
         <p className="vn-aviso vn-aviso-teal" style={{ marginBottom: 14 }}>
-          <b>{pedidos[0].p.nombreCliente ?? "Cliente"}</b> · {formatoTelefono(telefono)} · {pedidos.length} {pedidos.length === 1 ? "cotización" : "cotizaciones"}, {r?.pagados ?? 0} {(r?.pagados ?? 0) === 1 ? "pagada" : "pagadas"} por {clp(r?.venta ?? 0)}
+          <b>{pedidos[0].p.nombreCliente ?? "Cliente"}</b> · {formatoTelefono(telefono)} · {pedidos.length} {pedidos.length === 1 ? "cotización" : "cotizaciones"}, {r?.pagados ?? 0} {(r?.pagados ?? 0) === 1 ? "confirmada" : "confirmadas"} por {clp(r?.venta ?? 0)}
         </p>
       )}
 
       <div className="vn-grid vn-grid-kpi" style={{ marginBottom: 16, gridTemplateColumns: "repeat(4, minmax(0,1fr))" }}>
         <div className="vn-kpi"><label>Cotizaciones</label><b>{miles(r?.n ?? 0)}</b><span>armadas en el chat</span></div>
-        <div className="vn-kpi vn-kpi-hi"><label>Pagadas</label><b>{miles(r?.pagados ?? 0)}</b><span>con el link de pago</span></div>
-        <div className="vn-kpi"><label>Venta pagada</label><b>{clp(r?.venta ?? 0)}</b><span>precios de demostración</span></div>
+        <div className="vn-kpi vn-kpi-hi"><label>Confirmadas</label><b>{miles(r?.pagados ?? 0)}</b><span>reservadas para retiro o pagadas</span></div>
+        <div className="vn-kpi"><label>Venta confirmada</label><b>{clp(r?.venta ?? 0)}</b><span>precios de demostración</span></div>
         <div className="vn-kpi"><label>Esperando pago</label><b>{miles(r?.pendientes ?? 0)}</b><span>link enviado</span></div>
       </div>
       <section className="vn-card">

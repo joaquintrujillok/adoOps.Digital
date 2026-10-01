@@ -42,6 +42,8 @@ export async function crearPedido(p: {
   direccion: string | null;
   carrito: VanniEstadoTienda["carrito"];
   simulado: boolean;
+  /** Pickup: queda reservado para retiro (sin link de pago) y descuenta stock. */
+  reserva?: boolean;
 }): Promise<VanniPedido> {
   if (!p.carrito.length) throw new Error("El carrito está vacío");
 
@@ -75,11 +77,14 @@ export async function crearPedido(p: {
           direccion: p.direccion,
           total,
           tokenPago: randomBytes(16).toString("base64url"),
-          historial: [{ estado: "pendiente_pago", at: ahora }],
+          estado: p.reserva ? "reservado" : "pendiente_pago",
+          historial: [{ estado: p.reserva ? "reservado" : "pendiente_pago", at: ahora }],
           simulado: p.simulado,
         })
         .returning();
       await db.insert(vanniPedidoItems).values(items.map((i) => ({ ...i, pedidoId: pedido.id })));
+      // Una reserva aparta el stock al confirmarse; un pedido con link, al pagarse.
+      if (p.reserva) await descontarStock(pedido.id);
       return pedido;
     } catch (err) {
       // Choque del código corto: se prueba otro. Cualquier otro error sube.
@@ -110,6 +115,23 @@ export async function ultimoPedido(telefono: string): Promise<VanniPedido | null
  * Cambia el estado y le avisa al cliente. Descuenta stock al pagar: es la
  * primera vez que el pedido es de verdad.
  */
+/** "Retiro en sucursal Centro" → "Centro". `null` si es un despacho. */
+export function sucursalDeRetiro(direccion: string | null): string | null {
+  const m = (direccion ?? "").match(/^Retiro en sucursal\s+(.+)$/i);
+  return m ? m[1].trim() : null;
+}
+
+async function descontarStock(pedidoId: number): Promise<void> {
+  const items = await db.select().from(vanniPedidoItems).where(eq(vanniPedidoItems.pedidoId, pedidoId));
+  for (const i of items) {
+    if (!i.productoId) continue;
+    await db
+      .update(vanniProductos)
+      .set({ stock: sql`greatest(${vanniProductos.stock} - ${i.cantidad}, 0)` })
+      .where(eq(vanniProductos.id, i.productoId));
+  }
+}
+
 export async function cambiarEstadoPedido(id: number, estado: VanniEstadoPedido): Promise<VanniPedido> {
   const [actual] = await db.select().from(vanniPedidos).where(eq(vanniPedidos.id, id));
   if (!actual) throw new Error("Pedido no encontrado");
@@ -127,18 +149,9 @@ export async function cambiarEstadoPedido(id: number, estado: VanniEstadoPedido)
     .where(eq(vanniPedidos.id, id))
     .returning();
 
-  if (estado === "pagado") {
-    const items = await db.select().from(vanniPedidoItems).where(eq(vanniPedidoItems.pedidoId, id));
-    for (const i of items) {
-      if (!i.productoId) continue;
-      await db
-        .update(vanniProductos)
-        .set({ stock: sql`greatest(${vanniProductos.stock} - ${i.cantidad}, 0)` })
-        .where(eq(vanniProductos.id, i.productoId));
-    }
-  }
+  if (estado === "pagado" && actual.estado === "pendiente_pago") await descontarStock(id);
 
-  const texto = mensajeEstadoPedido(estado, pedido.codigo);
+  const texto = mensajeEstadoPedido(estado, pedido.codigo, sucursalDeRetiro(pedido.direccion));
   if (texto) {
     const r = pedido.simulado
       ? { ok: true, simulado: true, msgId: undefined as string | undefined }

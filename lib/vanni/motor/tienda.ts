@@ -38,13 +38,16 @@ const ETIQUETA_ESTADO: Record<string, string> = {
   en_camino: "en camino",
   llega_hoy: "llega hoy",
   entregado: "entregado",
+  reservado: "reservado para retiro",
+  listo_retiro: "listo para retiro",
+  retirado: "retirado",
   cancelado: "cancelado",
 };
 
 export const BIENVENIDA_TIENDA =
   "¡Hola! Bienvenido a la *tienda de Vanni por WhatsApp* 🛒\n" +
   "Escríbeme lo que buscas (ej: *bandejas para sushi*) o escribe *categorías*.\n" +
-  "También puedes escribir *carrito*, *pagar* o *estado*.\n" +
+  "También puedes escribir *carrito*, *listo* (para reservar y retirar en tienda) o *estado*.\n" +
   "_Precios y stock referenciales de demostración._";
 
 // ─── Herramientas (compartidas por las dos rutas) ───────────────────────────
@@ -67,7 +70,7 @@ function resumenCarrito(e: VanniEstadoTienda): string {
   return (
     "*Tu carrito*\n" +
     e.carrito.map((c, i) => `${i + 1}. ${c.nombre} × ${c.cantidad} — ${clp(c.precio * c.cantidad)}`).join("\n") +
-    `\n*Total: ${clp(total)}*\n\nEscribe *pagar* para recibir el link de pago, o *quitar 1* para sacar algo.`
+    `\n*Total: ${clp(total)}*\n\nEscribe *listo* para reservarlo y retirarlo en tienda, o *quitar 1* para sacar algo.`
   );
 }
 
@@ -153,7 +156,71 @@ async function responderConfirmacion(e: VanniEstadoTienda, texto: string): Promi
   if (!CONFIRMA.test(texto)) return null; // un cambio o algo distinto: se atiende como mensaje nuevo
   const agregado = await agregar(e, pc.productoId, pc.cantidad);
   const siguiente = await siguientePendiente(e);
-  return [{ texto: `✅ ${agregado}${siguiente || "\n\n¿Algo más? Escríbeme otro producto, o *pagar* para recibir el link."}` }];
+  return [{ texto: `✅ ${agregado}${siguiente || "\n\n¿Algo más? Escríbeme otro producto, o *listo* para reservarlo y retirarlo en tienda."}` }];
+}
+
+// ─── Cierre: pickup ──────────────────────────────────────────────────────────
+//
+// El modelo de la fase 2: cotiza por WhatsApp, retira (y paga) en la sucursal.
+// El cierre lo maneja el código: termina de elegir → en qué sucursal retira →
+// reserva. El link de pago ("pagar") queda como adelanto de la fase 3.
+
+const CIERRE =
+  /^[^\p{L}\d]*(listo|nada m[aá]s|no,? nada m[aá]s|eso( es)?( todo)?|es todo|eso ser[ií]a|terminar|reservar|confirmar( pedido)?|retiro|retirar|lo retiro|no,? gracias)(?!\p{L})/iu;
+
+async function pedirSucursal(ctx: Contexto): Promise<Salida[]> {
+  ctx.estado.esperandoSucursal = true;
+  const sugerida = ctx.contacto?.sucursal;
+  return [
+    {
+      texto:
+        `${resumenCarrito(ctx.estado).split("\n\nEscribe")[0]}\n\n` +
+        (sugerida
+          ? `¿Lo retiras en *${sugerida}*? Responde *sí* o escríbeme otra sucursal.`
+          : "¿En qué sucursal lo retiras? Escríbeme el nombre (por ejemplo: *Centro*)."),
+    },
+  ];
+}
+
+async function reservar(ctx: Contexto, sucursal: string): Promise<string> {
+  const e = ctx.estado;
+  if (!e.carrito.length) return "Tu carrito está vacío. Busca un producto para empezar.";
+  const pedido = await crearPedido({
+    telefono: ctx.telefono,
+    contactoId: ctx.contacto?.id ?? null,
+    nombreCliente: ctx.contacto?.razonSocial || ctx.contacto?.nombre || ctx.nombrePush,
+    direccion: `Retiro en sucursal ${sucursal}`,
+    carrito: e.carrito,
+    simulado: ctx.simulado,
+    reserva: true,
+  });
+  e.carrito = [];
+  e.pendientes = [];
+  e.porConfirmar = undefined;
+  e.esperandoSucursal = false;
+  return (
+    `✅ Listo: tu pedido *${pedido.codigo}* quedó *reservado para retiro en ${sucursal}* por *${clp(pedido.total)}*.\n\n` +
+    `Te aviso por aquí cuando esté listo para retirar. Pagas al retirar, en caja, con el código *${pedido.codigo}*.`
+  );
+}
+
+/** Lo que el código resuelve sin modelo: el cierre y la sucursal de retiro. */
+async function responderCierre(ctx: Contexto): Promise<Salida[] | null> {
+  const e = ctx.estado;
+  const t = ctx.texto.trim();
+  if (e.esperandoSucursal) {
+    e.esperandoSucursal = false;
+    if (/^(pagar|comprar|finalizar)\b/i.test(t)) return null; // prefiere pagar en línea: fase 3
+    const sugerida = ctx.contacto?.sucursal;
+    const sucursal = CONFIRMA.test(t) && sugerida ? sugerida : t.replace(/^(en|la|sucursal)\s+/i, "").replace(/[.!¡?¿]+$/g, "").trim();
+    if (sucursal.length < 2 || sucursal.length > 40) {
+      e.esperandoSucursal = true;
+      return [{ texto: "¿En qué sucursal lo retiras? Escríbeme solo el nombre (por ejemplo: *Centro*)." }];
+    }
+    return [{ texto: await reservar(ctx, sucursal) }];
+  }
+  if (e.carrito.length && !e.porConfirmar && CIERRE.test(t)) return pedirSucursal(ctx);
+  return null;
 }
 
 /** Después de agregar: si pidió otros productos, se sigue con el siguiente. */
@@ -272,7 +339,8 @@ Ayudas a encontrar productos, armar el carrito y pagar. Usa SIEMPRE las herramie
 - Nunca muestres dos listas en un mismo mensaje. Los números que responde el cliente se refieren SIEMPRE a la última lista mostrada.
 - Al mostrar productos, numéralos 1, 2, 3 en el mismo orden que devolvió la herramienta y con su precio. Termina preguntando cuál quiere y cuántas unidades.
 - Cuando el cliente elija un producto y una cantidad, llama a agregar_al_carrito con ese id y esa cantidad. Eso NO lo agrega: el sistema le muestra al cliente el producto, el total y el stock y le pide que confirme. Nunca digas que algo quedó agregado; el sistema avisa cuando el cliente confirma. Un producto por mensaje.
-- Si quiere pagar y quedan productos pendientes, pregúntale si los agrega antes o paga así.
+- El cierre es retiro en tienda (pickup): cuando el cliente termine, pídele que escriba *listo* y el sistema le pregunta la sucursal y reserva el pedido. No ofrezcas link de pago ni despacho; usa pagar solo si el cliente pide explícitamente pagar en línea.
+- Si quiere cerrar y quedan productos pendientes, pregúntale si los agrega antes o cierra así.
 - Para pagar, usa la herramienta pagar; si el cliente dio una dirección de despacho, pásala.
 - Si pide ver una foto, usa ver_producto.
 - Si pregunta por su pedido, usa estado_pedido.
@@ -508,10 +576,13 @@ export async function responderTienda(ctx: Contexto): Promise<Salida[]> {
   let salidas: Salida[];
   const esSaludo = /^#\s*tienda/i.test(ctx.texto.trim());
   const confirmacion = esSaludo ? null : await responderConfirmacion(ctx.estado, ctx.texto);
+  const cierre = esSaludo || confirmacion ? null : await responderCierre(ctx);
   if (esSaludo) {
     salidas = [{ texto: BIENVENIDA_TIENDA }];
   } else if (confirmacion) {
     salidas = confirmacion;
+  } else if (cierre) {
+    salidas = cierre;
   } else if (hayModelo() && (await hayPresupuesto())) {
     try {
       salidas = await responderConModelo(ctx);
