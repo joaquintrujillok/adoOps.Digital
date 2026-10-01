@@ -103,6 +103,7 @@ async function pagar(ctx: Contexto, direccion: string | null): Promise<string> {
   });
   ctx.estado.carrito = [];
   ctx.estado.pendientes = [];
+  ctx.estado.porConfirmar = undefined;
   return (
     `Listo, tu pedido *${pedido.codigo}* quedó creado por *${clp(pedido.total)}*.\n` +
     `Paga aquí: ${linkDePago(pedido.tokenPago)}\n\n` +
@@ -122,6 +123,38 @@ async function estadoPedido(telefono: string): Promise<string> {
 const REF_LISTA = /\b(?:la|el|n[°º]|nro\.?|n[uú]mero)\s*(\d{1,2})\b/g;
 /** "2 unidades", "10 cajas", "x 3": la cantidad. */
 const CANTIDAD = /(\d+)\s*(?:unidades?|uds?\b|u\b|cajas?|paquetes?|packs?)|\bx\s*(\d+)/i;
+
+/**
+ * Lo que eligió, antes de agregarlo: producto exacto, unidades, total y stock.
+ * Lo arma el código y no el modelo, para que lo que se confirma sea lo que se
+ * agrega. "2 y 3 unidades" se lee de dos formas; acá se ve cuál se entendió.
+ */
+async function proponer(e: VanniEstadoTienda, productoId: number, cantidad: number): Promise<string> {
+  const p = await productoPorId(productoId);
+  if (!p || !p.activo) return "No encontré ese producto. ¿Cuál número de la lista quieres?";
+  if (p.stock <= 0) return `*${p.nombre}* está sin stock en este momento. ¿Quieres otro de la lista?`;
+  const n = Math.max(1, Math.min(cantidad || 1, p.stock));
+  e.porConfirmar = { productoId: p.id, cantidad: n };
+  const ajuste = n < cantidad ? ` (hay ${p.stock} en stock, así que ajusté a ${n})` : "";
+  return (
+    `Te confirmo:\n*${p.nombre}* × ${n}${ajuste}\n${clp(p.precio)} c/u · total *${clp(p.precio * n)}* · stock en sucursal: ${p.stock}\n\n` +
+    "¿Lo agrego? Responde *sí* o dime el cambio."
+  );
+}
+
+// Sin \b: en JavaScript no reconoce letras con tilde y "sí" no calzaría.
+const CONFIRMA = /^[^\p{L}\d]*(s[ií]+|sip|ok\p{L}*|dale|ya|listo|confirm[oa]|agr[eé]ga(lo)?|bueno|perfecto|correcto|eso)(?!\p{L})|^\W*👍/iu;
+
+/** El cliente responde a "¿Lo agrego?": con un sí se agrega y se sigue con lo siguiente. */
+async function responderConfirmacion(e: VanniEstadoTienda, texto: string): Promise<Salida[] | null> {
+  const pc = e.porConfirmar;
+  if (!pc) return null;
+  e.porConfirmar = undefined;
+  if (!CONFIRMA.test(texto)) return null; // un cambio o algo distinto: se atiende como mensaje nuevo
+  const agregado = await agregar(e, pc.productoId, pc.cantidad);
+  const siguiente = await siguientePendiente(e);
+  return [{ texto: `✅ ${agregado}${siguiente || "\n\n¿Algo más? Escríbeme otro producto, o *pagar* para recibir el link."}` }];
+}
 
 /** Después de agregar: si pidió otros productos, se sigue con el siguiente. */
 async function siguientePendiente(e: VanniEstadoTienda): Promise<string> {
@@ -160,7 +193,7 @@ async function responderConReglas(ctx: Contexto): Promise<Salida[]> {
     const idx = Number(agregarM[1]) - 1;
     const id = e.ultimosProductos?.[idx];
     if (!id) return [{ texto: "Primero busca un producto y usa el número de la lista." }];
-    return [{ texto: (await agregar(e, id, Number(agregarM[2] ?? 1))) + (await siguientePendiente(e)) }];
+    return [{ texto: await proponer(e, id, Number(agregarM[2] ?? 1)) }];
   }
 
   // Elegir de la lista como se escribe: "la 6, 2 unidades", "6 x 2", "el 3".
@@ -176,7 +209,7 @@ async function responderConReglas(ctx: Contexto): Promise<Salida[]> {
     if (id) {
       const c = minus.match(CANTIDAD);
       const cantidad = Number(c?.[1] ?? c?.[2] ?? directo?.[2] ?? 1);
-      return [{ texto: (await agregar(e, id, cantidad)) + (await siguientePendiente(e)) }];
+      return [{ texto: await proponer(e, id, cantidad) }];
     }
   }
 
@@ -238,7 +271,7 @@ Ayudas a encontrar productos, armar el carrito y pagar. Usa SIEMPRE las herramie
 - Atiende UN producto a la vez. Si el cliente pide varios ("servilletas y bolsas de basura"), anota los demás con anotar_pendientes, busca solo el primero y muestra UNA sola lista. Cuando quede agregado, sigue con el siguiente pendiente ("Listo ✅ Ahora vamos con las bolsas de basura:") y búscalo.
 - Nunca muestres dos listas en un mismo mensaje. Los números que responde el cliente se refieren SIEMPRE a la última lista mostrada.
 - Al mostrar productos, numéralos 1, 2, 3 en el mismo orden que devolvió la herramienta y con su precio. Termina preguntando cuál quiere y cuántas unidades.
-- Para agregar, usa el id del producto. Agrega solo lo que el cliente eligió, una vez por producto. Si el mensaje se puede leer de dos formas (por ejemplo "la 6 y 2 unidades"), confirma antes de agregar ("¿La 6, 2 unidades?").
+- Cuando el cliente elija un producto y una cantidad, llama a agregar_al_carrito con ese id y esa cantidad. Eso NO lo agrega: el sistema le muestra al cliente el producto, el total y el stock y le pide que confirme. Nunca digas que algo quedó agregado; el sistema avisa cuando el cliente confirma. Un producto por mensaje.
 - Si quiere pagar y quedan productos pendientes, pregúntale si los agrega antes o paga así.
 - Para pagar, usa la herramienta pagar; si el cliente dio una dirección de despacho, pásala.
 - Si pide ver una foto, usa ver_producto.
@@ -286,7 +319,7 @@ const HERRAMIENTAS: OpenAI.Responses.Tool[] = [
   {
     type: "function",
     name: "agregar_al_carrito",
-    description: "Agrega un producto al carrito.",
+    description: "Registra el producto y la cantidad que eligió el cliente. El sistema le pide confirmación antes de agregarlo.",
     strict: true,
     parameters: {
       type: "object",
@@ -346,6 +379,10 @@ const HERRAMIENTAS: OpenAI.Responses.Tool[] = [
 interface Turno {
   /** Ya se mostró una lista y el cliente todavía no elige de ella. */
   listaAbierta: boolean;
+  /** La lista que el cliente tenía a la vista al escribir este mensaje. */
+  listaVisible: number[];
+  /** Lo que eligió en este mensaje, a confirmar. */
+  propuesta: { productoId: number; cantidad: number } | null;
 }
 
 const normalizar = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
@@ -369,7 +406,7 @@ async function ejecutar(
       // Una lista por mensaje: si ya hay una abierta en este turno, la segunda
       // búsqueda espera. Dos listas numeradas 1-6 a la vez confunden al
       // cliente y al número que responde.
-      if (turno.listaAbierta) {
+      if (turno.listaAbierta || turno.propuesta) {
         e.pendientes = [...new Set([...(e.pendientes ?? []), consulta])].slice(0, 6);
         return `No busqué "${consulta}": ya hay una lista abierta en este mensaje. Quedó pendiente; atiéndelo cuando el cliente elija de la lista actual.`;
       }
@@ -388,13 +425,14 @@ async function ejecutar(
     }
     case "agregar_al_carrito": {
       const id = Number(args.producto_id);
-      // Solo de la lista que el cliente tiene a la vista (o algo ya en el
-      // carrito). Es lo que evita agregar de una lista anterior por error.
-      const enLista = (e.ultimosProductos ?? []).includes(id) || e.carrito.some((c) => c.productoId === id);
+      if (turno.propuesta) return "Ya hay un producto por confirmar en este mensaje. Uno a la vez.";
+      // Solo de la lista que el cliente tenía a la vista (o algo ya en el
+      // carrito). Es lo que evita agregar de otra lista por error.
+      const enLista =
+        turno.listaVisible.includes(id) || (e.ultimosProductos ?? []).includes(id) || e.carrito.some((c) => c.productoId === id);
       if (!enLista) return "Ese producto no está en la lista que ve el cliente. Pregúntale cuál quiere de la lista actual.";
-      const r = await agregar(e, id, Number(args.cantidad));
-      turno.listaAbierta = false;
-      return e.pendientes?.length ? `${r} Quedan pendientes: ${JSON.stringify(e.pendientes)}. Sigue con el siguiente.` : r;
+      turno.propuesta = { productoId: id, cantidad: Number(args.cantidad) || 1 };
+      return "Registrado. El sistema le muestra al cliente el producto, el total y el stock, y le pide confirmación. No agregues otra lista ni digas que quedó agregado.";
     }
     case "ver_carrito":
       return resumenCarrito(e);
@@ -433,7 +471,7 @@ async function responderConModelo(ctx: Contexto): Promise<Salida[]> {
     },
   ];
 
-  const turno: Turno = { listaAbierta: false };
+  const turno: Turno = { listaAbierta: false, listaVisible: [...(ctx.estado.ultimosProductos ?? [])], propuesta: null };
   for (let vuelta = 0; vuelta < 5; vuelta++) {
     const r = await cliente().responses.create({
       model: MODELO,
@@ -445,6 +483,10 @@ async function responderConModelo(ctx: Contexto): Promise<Salida[]> {
 
     const llamadas = r.output.filter((i) => i.type === "function_call");
     if (!llamadas.length) {
+      if (turno.propuesta) {
+        // Lo que se confirma lo escribe el código: es exactamente lo que se agregará.
+        return [...salidas.filter((x) => x.imagenUrl), { texto: await proponer(ctx.estado, turno.propuesta.productoId, turno.propuesta.cantidad) }];
+      }
       const texto = r.output_text?.trim();
       if (texto) salidas.push({ texto });
       return salidas;
@@ -465,8 +507,11 @@ async function responderConModelo(ctx: Contexto): Promise<Salida[]> {
 export async function responderTienda(ctx: Contexto): Promise<Salida[]> {
   let salidas: Salida[];
   const esSaludo = /^#\s*tienda/i.test(ctx.texto.trim());
+  const confirmacion = esSaludo ? null : await responderConfirmacion(ctx.estado, ctx.texto);
   if (esSaludo) {
     salidas = [{ texto: BIENVENIDA_TIENDA }];
+  } else if (confirmacion) {
+    salidas = confirmacion;
   } else if (hayModelo() && (await hayPresupuesto())) {
     try {
       salidas = await responderConModelo(ctx);

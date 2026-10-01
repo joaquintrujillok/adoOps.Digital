@@ -63,7 +63,8 @@ const R = {
   noInteresa: /^(no|nop|nope|no gracias|no por ahora|ahora no|no me interesa|no, gracias)\b|no me interesa|no necesito/i,
   precio: /(precio|cu[aá]nto (sale|cuesta|vale|es)|valor|stock|disponib|lista de precios)/i,
   interes:
-    /\b(s[ií]+p?o?|me interesa|interesad|quiero|dale|de una|ok[a-z]*|oki|bueno|claro|ya|ya po|listo|ll[aá]m(en|ame|ar|enme)|cont[aá]ct|cotiz|necesito|me sirve|perfecto|genial|bac[aá]n|me tinca)\b|👍|🙌|👌/i,
+    // Límites Unicode y no \b: con \b, "sí" (con tilde) no calza.
+    /(?<!\p{L})(s[ií]+p?o?|me interesa|interesad|quiero|dale|de una|ok\p{L}*|oki|bueno|claro|ya|ya po|listo|ll[aá]m(en|ame|ar|enme)|cont[aá]ct|cotiz|necesito|me sirve|perfecto|genial|bac[aá]n|me tinca)(?!\p{L})|👍|🙌|👌/iu,
   pregunta: /(\?|c[oó]mo|hasta cu[aá]ndo|condiciones|aplica|v[aá]lid|qu[eé] (incluye|productos))/i,
 };
 

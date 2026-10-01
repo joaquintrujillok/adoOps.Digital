@@ -277,6 +277,8 @@ export interface VanniEstadoTienda {
   ultimaLista?: "productos" | "categorias";
   /** Productos que el cliente pidió y todavía no se atienden: la tienda va de a uno. */
   pendientes?: string[];
+  /** Lo que eligió y falta que confirme: nada entra al carrito sin su "sí". */
+  porConfirmar?: { productoId: number; cantidad: number };
   /** En `#Ofertas`: ya se le preguntó qué necesita; la próxima respuesta se deriva. */
   esperandoDetalle?: boolean;
   /** Captura en sala por WhatsApp: en qué pregunta va (ver lib/vanni/motor/captura.ts). */

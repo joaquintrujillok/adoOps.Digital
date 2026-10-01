@@ -25,8 +25,9 @@ const INTENTOS_RUT = 4;
 
 export type EstadoCaptura = NonNullable<VanniEstadoTienda["captura"]>;
 
-const SI = /^\W*(s[ií]+|sip|acepto|ok[a-z]*|dale|ya|claro|bueno|de acuerdo|👍)\b|^\W*👍/i;
-const NO = /^\W*(no|nop|no acepto|no gracias|prefiero que no)\b/i;
+// Sin \b: en JavaScript no reconoce letras con tilde y "sí" no calzaría.
+const SI = /^[^\p{L}\d]*(s[ií]+|sip|acepto|ok\p{L}*|dale|ya|claro|bueno|de acuerdo)(?!\p{L})|^\W*👍/iu;
+const NO = /^[^\p{L}\d]*(no|nop|no acepto|no gracias|prefiero que no)(?!\p{L})/iu;
 
 export function sucursalDelMensaje(texto: string): string | null {
   return texto.match(/\(\s*sala\s+([^)]{1,60})\)/i)?.[1]?.trim() ?? null;
