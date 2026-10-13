@@ -69,6 +69,13 @@ export const TIPOS_SENAL: TipoSenal[] = [
     fuente: "SII · direcciones históricas",
   },
   {
+    id: "charla",
+    nombre: "Asistió a una charla de adoOps",
+    ventanaDias: 90,
+    ejemplo: "participó en la charla de IA de Nelson García y respondió el Pulso IA",
+    fuente: "Pulso IA · /pulso",
+  },
+  {
     id: "otra",
     nombre: "Otra, verificable",
     ventanaDias: 45,

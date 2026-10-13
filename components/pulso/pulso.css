@@ -1,0 +1,114 @@
+/* Pulso IA. Se monta dentro de .v2 (app/_web/sitio.css) y usa sus tokens: mismo
+   papel, misma tinta, el mismo verde. Todas las clases llevan prefijo pz- para
+   que Tailwind no genere utilidades por coincidencia de nombre. */
+
+/* ── Mapa ─────────────────────────────────────────────────────────────────── */
+.v2 .pz-mapa{margin:0;display:flex;flex-direction:column;gap:10px;min-width:0}
+.v2 .pz-mapa svg{width:100%;height:auto;display:block;overflow:visible}
+.v2 .pz-fondo{fill:var(--surface)}
+.v2 .pz-eje{stroke:var(--line);stroke-width:.35;stroke-dasharray:1.2 1.2}
+.v2 .pz-cuad{fill:var(--ink-3);font-family:var(--display);font-weight:500;letter-spacing:.08em;dominant-baseline:middle}
+.v2 .pz-tick{fill:var(--ink-3);font-family:var(--display);letter-spacing:.14em}
+.v2 .pz-punto{stroke:var(--bg);stroke-width:.45;animation:pzpop .55s cubic-bezier(.2,.7,.2,1) both;transition:cy .9s cubic-bezier(.2,.7,.2,1)}
+.v2 .pz-traza{stroke-width:.4;stroke-dasharray:.8 .8;opacity:.55}
+.v2 .pz-yo-anillo{fill:none;stroke:var(--ink);stroke-width:.5;animation:pzping 2.2s ease-out infinite;transform-box:fill-box;transform-origin:center}
+.v2 .pz-yo-txt{fill:var(--ink);font-family:var(--display);font-weight:600}
+@keyframes pzpop{0%{opacity:0;transform:scale(0)}60%{opacity:1;transform:scale(1.6)}100%{transform:scale(1)}}
+@keyframes pzping{0%{opacity:.9}100%{opacity:.15}}
+.v2 .pz-leyenda{display:flex;flex-wrap:wrap;gap:6px 16px;font-family:var(--display);font-size:12px;color:var(--ink-2)}
+.v2 .pz-leyenda span{display:inline-flex;align-items:center;gap:7px}
+.v2 .pz-leyenda i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.v2 .pz-mapa-g .pz-leyenda{font-size:15px;gap:8px 24px}
+.v2 .pz-mapa-g .pz-leyenda i{width:12px;height:12px}
+
+/* ── Celular ──────────────────────────────────────────────────────────────── */
+.v2 .pz-movil{max-width:520px;margin:0 auto;padding:28px 16px 64px;min-height:calc(100vh - 64px);display:flex;flex-direction:column;gap:22px}
+.v2 .pz-movil h1{font-family:var(--display);font-weight:500;letter-spacing:-.04em;line-height:1.08;font-size:clamp(30px,8vw,40px)}
+.v2 .pz-movil h2{font-family:var(--display);font-weight:500;letter-spacing:-.03em;line-height:1.18;font-size:clamp(22px,6vw,27px)}
+.v2 .pz-progreso{display:flex;gap:6px}
+.v2 .pz-progreso i{flex:1;height:3px;border-radius:2px;background:var(--line);transition:background .3s ease}
+.v2 .pz-progreso i.on{background:var(--accent)}
+.v2 .pz-paso{display:flex;flex-direction:column;gap:18px;animation:v2rise .45s cubic-bezier(.2,.7,.2,1) both}
+.v2 .pz-num{font-family:var(--display);font-size:12px;letter-spacing:.14em;color:var(--ink-3)}
+.v2 .pz-opciones{display:flex;flex-direction:column;gap:10px}
+.v2 .pz-opcion{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;text-align:left;padding:16px 18px;border:1px solid var(--line);border-radius:var(--radius);background:var(--bg);font-size:16px;line-height:1.35;transition:border-color .15s ease,background .15s ease,transform .15s ease}
+.v2 .pz-opcion:hover{border-color:var(--ink-3)}
+.v2 .pz-opcion:active{transform:scale(.99)}
+.v2 .pz-opcion.on{border-color:var(--accent);background:var(--accent-soft)}
+.v2 .pz-opcion b{font-family:var(--display);font-weight:500;font-size:13px;color:var(--ink-3);min-width:1.5em}
+.v2 .pz-escala{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.v2 .pz-escala button{display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 4px;border:1px solid var(--line);border-radius:var(--radius);font-family:var(--display);font-size:22px;font-weight:500;transition:border-color .15s ease,background .15s ease}
+.v2 .pz-escala button small{font-family:var(--body);font-size:11px;line-height:1.2;color:var(--ink-3);text-align:center;min-height:2.4em}
+.v2 .pz-escala button.on{border-color:var(--accent);background:var(--accent-soft)}
+.v2 .pz-acciones{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.v2 .pz-movil textarea{min-height:110px;resize:vertical;font-size:16px}
+.v2 .pz-resultado{display:flex;flex-direction:column;gap:10px}
+.v2 .pz-perfil{font-family:var(--display);font-size:clamp(40px,12vw,56px);font-weight:500;letter-spacing:-.05em;line-height:1}
+.v2 .pz-lema{font-family:var(--display);color:var(--accent-ink);font-size:15px}
+.v2 .pz-verde{background:var(--proof-bg);color:var(--proof-fg);border-radius:10px;padding:20px}
+.v2 .pz-verde .k{font-family:var(--display);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--proof-mint);margin-bottom:6px}
+.v2 .pz-verde p{font-size:15px;line-height:1.55}
+.v2 .pz-tarjeta{border:1px solid var(--line);border-radius:10px;padding:20px;display:flex;flex-direction:column;gap:14px;background:var(--bg)}
+.v2 .pz-check{display:flex;gap:10px;align-items:flex-start;font-size:13.5px;line-height:1.45;color:var(--ink-2)}
+.v2 .pz-check input{width:18px;height:18px;flex:0 0 18px;margin-top:2px;accent-color:var(--accent)}
+.v2 .pz-error{font-size:14px;color:#B42318}
+.v2 .pz-firma{margin-top:auto;padding-top:28px;font-family:var(--display);font-size:12px;letter-spacing:.06em;color:var(--ink-3);text-align:center}
+.v2 .pz-firma b{color:var(--ink-2);font-weight:500}
+.v2 .pz-aviso{font-size:14px;color:var(--ink-2);background:var(--surface);border-radius:var(--radius);padding:12px 14px}
+
+/* ── Pantalla proyectada ──────────────────────────────────────────────────── */
+.v2 .pz-pantalla{min-height:100vh;display:flex;flex-direction:column;padding:28px 40px 22px;gap:22px}
+.v2 .pz-cab{display:flex;align-items:center;justify-content:space-between;gap:24px}
+.v2 .pz-cab .izq{display:flex;align-items:center;gap:22px;min-width:0}
+.v2 .pz-cab img{height:32px;width:auto}
+.v2 .pz-cab h1{font-family:var(--display);font-weight:500;letter-spacing:-.04em;font-size:clamp(26px,2.6vw,42px);line-height:1.05}
+.v2 .pz-qr{display:flex;align-items:center;gap:16px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 16px 10px 10px}
+.v2 .pz-qr .svg{width:clamp(96px,9vw,150px);aspect-ratio:1;background:#fff;border-radius:6px;padding:6px}
+.v2 .pz-qr .svg svg{width:100%;height:100%;display:block}
+.v2 .pz-qr b{display:block;font-family:var(--display);font-size:clamp(16px,1.4vw,22px);font-weight:600;letter-spacing:-.02em}
+.v2 .pz-qr span{font-family:var(--display);font-size:13px;color:var(--ink-3)}
+.v2 .pz-cuerpo{flex:1;display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:40px;align-items:start}
+.v2 .pz-cuerpo .pz-mapa svg{max-height:calc(100vh - 250px)}
+.v2 .pz-cuerpo .pz-mapa{align-items:center}
+.v2 .pz-lado{display:flex;flex-direction:column;gap:22px;min-width:0}
+.v2 .pz-total{display:flex;align-items:baseline;gap:14px;border-bottom:1px solid var(--line);padding-bottom:16px}
+.v2 .pz-total b{font-family:var(--display);font-size:clamp(56px,6vw,96px);font-weight:500;letter-spacing:-.05em;line-height:.9;font-variant-numeric:tabular-nums}
+.v2 .pz-total span{font-family:var(--display);font-size:14px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+.v2 .pz-bloque{display:flex;flex-direction:column;gap:12px}
+.v2 .pz-barra{display:grid;grid-template-columns:minmax(0,1fr) 48px;gap:2px 12px;align-items:center;font-size:clamp(14px,1.05vw,17px)}
+.v2 .pz-barra .t{color:var(--ink);grid-column:1/-1}
+.v2 .pz-barra .b{height:8px;border-radius:0 4px 4px 0;background:var(--surface);overflow:hidden}
+.v2 .pz-barra .b i{display:block;height:100%;background:var(--ink-2);border-radius:0 4px 4px 0;transition:width .8s cubic-bezier(.2,.7,.2,1)}
+.v2 .pz-barra .b i.alto{background:var(--accent)}
+.v2 .pz-barra .b i.antes{background:var(--ink-3);opacity:.5}
+.v2 .pz-barra .v{font-family:var(--display);font-size:14px;color:var(--ink-2);text-align:right;font-variant-numeric:tabular-nums}
+.v2 .pz-nube{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline;line-height:1.1}
+.v2 .pz-nube span{font-family:var(--display);font-weight:500;letter-spacing:-.03em;color:var(--ink);animation:v2rise .5s cubic-bezier(.2,.7,.2,1) both}
+.v2 .pz-nube span.top{color:var(--accent-ink)}
+.v2 .pz-ticker{font-size:clamp(14px,1vw,16px);color:var(--ink-2);border-left:2px solid var(--accent);padding-left:12px;min-height:1.6em}
+.v2 .pz-contraste{display:flex;align-items:center;gap:18px;font-family:var(--display)}
+.v2 .pz-contraste b{font-size:clamp(40px,4vw,64px);font-weight:500;letter-spacing:-.05em;line-height:1;font-variant-numeric:tabular-nums}
+.v2 .pz-contraste .de{color:var(--ink-3)}
+.v2 .pz-contraste .a{color:var(--accent-ink)}
+.v2 .pz-contraste small{font-size:13px;color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase}
+.v2 .pz-pie{display:flex;justify-content:space-between;align-items:center;font-family:var(--display);font-size:13px;color:var(--ink-3);letter-spacing:.06em}
+.v2 .pz-pie b{color:var(--ink-2);font-weight:500}
+.v2 .pz-vivo{display:inline-flex;align-items:center;gap:8px}
+.v2 .pz-vivo::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--accent);animation:pzblink 1.6s ease-in-out infinite}
+@keyframes pzblink{50%{opacity:.25}}
+@media (max-width:900px){.v2 .pz-pantalla{padding:20px 16px}.v2 .pz-cuerpo{grid-template-columns:1fr}.v2 .pz-cab{flex-wrap:wrap}}
+
+/* ── Panel ────────────────────────────────────────────────────────────────── */
+.v2 .pz-panel{padding-block:40px 80px;display:flex;flex-direction:column;gap:32px}
+.v2 .pz-fila{display:grid;grid-template-columns:1fr;gap:14px;border-top:1px solid var(--line);padding-top:18px}
+@media (min-width:900px){.v2 .pz-fila{grid-template-columns:minmax(0,1.4fr) auto;align-items:center}}
+.v2 .pz-fila h3{font-family:var(--display);font-size:18px;font-weight:600;letter-spacing:-.02em}
+.v2 .pz-meta{display:flex;flex-wrap:wrap;gap:6px 16px;font-family:var(--display);font-size:12.5px;color:var(--ink-3)}
+.v2 .pz-meta .fase{color:var(--accent-ink)}
+.v2 .pz-botones{display:flex;flex-wrap:wrap;gap:8px}
+.v2 .pz-tabla{width:100%;border-collapse:collapse;font-size:14px}
+.v2 .pz-tabla th{text-align:left;font-family:var(--display);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-weight:500;padding:8px 10px 8px 0;border-bottom:1px solid var(--line)}
+.v2 .pz-tabla td{padding:10px 10px 10px 0;border-bottom:1px solid var(--line);vertical-align:top}
+.v2 .pz-scroll{overflow-x:auto}
+.v2[data-theme="dark"] .pz-cab img{filter:invert(1) hue-rotate(180deg) brightness(1.05)}
+@media (prefers-color-scheme: dark){.v2:not([data-theme="light"]) .pz-cab img{filter:invert(1) hue-rotate(180deg) brightness(1.05)}}

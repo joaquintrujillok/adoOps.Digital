@@ -117,6 +117,40 @@ export const MODULOS: Modulo[] = [
     nota: "Sembrado, pero durante una demostración entran mensajes de WhatsApp de verdad.",
   },
   {
+    id: "pulso-panel",
+    nombre: "Pulso IA · panel",
+    // Vive bajo /crm por la sesión, pero no es el demo del CRM: tiene los
+    // contactos reales de quienes dejaron sus datos en una charla. Por eso va
+    // declarado aparte y con la ruta más larga, para que `moduloDe()` no lo
+    // confunda con el CRM sembrado.
+    ruta: "/crm/pulso",
+    estado: "produccion",
+    datos: "reales",
+    audiencia: "Nelson y Joaquín, antes y después de una charla",
+    tablas: ["pulso_", "lead_personas", "lead_empresas", "lead_senales"],
+    nota: "Crea las sesiones de las charlas y muestra quién dejó sus datos; al cerrar deja una señal en el motor.",
+  },
+  {
+    id: "pulso-pantalla",
+    nombre: "Pulso IA · pantalla proyectada",
+    ruta: "/pulso",
+    estado: "produccion",
+    datos: "reales",
+    audiencia: "la sala de una charla",
+    tablas: ["pulso_"],
+    nota: "Pública y sin sesión: solo muestra lo agregado (puntos sin nombre, conteos y tareas).",
+  },
+  {
+    id: "pulso",
+    nombre: "Pulso IA · celular",
+    ruta: "/p/",
+    estado: "produccion",
+    datos: "reales",
+    audiencia: "cada asistente, desde el QR",
+    tablas: ["pulso_", "lead_personas"],
+    nota: "Cinco preguntas anónimas; los datos de contacto se piden al final y solo con consentimiento.",
+  },
+  {
     id: "crm",
     nombre: "CRM Highend",
     ruta: "/crm",

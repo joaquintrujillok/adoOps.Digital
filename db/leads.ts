@@ -63,7 +63,9 @@ export type LeadOrigen =
   | "fullenrich"
   | "linkedin"
   | "csv"
-  | "manual";
+  | "manual"
+  /** Dejó sus datos al final de una charla (Pulso IA), con consentimiento. */
+  | "charla";
 
 /** Los tres canales son salidas del mismo motor, no módulos separados. */
 export type LeadCanal = "linkedin" | "email" | "whatsapp";
