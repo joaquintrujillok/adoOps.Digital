@@ -106,15 +106,15 @@
 .v2-hero-copy h1{max-width:16ch;line-height:1.04}
 .v2-hero-copy h1 .w{display:inline-block;will-change:transform}
 .v2-hero-actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
-.v2 .ring{position:relative;width:260px;height:260px;margin-inline:auto}
-@media (min-width:900px){.v2 .ring{width:300px;height:300px;margin-inline:0}}
-.v2 .ring svg{width:100%;height:100%;overflow:visible}
-.v2 .ring .spin{transform-origin:50% 50%;animation:v2spin 48s linear infinite}
-.v2 .ring text{font-family:var(--display);font-size:11.5px;letter-spacing:.14em;fill:var(--ink);font-weight:500}
-.v2 .ring .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:6px;padding:48px}
-.v2 .ring .center b{font-family:var(--display);font-weight:600;font-size:14px;letter-spacing:.02em;line-height:1.3}
-.v2 .ring .center span{font-family:var(--display);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
-.v2 .ring .pulse{transform-origin:50% 50%;animation:v2ping 2.6s ease-out infinite}
+.v2 .v2-ring{position:relative;width:260px;height:260px;margin-inline:auto}
+@media (min-width:900px){.v2 .v2-ring{width:300px;height:300px;margin-inline:0}}
+.v2 .v2-ring svg{width:100%;height:100%;overflow:visible}
+.v2 .v2-ring .spin{transform-origin:50% 50%;animation:v2spin 48s linear infinite}
+.v2 .v2-ring text{font-family:var(--display);font-size:11.5px;letter-spacing:.14em;fill:var(--ink);font-weight:500}
+.v2 .v2-ring .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:6px;padding:48px}
+.v2 .v2-ring .center b{font-family:var(--display);font-weight:600;font-size:14px;letter-spacing:.02em;line-height:1.3}
+.v2 .v2-ring .center span{font-family:var(--display);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
+.v2 .v2-ring .pulse{transform-origin:50% 50%;animation:v2ping 2.6s ease-out infinite}
 @keyframes v2spin{to{transform:rotate(360deg)}}
 @keyframes v2ping{0%{transform:scale(1);opacity:.7}100%{transform:scale(4);opacity:0}}
 .v2 .kpis{border-top:1px solid var(--line);border-bottom:1px solid var(--line);display:grid;grid-template-columns:1fr;gap:0}
@@ -308,7 +308,7 @@
 .v2 .theme-btn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}
 
 @media (prefers-reduced-motion: reduce){
-  .v2 .ring .spin,.v2 .ring .pulse,.v2 .orb{animation:none}
+  .v2 .v2-ring .spin,.v2 .v2-ring .pulse,.v2 .orb{animation:none}
   .v2 .rise,.v2-hero-copy h1 .w{animation:none}
   .v2 .rv.pre{opacity:1;transform:none}
   .v2 .card.pre .art .draw{stroke-dashoffset:0}

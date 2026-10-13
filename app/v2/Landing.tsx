@@ -65,7 +65,7 @@ export default function Landing() {
               <Link className="btn btn-text" href="/cafecito-ia"><svg viewBox="0 0 24 24"><path d="M17 8h1a4 4 0 1 1 0 8h-1M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4zM6 2v2M10 2v2M14 2v2"/></svg>Leer Cafecito IA <small>· el boletín</small></Link>
             </div>
           </div>
-          <div className="ring rise" style={{animationDelay:'420ms'} as React.CSSProperties} aria-hidden="true">
+          <div className="v2-ring rise" style={{animationDelay:'420ms'} as React.CSSProperties} aria-hidden="true">
             <svg viewBox="0 0 300 300">
               <defs><path id="ringPath" d="M150,150 m-118,0 a118,118 0 1,1 236,0 a118,118 0 1,1 -236,0"/></defs>
               <circle cx="150" cy="150" r="138" fill="none" stroke="var(--line)" strokeWidth="1"/>
