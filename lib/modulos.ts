@@ -214,19 +214,6 @@ export const MODULOS: Modulo[] = [
     nota: "La otra página de la web corporativa. Es contenido: no guarda nada ni pide nada.",
   },
   {
-    id: "web-v2",
-    nombre: "Web corporativa · rediseño (vista previa)",
-    ruta: "/v2",
-    estado: "produccion",
-    datos: "reales",
-    audiencia: "cualquier visitante",
-    tablas: ["leads"],
-    // Misma server action y misma tabla que la portada: un lead que entra por
-    // /v2 es un lead real. No lleva chip por ser `produccion`, y no se indexa
-    // (robots en app/v2/layout.tsx y en robots.ts) para no competir con "/".
-    nota: "Copia de la portada con el diseño nuevo, para mostrarla y compararla. Mismo formulario de contacto.",
-  },
-  {
     id: "web",
     nombre: "Web corporativa",
     ruta: "/",

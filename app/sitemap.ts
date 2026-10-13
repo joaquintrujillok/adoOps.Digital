@@ -32,7 +32,8 @@ export const revalidate = 3600;
 // Son fechas de contenido, no de despliegue: se actualizan cuando el texto de
 // esas páginas cambie de verdad, no cuando se toque una clase de CSS. Si dudas,
 // no las muevas: un `lastmod` viejo no cuesta nada, uno falso sí.
-const CAMBIO_HOME = new Date("2026-06-22T01:40:54Z");
+// 13-10-2026: la portada pasó al rediseño, con casos y textos nuevos.
+const CAMBIO_HOME = new Date("2026-10-13T00:00:00Z");
 const CAMBIO_FRAMEWORK = new Date("2026-06-22T01:40:54Z");
 const CAMBIO_CAFECITO = new Date("2026-09-07T16:10:35Z");
 

@@ -21,7 +21,6 @@ export default function robots(): MetadataRoute.Robots {
         allow: "/",
         disallow: [
           "/api/",
-          "/v2",
           "/cafecito-ia/confirmar/",
           "/cafecito-ia/baja/",
           "/crm",

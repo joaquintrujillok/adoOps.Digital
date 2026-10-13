@@ -1,55 +1,13 @@
-"use client";
-
-import { useEffect, useRef } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import ContactFormV2 from "./ContactFormV2";
-import { initV2 } from "./behavior";
 
 /**
- * Landing del rediseño (/v2). El marcado es el del mockup aprobado; el
- * comportamiento (animaciones por scroll, carrusel, contadores, tema) vive en
- * behavior.js y se monta una sola vez sobre este árbol. Nada acá tiene estado
- * de React a propósito: así el DOM que anima behavior.js nunca se re-renderiza
- * por debajo.
+ * El contenido de la portada: el marcado del mockup aprobado, sin la barra ni
+ * el pie (esos son de `Sitio`, compartidos con las interiores). Sus animaciones
+ * —carrusel, contadores, bloque verde, gráfico— viven en animaciones.js.
  */
-export default function Landing() {
-  const rootRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const root = rootRef.current;
-    if (!root) return;
-    return initV2(root);
-  }, []);
-
+export default function Portada() {
   return (
-    <div className="v2" ref={rootRef} id="v2root">
-      <header className="nav">
-        <div className="wrap">
-          <a className="brand" href="#top" aria-label="adoOps"><Image src="/logo.png" alt="adoOps" width={110} height={32} priority /></a>
-          <nav className="v2-nav-links" aria-label="Principal">
-            <a href="#pilares">Pilares</a>
-            <a href="#impacto">Impacto</a>
-            <a href="#casos">Casos</a>
-            <Link href="/framework">Framework</Link>
-            <Link href="/cafecito-ia">Cafecito IA</Link>
-          </nav>
-          <div className="nav-right">
-            <a className="btn btn-primary btn-sm arrow" href="#contacto">Solicitar Assessment</a>
-            <button className="menu-btn" id="menuBtn" aria-label="Abrir menú" aria-expanded="false" aria-controls="mobileMenu"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
-          </div>
-        </div>
-      </header>
-      <div className="mobile-menu" id="mobileMenu" hidden>
-        <div className="wrap">
-          <a href="#pilares">Pilares</a>
-          <a href="#impacto">Impacto</a>
-          <a href="#casos">Casos</a>
-          <Link href="/framework">Framework</Link>
-          <Link href="/cafecito-ia">Cafecito IA</Link>
-          <a href="#contacto">Contacto</a>
-        </div>
-      </div>
-      
       <main id="top">
       
       <section className="hero">
@@ -271,47 +229,5 @@ export default function Landing() {
       </section>
       
       </main>
-      
-      <footer>
-        <div className="wrap">
-          <div className="foot-grid">
-            <div className="foot-brand">
-              <Image src="/logo.png" alt="adoOps" width={110} height={32} className="logo-foot" />
-              <p>Adoptamos IA · Operamos IA · Escalamos IA</p>
-              <p className="muted" style={{fontFamily:'var(--body)',fontSize:'13.5px'} as React.CSSProperties}>Convertimos la Inteligencia Artificial en una capacidad real de negocio.</p>
-            </div>
-            <div className="foot-col">
-              <span className="k">Plataforma</span>
-              <Link href="/framework">AI Adoption Framework™</Link>
-              <a href="#pilares">Assessment</a>
-              <a href="#pilares">AgentOps</a>
-              <a href="#pilares">AI Talent</a>
-              <a href="#pilares">AI Academy</a>
-            </div>
-            <div className="foot-col">
-              <span className="k">Empresa</span>
-              <a href="#top">Nosotros</a>
-              <a href="#impacto">Impacto</a>
-              <a href="#casos">Casos</a>
-              <Link href="/cafecito-ia">Cafecito IA</Link>
-              <a href="#contacto">Contacto</a>
-            </div>
-            <div className="foot-col">
-              <span className="k">Contacto</span>
-              <div className="copy-row"><code id="mail">hola@adoops.ai</code><button className="copy-btn" id="copyMail" type="button">Copiar</button></div>
-              <a className="acc" href="#contacto">Solicitar Assessment →</a>
-            </div>
-          </div>
-          <canvas className="skyline" id="skyline" aria-hidden="true"></canvas>
-          <div className="foot-bottom">
-            <span>© 2026 adoOps. Todos los derechos reservados.</span>
-            <div className="links">
-              <span>Adoptamos IA. Operamos IA. Escalamos IA.</span>
-              <button className="theme-btn" id="themeBtn" type="button"><svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"/></svg><span id="themeLabel">Modo oscuro</span></button>
-            </div>
-          </div>
-        </div>
-      </footer>
-    </div>
   );
 }

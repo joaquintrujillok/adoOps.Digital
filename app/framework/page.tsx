@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
-import ClosingAnimation from "@/components/ClosingAnimation";
-import styles from "./framework.module.css";
+import Sitio from "../_web/Sitio";
 
 export const metadata: Metadata = {
   title: "AI Adoption Framework™ | adoOps",
@@ -138,76 +136,58 @@ const outcomes = [
   "Roadmap evolutivo de transformación",
 ];
 
+const ret = (ms: number) => ({ animationDelay: `${ms}ms` }) as React.CSSProperties;
+
 export default function FrameworkPage() {
   return (
-    <div className={styles.page}>
-      <header className={styles.header}>
-        <nav className={styles.nav}>
-          <Link className={styles.logoLink} href="/">
-            <Image src="/logo.png" alt="adoOps" width={120} height={36} priority />
-          </Link>
-          <div className={styles.navLinks}>
-            <Link className={styles.navLink} href="/">Inicio</Link>
-            <a className={`${styles.navLink} ${styles.navLinkActive}`} href="#pilares">Framework</a>
-            <a className={styles.navLink} href="#agentops">AgentOps</a>
-            <a className={styles.navLink} href="#resultados">Resultados</a>
-            <Link className={styles.navCta} href="/#contacto">
-              <span className={styles.desktopCta}>Solicitar Assessment</span>
-              <span className={styles.mobileCta}>Contactar</span>
-            </Link>
-          </div>
-        </nav>
-      </header>
-
-      <main>
-        <section className={styles.hero}>
-          <div className={styles.dotPattern} />
-          <div className={styles.heroInner}>
-            <div>
-              <div className={styles.eyebrow}>
-                <span className={styles.eyebrowDot} />
-                adoOps AI Adoption Framework™
-              </div>
-              <h1 className={styles.title}>
-                De la experimentación a una organización <span className={styles.gradientText}>AI-First</span>
+    <Sitio>
+      <main id="top">
+        <section className="hero st-hero">
+          <div className="hero-dots" id="heroDots" aria-hidden="true"></div>
+          <div className="wrap v2-hero-grid fw-hero-grid">
+            <div className="v2-hero-copy">
+              <span className="eyebrow rise" style={ret(0)}>adoOps AI Adoption Framework™</span>
+              <h1 className="display h-xl" id="heroTitle">
+                <span className="w" style={ret(140)}>De</span> <span className="w" style={ret(190)}>la</span> <span className="w" style={ret(240)}>experimentación</span> <span className="w" style={ret(290)}>a</span> <span className="w" style={ret(340)}>una</span> <span className="w" style={ret(390)}>organización</span> <span className="w ia" style={ret(440)}>AI-First</span>
               </h1>
-              <p className={styles.heroLead}>
+              <p className="lede rise" style={ret(560)}>
                 Un modelo integral para adoptar Inteligencia Artificial de forma segura, gobernada y orientada a resultados, convirtiendo iniciativas aisladas en capacidades organizacionales escalables.
               </p>
-              <div className={styles.heroActions}>
-                <a className={styles.primaryCta} href="#pilares">Explorar el Framework →</a>
-                <Link className={styles.secondaryCta} href="/#contacto">Evaluar mi organización</Link>
+              <div className="v2-hero-actions rise" style={ret(700)}>
+                <a className="btn btn-primary arrow" href="#pilares">Explorar el Framework</a>
+                <Link className="btn btn-ghost" href="/#contacto">Evaluar mi organización</Link>
               </div>
             </div>
 
-            <div className={styles.frameworkMap} aria-label="Estructura del AI Adoption Framework">
+            <ol className="fw-mapa rise" style={ret(420)} aria-label="Estructura del AI Adoption Framework">
               {frameworkSteps.map(([number, title, question]) => (
-                <div className={styles.mapRow} key={number}>
-                  <span className={styles.mapNumber}>{number}</span>
+                <li key={number}>
+                  <span className="st-num">{number}</span>
                   <div>
-                    <div className={styles.mapTitle}>{title}</div>
-                    <div className={styles.mapQuestion}>{question}</div>
+                    <strong>{title}</strong>
+                    <small>{question}</small>
                   </div>
-                  <span className={styles.mapArrow}>→</span>
-                </div>
+                  <i aria-hidden="true">→</i>
+                </li>
               ))}
-            </div>
+            </ol>
           </div>
         </section>
 
-        <section className={`${styles.section} ${styles.sectionSoft}`}>
-          <div className={styles.container}>
-            <div className={styles.sectionIntro}>
-              <div className={styles.sectionLabel}>Principios fundamentales</div>
-              <h2 className={styles.sectionTitle}>La adopción de IA es una transformación organizacional</h2>
-              <p className={styles.sectionCopy}>
+        <section className="section challenge">
+          <div className="grid-bg" aria-hidden="true"></div>
+          <div className="wrap">
+            <div className="section-head rv">
+              <span className="eyebrow">Principios fundamentales</span>
+              <h2 className="display h-lg">La adopción de IA es una transformación organizacional</h2>
+              <p className="lede">
                 El framework conecta estrategia, gobierno, datos, tecnología, personas y ejecución para asegurar que cada agente implementado genere impacto sostenible.
               </p>
             </div>
-            <div className={styles.principles}>
+            <div className="probs fw-tres rv-group">
               {principles.map((principle, index) => (
-                <article className={styles.principle} key={principle.title}>
-                  <span className={styles.principleNumber}>0{index + 1}</span>
+                <article className="prob rv" key={principle.title}>
+                  <span className="st-num">0{index + 1}</span>
                   <h3>{principle.title}</h3>
                   <p>{principle.copy}</p>
                 </article>
@@ -216,31 +196,29 @@ export default function FrameworkPage() {
           </div>
         </section>
 
-        <section className={styles.section} id="pilares">
-          <div className={styles.container}>
-            <div className={styles.sectionIntro}>
-              <div className={styles.sectionLabel}>Estructura del Framework</div>
-              <h2 className={styles.sectionTitle}>Cinco pilares para construir valor de izquierda a derecha</h2>
-              <p className={styles.sectionCopy}>
+        <section className="section st-ancla" id="pilares" style={{ paddingTop: 0 }}>
+          <div className="wrap">
+            <div className="section-head rv">
+              <span className="eyebrow">Estructura del Framework</span>
+              <h2 className="display h-lg">Cinco pilares para construir valor de izquierda a derecha</h2>
+              <p className="lede">
                 Cada pilar resuelve una pregunta crítica y habilita al siguiente. El resultado es una capacidad de IA gobernada, operable y escalable.
               </p>
             </div>
 
-            <div className={styles.pillars}>
+            <div className="fw-pilares">
               {pillars.map((pillar, index) => (
-                <article className={styles.pillar} key={pillar.name}>
-                  <div className={styles.pillarLead}>
-                    <div>
-                      <div className={styles.pillarIndex}>PILAR 0{index + 1}</div>
-                      <h3 className={styles.pillarName}>{pillar.name}</h3>
-                      <div className={styles.pillarQuestion}>{pillar.question}</div>
-                    </div>
-                    <p className={styles.pillarDescription}>{pillar.description}</p>
+                <article className="fw-pilar rv" key={pillar.name}>
+                  <div className="fw-pilar-cab">
+                    <span className="idx">PILAR 0{index + 1}</span>
+                    <h3>{pillar.name}</h3>
+                    <span className="q">{pillar.question}</span>
+                    <p>{pillar.description}</p>
                   </div>
-                  <div className={styles.pillarContent}>
-                    <div className={styles.componentGrid}>
+                  <div>
+                    <div className="fw-comps">
                       {pillar.components.map(([title, items]) => (
-                        <div className={styles.component} key={title as string}>
+                        <div className="fw-comp" key={title as string}>
                           <h4>{title}</h4>
                           <ul>
                             {(items as string[]).map((item) => <li key={item}>{item}</li>)}
@@ -248,7 +226,7 @@ export default function FrameworkPage() {
                         </div>
                       ))}
                     </div>
-                    <aside className={styles.deliverables}>
+                    <aside className="fw-entregables">
                       <h4>Entregables</h4>
                       <ul>
                         {pillar.deliverables.map((item) => <li key={item}>{item}</li>)}
@@ -261,100 +239,68 @@ export default function FrameworkPage() {
           </div>
         </section>
 
-        <section className={`${styles.section} ${styles.sectionDark}`} id="agentops">
-          <div className={styles.dotPattern} />
-          <div className={styles.container} style={{ position: "relative" }}>
-            <div className={styles.sectionIntro}>
-              <div className={styles.sectionLabel}>Impacto vs. Factibilidad</div>
-              <h2 className={styles.sectionTitle}>No todos los agentes generan el mismo valor</h2>
-              <p className={styles.sectionCopy}>
-                Las oportunidades se priorizan por impacto esperado, factibilidad, riesgo y velocidad para capturar valor.
-              </p>
-            </div>
-            <p className={styles.agentIntro}>
-              El portafolio equilibra productividad individual, automatización de procesos y experiencias de cliente.
-            </p>
-            <div className={styles.matrix}>
-              {agentCategories.map((agent) => (
-                <article className={styles.agentCard} key={agent.name}>
-                  <div className={styles.agentCategory}>{agent.category}</div>
-                  <h3>{agent.name}</h3>
-                  <p>{agent.copy}</p>
-                  <div className={styles.examples}>
-                    {agent.examples.map((example) => <span className={styles.example} key={example}>{example}</span>)}
-                  </div>
-                </article>
-              ))}
+        <section className="section proof st-ancla" id="agentops" style={{ paddingTop: 0 }}>
+          <div className="proof-inner">
+            <div className="proof-gridbg" aria-hidden="true"></div>
+            <i className="orb" style={{ width: "120px", height: "120px", right: "8%", top: "10%", "--t": "16s", "--dx": "-30px", "--dy": "40px" } as React.CSSProperties} aria-hidden="true"></i>
+            <i className="orb" style={{ width: "54px", height: "54px", right: "24%", top: "30%", "--t": "12s", "--dx": "24px", "--dy": "-26px" } as React.CSSProperties} aria-hidden="true"></i>
+            <div className="proof-wrap">
+              <div className="proof-head rv">
+                <span className="eyebrow" data-t="Impacto vs. Factibilidad"></span>
+                <h2 className="two"><span className="l1">No todos los agentes</span><span className="l2">generan el mismo valor</span></h2>
+                <p className="fw-sub">
+                  Las oportunidades se priorizan por impacto esperado, factibilidad, riesgo y velocidad para capturar valor.
+                </p>
+                <p className="fw-sub">
+                  El portafolio equilibra productividad individual, automatización de procesos y experiencias de cliente.
+                </p>
+              </div>
+              <div className="fw-agentes rv-group">
+                {agentCategories.map((agent) => (
+                  <article className="fw-agente rv" key={agent.name}>
+                    <span className="cat">{agent.category}</span>
+                    <h3>{agent.name}</h3>
+                    <p>{agent.copy}</p>
+                    <div className="fw-chips">
+                      {agent.examples.map((example) => <span key={example}>{example}</span>)}
+                    </div>
+                  </article>
+                ))}
+              </div>
             </div>
           </div>
         </section>
 
-        <section className={`${styles.section} ${styles.sectionSoft}`} id="resultados">
-          <div className={styles.container}>
-            <div className={styles.sectionIntro}>
-              <div className={styles.sectionLabel}>Resultado esperado</div>
-              <h2 className={styles.sectionTitle}>Una organización preparada para operar y escalar IA</h2>
-              <p className={styles.sectionCopy}>
+        <section className="section st-ancla" id="resultados">
+          <div className="wrap">
+            <div className="section-head rv">
+              <span className="eyebrow">Resultado esperado</span>
+              <h2 className="display h-lg">Una organización preparada para operar y escalar IA</h2>
+              <p className="lede">
                 Al finalizar el framework, la experimentación se convierte en un sistema de capacidades, decisiones y ejecución sostenibles.
               </p>
             </div>
-            <div className={styles.outcomes}>
+            <ul className="fw-resultados rv">
               {outcomes.map((outcome) => (
-                <div className={styles.outcome} key={outcome}>
-                  <span className={styles.check}>✓</span>
+                <li key={outcome}>
+                  <b aria-hidden="true">✓</b>
                   <span>{outcome}</span>
-                </div>
+                </li>
               ))}
+            </ul>
+          </div>
+        </section>
+
+        <section className="section cta" style={{ paddingTop: 0 }}>
+          <div className="cta-box fw-cierre rv">
+            <div className="cta-copy">
+              <span className="eyebrow">adoOps AI Adoption Framework™</span>
+              <h2 className="display h-lg">“Transformamos iniciativas aisladas de Inteligencia Artificial en capacidades organizacionales escalables.”</h2>
+              <Link className="btn btn-primary arrow" href="/#contacto">Solicitar un Assessment</Link>
             </div>
           </div>
         </section>
-
-        <section className={styles.claim}>
-          <div className={styles.claimInner}>
-            <div className={styles.sectionLabel}>adoOps AI Adoption Framework™</div>
-            <h2>“Transformamos iniciativas aisladas de Inteligencia Artificial en capacidades organizacionales escalables.”</h2>
-            <Link className={styles.primaryCta} href="/#contacto">Solicitar un Assessment →</Link>
-          </div>
-        </section>
-
-        <ClosingAnimation />
       </main>
-
-      <footer className={styles.footer}>
-        <div className={styles.footerGrid}>
-          <div>
-            <Image src="/logo.png" alt="adoOps" width={120} height={36} style={{ filter: "brightness(0) invert(1)" }} />
-            <p className={styles.footerDescription}>Adoptamos IA. Operamos IA. Escalamos IA. Convertimos la Inteligencia Artificial en una capacidad real de negocio.</p>
-          </div>
-          <div>
-            <div className={styles.footerTitle}>Framework</div>
-            <div className={styles.footerLinks}>
-              <a href="#pilares">Cinco pilares</a>
-              <a href="#agentops">AgentOps</a>
-              <a href="#resultados">Resultados</a>
-            </div>
-          </div>
-          <div>
-            <div className={styles.footerTitle}>Empresa</div>
-            <div className={styles.footerLinks}>
-              <Link href="/">Inicio</Link>
-              <Link href="/#resultados">Impacto</Link>
-              <Link href="/#contacto">Contacto</Link>
-            </div>
-          </div>
-          <div>
-            <div className={styles.footerTitle}>Contacto</div>
-            <div className={styles.footerLinks}>
-              <a href="mailto:hola@adoops.ai">hola@adoops.ai</a>
-              <Link className={styles.footerCta} href="/#contacto">Solicitar Assessment →</Link>
-            </div>
-          </div>
-        </div>
-        <div className={styles.footerBottom}>
-          <span>© 2026 adoOps. Todos los derechos reservados.</span>
-          <span>Adoptamos IA. Operamos IA. Escalamos IA.</span>
-        </div>
-      </footer>
-    </div>
+    </Sitio>
   );
 }

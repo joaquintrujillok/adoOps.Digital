@@ -18,15 +18,13 @@ export default function CafecitoBaja({ token, email }: { token: string; email: s
   if (listo) {
     return (
       <>
-        <h1 style={{ fontFamily: "var(--font-sora), Sora, sans-serif", fontWeight: 650, fontSize: 23, margin: "0 0 10px", letterSpacing: "-0.02em" }}>
-          Listo, no te escribimos más
-        </h1>
-        <p style={{ fontSize: 15, lineHeight: 1.62, color: "#5C6B79", margin: "0 0 22px" }}>
-          Diste de baja <strong style={{ color: "#0E1D33" }}>{email}</strong>. Gracias
+        <h1>Listo, no te escribimos más</h1>
+        <p className="cf-txt">
+          Diste de baja <strong>{email}</strong>. Gracias
           por el tiempo que nos leíste. Si algún día lo echas de menos, la puerta
           queda abierta.
         </p>
-        <a href="/cafecito-ia" style={{ fontSize: 14.5, fontWeight: 600, color: "#0B7A4B", textDecoration: "none" }}>
+        <a href="/cafecito-ia" className="cf-enlace">
           Ver las ediciones publicadas →
         </a>
       </>
@@ -35,17 +33,16 @@ export default function CafecitoBaja({ token, email }: { token: string; email: s
 
   return (
     <>
-      <h1 style={{ fontFamily: "var(--font-sora), Sora, sans-serif", fontWeight: 650, fontSize: 23, margin: "0 0 10px", letterSpacing: "-0.02em" }}>
-        ¿Damos de baja este correo?
-      </h1>
-      <p style={{ fontSize: 15, lineHeight: 1.62, color: "#5C6B79", margin: "0 0 24px" }}>
-        Dejarás de recibir Cafecito IA en <strong style={{ color: "#0E1D33" }}>{email}</strong>.
+      <h1>¿Damos de baja este correo?</h1>
+      <p className="cf-txt">
+        Dejarás de recibir Cafecito IA en <strong>{email}</strong>.
       </p>
 
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+      <div className="cf-acciones">
         <button
           type="button"
           disabled={pending}
+          className="btn btn-ghost"
           onClick={() =>
             start(async () => {
               const r = await darDeBaja(token);
@@ -53,17 +50,16 @@ export default function CafecitoBaja({ token, email }: { token: string; email: s
               else setError(true);
             })
           }
-          style={{ background: "#FFFFFF", color: "#43566A", fontSize: 15, fontWeight: 600, padding: "13px 24px", border: "1px solid #DCE3E7", borderRadius: 10, cursor: pending ? "default" : "pointer" }}
         >
           {pending ? "Dando de baja…" : "Sí, darme de baja"}
         </button>
-        <a href="/cafecito-ia" style={{ display: "inline-flex", alignItems: "center", background: "#20C463", color: "#06281A", fontSize: 15, fontWeight: 600, padding: "13px 26px", borderRadius: 10, textDecoration: "none" }}>
+        <a href="/cafecito-ia" className="btn btn-primary">
           Mejor sigo suscrito
         </a>
       </div>
 
       {error && (
-        <p style={{ margin: "14px 0 0", fontSize: 13.5, color: "#C0392B" }}>
+        <p className="form-error" style={{ marginTop: 14 }}>
           No se pudo procesar. Escríbenos a hola@adoops.digital y lo hacemos a mano.
         </p>
       )}
