@@ -100,6 +100,10 @@
 
 /* ── Panel ────────────────────────────────────────────────────────────────── */
 .v2 .pz-panel{padding-block:40px 80px;display:flex;flex-direction:column;gap:32px}
+/* dentro del tablero: el <main> del layout ya trae márgenes, y .v2 pinta su fondo
+   de papel a pantalla completa; acá es una hoja dentro de la consola */
+.v2:has(>.pz-panel-d360){min-height:0;border-radius:12px;padding-inline:20px}
+@media (min-width:900px){.v2:has(>.pz-panel-d360){padding-inline:32px}}
 .v2 .pz-fila{display:grid;grid-template-columns:1fr;gap:14px;border-top:1px solid var(--line);padding-top:18px}
 @media (min-width:900px){.v2 .pz-fila{grid-template-columns:minmax(0,1.4fr) auto;align-items:center}}
 .v2 .pz-fila h3{font-family:var(--display);font-size:18px;font-weight:600;letter-spacing:-.02em}

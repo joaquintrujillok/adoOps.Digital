@@ -123,6 +123,10 @@ export default async function Dashboard360AppLayout({
         ? [
             { href: "/dashboard360/crm", etiqueta: "Pipeline", icono: "⛁", badge: crmFrias },
             { href: "/dashboard360/crm/contactos", etiqueta: "Contactos", icono: "☰" },
+            // Las charlas van en el CRM y no en Prospección por lo mismo que el
+            // pipeline: su origen es una sala donde alguien ya nos escuchó, no
+            // una señal que el motor salió a buscar.
+            { href: "/dashboard360/crm/pulso", etiqueta: "Pulso IA", icono: "◔" },
           ]
         : [],
     },

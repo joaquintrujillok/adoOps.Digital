@@ -61,11 +61,13 @@ export default async function CrmPage() {
     cerradas(10),
   ]);
 
-  const abiertas = columnas.reduce((a, c) => a + c.tarjetas.length, 0);
-  const total = columnas.reduce((a, c) => a + c.total, 0);
+  // La columna de perdidas se pinta, pero no cuenta: no es plata en juego.
+  const vivas = columnas.filter((c) => !c.cerrada);
+  const abiertas = vivas.reduce((a, c) => a + c.tarjetas.length, 0);
+  const total = vivas.reduce((a, c) => a + c.total, 0);
   // El ponderado es la única cifra honesta para un pronóstico: sumar el pipeline
   // entero cuenta como ingreso lo que todavía es una conversación.
-  const ponderado = columnas.reduce(
+  const ponderado = vivas.reduce(
     (a, c) => a + c.tarjetas.reduce((b, t) => b + (t.monto * t.probabilidad) / 100, 0),
     0,
   );
@@ -104,6 +106,7 @@ export default async function CrmPage() {
           columnas={columnas.map((col) => ({
             id: col.etapa,
             nombre: col.nombre,
+            cerrada: col.cerrada,
             tarjetas: col.tarjetas.map((t) => ({
               id: t.id,
               titulo: t.titulo,
@@ -112,7 +115,8 @@ export default async function CrmPage() {
               contacto: t.contacto,
               empresa: t.empresa,
               cierreEstimado: t.cierreEstimado,
-              dias: diasSin(t.ultimaActividad),
+              // Una perdida no está «fría»: nadie tiene que llamar a nadie.
+              dias: col.cerrada ? null : diasSin(t.ultimaActividad),
             })),
           }))}
         />
@@ -240,7 +244,7 @@ export default async function CrmPage() {
       </Card>
 
       {historial.length > 0 ? (
-        <Card className="mt-6" titulo="Cerradas" descripcion="Las últimas que salieron del tablero">
+        <Card className="mt-6" titulo="Cerradas" descripcion="Las últimas ganadas y perdidas, con su fecha de cierre">
           <div className="space-y-1.5">
             {historial.map((c) => (
               <Link

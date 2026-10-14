@@ -1,7 +1,7 @@
 // Crea, de forma idempotente, las dos tablas de Pulso IA.
 //
 // Aditivo: solo CREATE IF NOT EXISTS. No siembra nada: la primera fila llega
-// desde una sala real. Para probar, crea una sesión desde /crm/pulso y bórrala
+// desde una sala real. Para probar, crea una sesión desde /dashboard360/crm/pulso y bórrala
 // después desde ahí mismo.
 //
 // Uso: node scripts/pulso-setup.mjs

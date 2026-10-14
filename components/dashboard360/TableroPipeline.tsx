@@ -38,6 +38,8 @@ export type ColumnaVista = {
   id: string;
   nombre: string;
   tarjetas: TarjetaVista[];
+  /** La columna de perdidas: se ve apagada y no suma al pipeline. */
+  cerrada?: boolean;
 };
 
 const CLP = new Intl.NumberFormat("es-CL", {
@@ -129,7 +131,9 @@ export default function TableroPipeline({ columnas }: { columnas: ColumnaVista[]
             className={`w-[240px] shrink-0 rounded-xl border p-3 transition-colors ${
               destino
                 ? "border-[var(--d360-brand)] bg-[var(--d360-brand-soft)]"
-                : "border-[var(--d360-border)] bg-[var(--d360-surface)]"
+                : col.cerrada
+                  ? "border-dashed border-[var(--d360-border)] bg-transparent"
+                  : "border-[var(--d360-border)] bg-[var(--d360-surface)]"
             }`}
           >
             <header className="mb-3">
@@ -168,7 +172,7 @@ export default function TableroPipeline({ columnas }: { columnas: ColumnaVista[]
                         fria
                           ? "border-[#e6d9b0] bg-[#fdf8e9]"
                           : "border-[var(--d360-border)] bg-white"
-                      } ${confirmando ? "" : "cursor-grab active:cursor-grabbing hover:border-[var(--d360-brand)]"}`}
+                      } ${col.cerrada ? "opacity-70" : ""} ${confirmando ? "" : "cursor-grab active:cursor-grabbing hover:border-[var(--d360-brand)]"}`}
                     >
                       {confirmando ? (
                         <div className="space-y-2">

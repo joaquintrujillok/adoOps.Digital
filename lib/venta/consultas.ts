@@ -6,7 +6,7 @@
 // `disponible()` responde `false`, y la pantalla lo dice en vez de mostrar un
 // error de base de datos.
 
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   ventaActividades,
@@ -17,7 +17,7 @@ import {
   type VentaContacto,
   type VentaEmpresa,
 } from "@/db/venta";
-import { esCerrada, ETAPAS_ABIERTAS } from "./etapas";
+import { esCerrada, ETAPAS_ABIERTAS, nombreEtapa } from "./etapas";
 
 export async function disponible(): Promise<boolean> {
   try {
@@ -47,10 +47,21 @@ export type Columna = {
   tarjetas: Tarjeta[];
   /** Suma de montos de la columna. Es el número que se mira primero. */
   total: number;
+  /**
+   * La columna de las perdidas. Se pinta en el tablero pero no es pipeline: sus
+   * montos no entran en «en juego» ni en el ponderado.
+   */
+  cerrada?: boolean;
 };
 
 /**
- * El tablero: una columna por etapa abierta.
+ * El tablero: una columna por etapa abierta, y al final la de las perdidas.
+ *
+ * **Las perdidas se quedan a la vista.** Antes salían del tablero al cerrarse y
+ * solo quedaban en la lista de abajo. Pero lo que se perdió es parte de lo que
+ * se mira al revisar el pipeline —a quién se le propuso qué, y por cuánto—, y
+ * una tarjeta que desaparece al arrastrarla parece un error. Las ganadas sí
+ * salen: esas pasan a ser clientes, no algo que revisar acá.
  *
  * Se traen todas las abiertas de una sola consulta y se agrupan en memoria. Con
  * un pipeline de cientos de oportunidades eso es más barato que una consulta por
@@ -75,21 +86,21 @@ export async function tablero(): Promise<Columna[]> {
       .from(ventaOportunidades)
       .innerJoin(ventaContactos, eq(ventaOportunidades.contactoId, ventaContactos.id))
       .leftJoin(ventaEmpresas, eq(ventaOportunidades.empresaId, ventaEmpresas.id))
-      .where(isNull(ventaOportunidades.cerradoEn))
+      .where(or(isNull(ventaOportunidades.cerradoEn), eq(ventaOportunidades.etapa, "perdido")))
       .orderBy(desc(ventaOportunidades.monto));
   } catch {
     filas = [];
   }
 
-  return ETAPAS_ABIERTAS.map((e) => {
-    const tarjetas = filas.filter((f) => f.etapa === e.id);
-    return {
-      etapa: e.id,
-      nombre: e.nombre,
-      tarjetas,
-      total: tarjetas.reduce((a, t) => a + t.monto, 0),
-    };
-  });
+  const columna = (id: string, nombre: string, cerrada?: boolean): Columna => {
+    const tarjetas = filas.filter((f) => f.etapa === id);
+    return { etapa: id, nombre, tarjetas, total: tarjetas.reduce((a, t) => a + t.monto, 0), cerrada };
+  };
+
+  return [
+    ...ETAPAS_ABIERTAS.map((e) => columna(e.id, e.nombre)),
+    columna("perdido", nombreEtapa("perdido"), true),
+  ];
 }
 
 export type Cerrada = Tarjeta & { cerradoEn: Date | null; motivoPerdida: string | null };

@@ -7,6 +7,7 @@
 import { and, asc, desc, eq, ilike, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { leadEmpresas, leadPersonas, leadSenales } from "@/db/leads";
+import { ventaContactos, ventaEmpresas } from "@/db/venta";
 import { pulsoRespuestas, pulsoSesiones, type PulsoFase, type PulsoSesion } from "@/db/pulso";
 import { normalizarEmail, normalizarRut } from "@/lib/leads/normalizar";
 import { normalizarTelefono } from "@/lib/crm/telefono";
@@ -234,7 +235,90 @@ export async function guardarContacto(
     console.error("[pulso] no se pudo pasar al motor:", e);
   }
 
+  // Y a Contactos del CRM, que es donde el equipo mira a la gente con la que
+  // ya habló. Mismo trato que el motor: si falla, no se le muestra a nadie.
+  try {
+    await registrarEnCrm(sesion, { nombre, cargo, email, telefono }, fila.cuadrante as Cuadrante);
+  } catch (e) {
+    console.error("[pulso] no se pudo pasar al CRM:", e);
+  }
+
   return { ok: true, valor: { id: fila.id, cuadrante: fila.cuadrante as Cuadrante, email, nombre } };
+}
+
+// ─── El CRM ──────────────────────────────────────────────────────────────────
+
+/**
+ * Deja a la persona en Contactos del CRM (`venta_contactos`), bajo la
+ * organización de la charla.
+ *
+ * No crea una oportunidad: dejar los datos al final de una charla es permiso
+ * para que te escriban, no un negocio. La oportunidad la abre una persona del
+ * equipo cuando hay algo que vender; mientras tanto el contacto aparece en la
+ * lista con la nota de dónde salió.
+ *
+ * Se busca por correo y, si no dio correo, por teléfono: la misma persona en
+ * dos charlas —o volviendo a enviar el formulario— no debe quedar dos veces. Al
+ * encontrarla solo se rellenan huecos, y la nota nueva se agrega a la anterior.
+ */
+async function registrarEnCrm(
+  sesion: PulsoSesion,
+  p: { nombre: string; cargo: string | null; email: string | null; telefono: string | null },
+  cuadrante: Cuadrante,
+): Promise<void> {
+  const organizacion = sesion.organizacion.trim();
+  let empresaId: number | null = null;
+  if (organizacion) {
+    const [e] = await db
+      .select({ id: ventaEmpresas.id })
+      .from(ventaEmpresas)
+      .where(sql`lower(${ventaEmpresas.nombre}) = lower(${organizacion})`)
+      .limit(1);
+    empresaId = e
+      ? e.id
+      : (await db.insert(ventaEmpresas).values({ nombre: organizacion.slice(0, 200) }).returning({ id: ventaEmpresas.id }))[0].id;
+  }
+
+  const nota =
+    `Pulso IA · charla "${sesion.titulo}" (${sesion.fecha.toLocaleDateString("es-CL")}). ` +
+    `Perfil: ${CUADRANTES[cuadrante]?.nombre ?? cuadrante}. Autorizó que le escribamos.`;
+
+  const [existe] = p.email
+    ? await db
+        .select({ id: ventaContactos.id })
+        .from(ventaContactos)
+        .where(sql`lower(${ventaContactos.email}) = ${p.email}`)
+        .limit(1)
+    : await db
+        .select({ id: ventaContactos.id })
+        .from(ventaContactos)
+        .where(eq(ventaContactos.telefono, p.telefono!))
+        .limit(1);
+
+  if (existe) {
+    await db
+      .update(ventaContactos)
+      .set({
+        empresaId: sql`coalesce(${ventaContactos.empresaId}, ${empresaId})`,
+        cargo: sql`coalesce(${ventaContactos.cargo}, ${p.cargo})`,
+        email: sql`coalesce(${ventaContactos.email}, ${p.email})`,
+        telefono: sql`coalesce(${ventaContactos.telefono}, ${p.telefono})`,
+        notas: sql`case when ${ventaContactos.notas} is null then ${nota}
+                        when position(${nota} in ${ventaContactos.notas}) > 0 then ${ventaContactos.notas}
+                        else ${ventaContactos.notas} || E'\n' || ${nota} end`,
+      })
+      .where(eq(ventaContactos.id, existe.id));
+    return;
+  }
+
+  await db.insert(ventaContactos).values({
+    nombre: p.nombre,
+    empresaId,
+    cargo: p.cargo ? p.cargo.slice(0, 160) : null,
+    email: p.email,
+    telefono: p.telefono,
+    notas: nota,
+  });
 }
 
 // ─── El motor de prospección ─────────────────────────────────────────────────

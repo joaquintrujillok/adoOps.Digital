@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import QRCode from "qrcode";
 import Marco from "@/components/pulso/Marco";
-import { requireSession } from "@/lib/crm/auth.actions";
+import { requireSession } from "@/lib/dashboard360/auth.actions";
 import { contactosDe, listarSesiones } from "@/lib/pulso/datos";
 import { CUADRANTES, FRENOS, ROLES, textoDe, type Cuadrante } from "@/lib/pulso/modelo";
 import { formatearTelefono } from "@/lib/crm/telefono";
@@ -17,8 +16,13 @@ const FASE: Record<string, string> = { inicio: "Inicio abierto", cierre: "Cierre
 
 /**
  * El panel de Pulso IA: crear la sesión de una charla, sacar el QR, abrir el
- * cierre y ver quién dejó sus datos. Vive bajo /crm por la sesión, pero fuera
- * del grupo (app): no es parte del demo del CRM y no lleva su menú.
+ * cierre y ver quién dejó sus datos.
+ *
+ * Vive en el CRM del tablero (/dashboard360/crm), que es el CRM propio de
+ * adoOps, y no bajo /crm: ese es el demo de Highend, con datos sembrados y otra
+ * sesión. Acá hay contactos de personas reales. La barra y el menú son los del
+ * tablero; `Marco` solo aporta los tokens con que están dibujadas las piezas de
+ * Pulso.
  */
 export default async function PanelPulso({ searchParams }: { searchParams: Promise<{ s?: string }> }) {
   await requireSession();
@@ -32,16 +36,9 @@ export default async function PanelPulso({ searchParams }: { searchParams: Promi
 
   return (
     <Marco>
-      <header className="nav">
-        <div className="wrap">
-          <Link className="brand" href="/crm/pulso"><Image src="/logo.png" alt="adoOps" width={110} height={32} /></Link>
-          <span className="eyebrow" style={{ fontSize: 11 }}>Pulso IA · panel</span>
-        </div>
-      </header>
-
-      <main className="wrap pz-panel">
+      <div className="pz-panel pz-panel-d360">
         <div className="section-head" style={{ marginBottom: 0 }}>
-          <span className="eyebrow">Charlas</span>
+          <span className="eyebrow">Pulso IA · charlas</span>
           <h1 className="display h-lg">El mapa de la sala, y quién quiso seguir la conversación</h1>
           <p className="lede">
             Crea una sesión por charla. El QR abre las cinco preguntas; la pantalla se proyecta; al terminar, abre el
@@ -96,7 +93,7 @@ export default async function PanelPulso({ searchParams }: { searchParams: Promi
               <div className="pz-botones">
                 <a className="btn btn-ghost btn-sm" href={`/pulso/${x.codigo}`} target="_blank" rel="noreferrer">Pantalla</a>
                 <a className="btn btn-ghost btn-sm" href={`/p/${x.codigo}`} target="_blank" rel="noreferrer">Celular</a>
-                <Link className="btn btn-ghost btn-sm" href={`/crm/pulso?s=${x.id}`}>QR y contactos</Link>
+                <Link className="btn btn-ghost btn-sm" href={`/dashboard360/crm/pulso?s=${x.id}`}>QR y contactos</Link>
                 {x.fase === "inicio" && (
                   <form action={cambiarFase}><input type="hidden" name="id" value={x.id} /><input type="hidden" name="fase" value="cierre" />
                     <button className="btn btn-primary btn-sm" type="submit">Abrir cierre</button></form>
@@ -179,7 +176,7 @@ export default async function PanelPulso({ searchParams }: { searchParams: Promi
             </form>
           </section>
         )}
-      </main>
+      </div>
     </Marco>
   );
 }

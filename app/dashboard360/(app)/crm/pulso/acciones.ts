@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { pulsoRespuestas, pulsoSesiones, type PulsoFase } from "@/db/pulso";
-import { requireSession } from "@/lib/crm/auth.actions";
+import { requireSession } from "@/lib/dashboard360/auth.actions";
 import { dejarSenal, nuevoCodigo, resolverEmpresa } from "@/lib/pulso/datos";
 
 export async function crearSesion(form: FormData): Promise<void> {
@@ -39,7 +39,7 @@ export async function crearSesion(form: FormData): Promise<void> {
       if (i === 4) throw e;
     }
   }
-  revalidatePath("/crm/pulso");
+  revalidatePath("/dashboard360/crm/pulso");
 }
 
 export async function cambiarFase(form: FormData): Promise<void> {
@@ -55,7 +55,7 @@ export async function cambiarFase(form: FormData): Promise<void> {
       console.error("[pulso] no se pudo dejar la señal en el motor:", e);
     }
   }
-  revalidatePath("/crm/pulso");
+  revalidatePath("/dashboard360/crm/pulso");
 }
 
 /**
@@ -69,5 +69,5 @@ export async function borrarSesion(form: FormData): Promise<void> {
   if (!id || form.get("confirmar") !== "si") return;
   await db.delete(pulsoRespuestas).where(eq(pulsoRespuestas.sesionId, id));
   await db.delete(pulsoSesiones).where(eq(pulsoSesiones.id, id));
-  revalidatePath("/crm/pulso");
+  revalidatePath("/dashboard360/crm/pulso");
 }
