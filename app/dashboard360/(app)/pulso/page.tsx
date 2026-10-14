@@ -207,8 +207,12 @@ async function Detalle({ sesion }: { sesion: Sesion }) {
       <div className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
         {/* ── El QR y sus controles ─────────────────────────────────────────── */}
         <Card titulo="QR de la charla" acciones={<Estado s={sesion} />}>
+          {/* El SVG sale de `qrcode` con width="640" fijo —es el que se descarga
+              para la slide, y ahí sirve grande—. En pantalla se lo obliga a
+              tomar el ancho de su caja: sin esto se salía de la tarjeta y tapaba
+              la de al lado. */}
           <div
-            className={`mx-auto w-full max-w-[220px] ${sesion.pausada || !abierta ? "opacity-30" : ""}`}
+            className={`mx-auto w-full max-w-[220px] [&>svg]:block [&>svg]:h-auto [&>svg]:w-full ${sesion.pausada || !abierta ? "opacity-30" : ""}`}
             dangerouslySetInnerHTML={{ __html: qr }}
           />
           <p className="d360-num mt-3 text-center text-[13px] font-medium text-[var(--d360-ink)]">
