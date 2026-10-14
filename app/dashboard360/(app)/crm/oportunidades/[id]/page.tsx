@@ -15,6 +15,7 @@ import {
 } from "@/components/dashboard360/ui";
 import { requireSession } from "@/lib/dashboard360/auth.actions";
 import { detalle } from "@/lib/venta/consultas";
+import { cuentaVenta } from "@/lib/venta/cuenta";
 import {
   editarOportunidadAction,
   moverEtapaAction,
@@ -57,7 +58,7 @@ export default async function OportunidadPage({
   const numero = Number(id);
   if (!Number.isInteger(numero)) notFound();
 
-  const dato = await detalle(numero);
+  const dato = await detalle(numero, await cuentaVenta());
   if (!dato) notFound();
 
   const { oportunidad: o, contacto, empresa, actividades } = dato;

@@ -46,7 +46,8 @@ export type ModuloCuenta =
   | "fuentes"
   | "contenido"
   | "reuniones"
-  | "crm";
+  | "crm"
+  | "pulso";
 
 export type CuentaId = "demo" | "adoops" | "soho" | "personal";
 
@@ -70,12 +71,15 @@ export const CUENTAS: Cuenta[] = [
   {
     id: "adoops",
     nombre: "adoOps",
-    descripcion: "El negocio propio: prospección, contenido y las reuniones del equipo.",
+    descripcion: "El negocio propio: el pipeline, los contactos y las charlas.",
     // El motor prospecta y el CRM administra lo que el motor consigue. Son dos
     // mitades del mismo trabajo: uno le escribe a desconocidos, el otro lleva la
     // relación desde que alguien contesta. `/crm` no está en esta lista y nunca
     // va a estar: ese es el sistema de un cliente montado como demo.
-    modulos: ["panel", "crm", "mercado", "motor", "fuentes", "contenido", "reuniones"],
+    // Solo lo que el equipo usa para vender: el CRM y Pulso IA. El resto del
+    // tablero —panel, prospección, fuentes, contenido, reuniones— se sacó de acá
+    // el 13-10-2026 y vive en Demo, que es donde se muestra el producto entero.
+    modulos: ["crm", "pulso"],
     color: "#2fa36b",
   },
   {

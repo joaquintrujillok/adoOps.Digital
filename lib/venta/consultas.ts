@@ -17,7 +17,8 @@ import {
   type VentaContacto,
   type VentaEmpresa,
 } from "@/db/venta";
-import { esCerrada, ETAPAS_ABIERTAS, nombreEtapa } from "./etapas";
+import { esCerrada, ETAPAS, ETAPAS_ABIERTAS, nombreEtapa } from "./etapas";
+import type { CuentaVenta } from "./cuenta";
 
 export async function disponible(): Promise<boolean> {
   try {
@@ -68,7 +69,7 @@ export type Columna = {
  * columna, y sobre todo es una sola foto: seis consultas separadas pueden
  * devolver estados distintos si alguien mueve una tarjeta mientras cargan.
  */
-export async function tablero(): Promise<Columna[]> {
+export async function tablero(cuenta: CuentaVenta): Promise<Columna[]> {
   let filas: Tarjeta[] = [];
   try {
     filas = await db
@@ -86,7 +87,12 @@ export async function tablero(): Promise<Columna[]> {
       .from(ventaOportunidades)
       .innerJoin(ventaContactos, eq(ventaOportunidades.contactoId, ventaContactos.id))
       .leftJoin(ventaEmpresas, eq(ventaOportunidades.empresaId, ventaEmpresas.id))
-      .where(or(isNull(ventaOportunidades.cerradoEn), eq(ventaOportunidades.etapa, "perdido")))
+      .where(
+        and(
+          eq(ventaOportunidades.cuenta, cuenta),
+          or(isNull(ventaOportunidades.cerradoEn), eq(ventaOportunidades.etapa, "perdido")),
+        ),
+      )
       .orderBy(desc(ventaOportunidades.monto));
   } catch {
     filas = [];
@@ -103,10 +109,42 @@ export async function tablero(): Promise<Columna[]> {
   ];
 }
 
+/** Una etapa del embudo: cuántas oportunidades hay y cuánta plata suman. */
+export type EtapaResumen = { etapa: string; nombre: string; cantidad: number; monto: number };
+
+/**
+ * Todas las etapas, abiertas y cerradas, con su cantidad y su monto.
+ *
+ * Es lo que alimenta los gráficos del pipeline. Va aparte de `tablero()` porque
+ * responde otra pregunta: el tablero es para mover tarjetas, esto es para ver
+ * cuánto hay en cada parte —incluido lo ganado, que el tablero no pinta—.
+ */
+export async function resumen(cuenta: CuentaVenta): Promise<EtapaResumen[]> {
+  let filas: { etapa: string; cantidad: number; monto: number }[] = [];
+  try {
+    filas = await db
+      .select({
+        etapa: ventaOportunidades.etapa,
+        cantidad: sql<number>`count(*)::int`,
+        // float8 y no int: la suma de montos en CLP pasa de 2^31 con poco.
+        monto: sql<number>`coalesce(sum(${ventaOportunidades.monto}), 0)::float8`,
+      })
+      .from(ventaOportunidades)
+      .where(eq(ventaOportunidades.cuenta, cuenta))
+      .groupBy(ventaOportunidades.etapa);
+  } catch {
+    filas = [];
+  }
+  return ETAPAS.map((e) => {
+    const f = filas.find((x) => x.etapa === e.id);
+    return { etapa: e.id, nombre: e.nombre, cantidad: f?.cantidad ?? 0, monto: Number(f?.monto ?? 0) };
+  });
+}
+
 export type Cerrada = Tarjeta & { cerradoEn: Date | null; motivoPerdida: string | null };
 
 /** Lo que ya se cerró. Va aparte del tablero: no se mueve, se lee. */
-export async function cerradas(limite = 30): Promise<Cerrada[]> {
+export async function cerradas(cuenta: CuentaVenta, limite = 30): Promise<Cerrada[]> {
   try {
     return await db
       .select({
@@ -125,7 +163,7 @@ export async function cerradas(limite = 30): Promise<Cerrada[]> {
       .from(ventaOportunidades)
       .innerJoin(ventaContactos, eq(ventaOportunidades.contactoId, ventaContactos.id))
       .leftJoin(ventaEmpresas, eq(ventaOportunidades.empresaId, ventaEmpresas.id))
-      .where(sql`${ventaOportunidades.cerradoEn} IS NOT NULL`)
+      .where(and(eq(ventaOportunidades.cuenta, cuenta), sql`${ventaOportunidades.cerradoEn} IS NOT NULL`))
       .orderBy(desc(ventaOportunidades.cerradoEn))
       .limit(limite);
   } catch {
@@ -140,7 +178,7 @@ export type DetalleOportunidad = {
   actividades: VentaActividad[];
 };
 
-export async function detalle(id: number): Promise<DetalleOportunidad | null> {
+export async function detalle(id: number, cuenta: CuentaVenta): Promise<DetalleOportunidad | null> {
   try {
     const [fila] = await db
       .select({
@@ -151,7 +189,9 @@ export async function detalle(id: number): Promise<DetalleOportunidad | null> {
       .from(ventaOportunidades)
       .innerJoin(ventaContactos, eq(ventaOportunidades.contactoId, ventaContactos.id))
       .leftJoin(ventaEmpresas, eq(ventaOportunidades.empresaId, ventaEmpresas.id))
-      .where(eq(ventaOportunidades.id, id))
+      // Con la cuenta y no solo con el id: sin esto, quien está en Demo abre una
+      // oportunidad real con solo cambiar el número de la URL.
+      .where(and(eq(ventaOportunidades.id, id), eq(ventaOportunidades.cuenta, cuenta)))
       .limit(1);
 
     if (!fila) return null;
@@ -174,12 +214,13 @@ export type FilaContacto = VentaContacto & {
 };
 
 /** Los contactos con cuántas oportunidades abiertas tiene cada uno. */
-export async function contactos(): Promise<FilaContacto[]> {
+export async function contactos(cuenta: CuentaVenta): Promise<FilaContacto[]> {
   try {
     const base = await db
       .select({ contacto: ventaContactos, empresa: ventaEmpresas.nombre })
       .from(ventaContactos)
       .leftJoin(ventaEmpresas, eq(ventaContactos.empresaId, ventaEmpresas.id))
+      .where(eq(ventaContactos.cuenta, cuenta))
       .orderBy(ventaContactos.nombre);
 
     const abiertas = await db
@@ -188,7 +229,7 @@ export async function contactos(): Promise<FilaContacto[]> {
         n: sql<number>`count(*)::int`,
       })
       .from(ventaOportunidades)
-      .where(isNull(ventaOportunidades.cerradoEn))
+      .where(and(eq(ventaOportunidades.cuenta, cuenta), isNull(ventaOportunidades.cerradoEn)))
       .groupBy(ventaOportunidades.contactoId);
 
     const porContacto = new Map(abiertas.map((a) => [a.contactoId, a.n]));
@@ -202,9 +243,13 @@ export async function contactos(): Promise<FilaContacto[]> {
   }
 }
 
-export async function empresas(): Promise<VentaEmpresa[]> {
+export async function empresas(cuenta: CuentaVenta): Promise<VentaEmpresa[]> {
   try {
-    return await db.select().from(ventaEmpresas).orderBy(ventaEmpresas.nombre);
+    return await db
+      .select()
+      .from(ventaEmpresas)
+      .where(eq(ventaEmpresas.cuenta, cuenta))
+      .orderBy(ventaEmpresas.nombre);
   } catch {
     return [];
   }
@@ -219,13 +264,14 @@ export async function empresas(): Promise<VentaEmpresa[]> {
  * días, sí. Dos semanas porque en servicios B2B una semana de silencio es
  * normal y un mes ya es un negocio muerto.
  */
-export async function frias(): Promise<number> {
+export async function frias(cuenta: CuentaVenta): Promise<number> {
   try {
     const filas = await db
       .select({ id: ventaOportunidades.id })
       .from(ventaOportunidades)
       .where(
         and(
+          eq(ventaOportunidades.cuenta, cuenta),
           isNull(ventaOportunidades.cerradoEn),
           sql`coalesce(${ventaOportunidades.ultimaActividad}, ${ventaOportunidades.abiertoEn}) < now() - interval '14 days'`,
         ),

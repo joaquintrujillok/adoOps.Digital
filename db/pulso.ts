@@ -42,6 +42,13 @@ export const pulsoSesiones = pgTable(
     empresaId: integer("empresa_id"),
     relator: varchar("relator", { length: 120 }).notNull().default("Nelson García"),
     fase: varchar("fase", { length: 12 }).$type<PulsoFase>().notNull().default("inicio"),
+    /**
+     * El QR en pausa: la sesión sigue en su fase, pero no recibe respuestas ni
+     * datos de contacto. Es distinto de `cerrada`, que es definitivo y deja la
+     * señal en el motor: pausar es para el café, o para que el QR de la slide
+     * no se siga respondiendo cuando la charla ya terminó pero aún no se cierra.
+     */
+    pausada: boolean("pausada").notNull().default(false),
     fecha: timestamp("fecha").defaultNow().notNull(),
     /** La señal que dejó en el motor al cerrarse. Evita duplicarla. */
     senalId: integer("senal_id"),

@@ -72,10 +72,13 @@ export function BarrasH({
   datos,
   colorUnico = "var(--series-1)",
   anchoEtiqueta = 170,
+  anchoTexto = 112,
 }: {
   datos: BarraH[];
   colorUnico?: string;
   anchoEtiqueta?: number;
+  /** Ancho de la cifra al final. Súbelo si el texto trae más que un número. */
+  anchoTexto?: number;
 }) {
   const tope = Math.max(...datos.map((d) => Math.abs(d.valor)), 1);
 
@@ -100,7 +103,10 @@ export function BarrasH({
               title={`${d.etiqueta}: ${d.texto ?? d.valor.toLocaleString("es-CL")}`}
             />
           </div>
-          <div className="d360-num w-28 shrink-0 text-right text-[13px] font-medium text-[var(--d360-ink)]">
+          <div
+            className="d360-num shrink-0 text-right text-[13px] font-medium text-[var(--d360-ink)]"
+            style={{ width: anchoTexto }}
+          >
             {d.texto ?? d.valor.toLocaleString("es-CL")}
           </div>
         </div>

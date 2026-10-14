@@ -153,12 +153,15 @@ export async function miRespuesta(sesionId: number, token: string): Promise<MiRe
 
 export type Resultado<T> = { ok: true; valor: T } | { ok: false; error: string };
 
+const EN_PAUSA = "La sesión está en pausa. Espera a que el relator la reanude.";
+
 export async function guardarInicio(
   sesion: PulsoSesion,
   token: string,
   d: { uso: unknown; tarea: unknown; freno: unknown; expectativa: unknown; rol: unknown },
 ): Promise<Resultado<{ id: number; cuadrante: Cuadrante }>> {
   if (sesion.fase === "cerrada") return { ok: false, error: "Esta sesión ya cerró." };
+  if (sesion.pausada) return { ok: false, error: EN_PAUSA };
   const uso = Number(d.uso);
   const expectativa = Number(d.expectativa);
   const freno = String(d.freno ?? "");
@@ -188,6 +191,7 @@ export async function guardarCierre(
   d: { expectativaCierre: unknown; frenoCierre: unknown },
 ): Promise<Resultado<null>> {
   if (sesion.fase !== "cierre") return { ok: false, error: "El cierre todavía no está abierto." };
+  if (sesion.pausada) return { ok: false, error: EN_PAUSA };
   const e = Number(d.expectativaCierre);
   const f = String(d.frenoCierre ?? "");
   if (!VALORES_EXP.has(e) || !VALORES_FRENO.has(f)) return { ok: false, error: "Falta responder alguna pregunta." };
@@ -209,13 +213,17 @@ export async function guardarContacto(
   token: string,
   d: { nombre: unknown; cargo: unknown; email: unknown; telefono: unknown; consiente: unknown },
 ): Promise<Resultado<{ id: number; cuadrante: Cuadrante; email: string | null; nombre: string }>> {
+  if (sesion.pausada) return { ok: false, error: EN_PAUSA };
   if (d.consiente !== true) return { ok: false, error: "Necesitamos tu autorización para escribirte." };
   const nombre = typeof d.nombre === "string" ? d.nombre.trim().slice(0, 160) : "";
   const cargo = typeof d.cargo === "string" ? d.cargo.trim().slice(0, 200) || null : null;
   const email = normalizarEmail(typeof d.email === "string" ? d.email : null);
   const telefono = normalizarTelefono(typeof d.telefono === "string" ? d.telefono : null);
   if (!nombre) return { ok: false, error: "Cuéntanos tu nombre." };
-  if (!email && !telefono) return { ok: false, error: "Déjanos un correo o un WhatsApp." };
+  // El WhatsApp es obligatorio y el correo no: el resultado y las demos salen
+  // por WhatsApp cuando el relator los gatilla desde el panel, y el correo es la
+  // copia para quien además lo quiera ahí.
+  if (!telefono) return { ok: false, error: "Déjanos tu WhatsApp, con código de país: +56 9 …" };
 
   const [fila] = await db
     .update(pulsoRespuestas)
@@ -272,7 +280,9 @@ async function registrarEnCrm(
     const [e] = await db
       .select({ id: ventaEmpresas.id })
       .from(ventaEmpresas)
-      .where(sql`lower(${ventaEmpresas.nombre}) = lower(${organizacion})`)
+      // Siempre en la cartera `adoops`: las charlas son del negocio real, nunca
+      // de Demo. Los inserts caen ahí por el valor por defecto de la columna.
+      .where(and(eq(ventaEmpresas.cuenta, "adoops"), sql`lower(${ventaEmpresas.nombre}) = lower(${organizacion})`))
       .limit(1);
     empresaId = e
       ? e.id
@@ -287,12 +297,12 @@ async function registrarEnCrm(
     ? await db
         .select({ id: ventaContactos.id })
         .from(ventaContactos)
-        .where(sql`lower(${ventaContactos.email}) = ${p.email}`)
+        .where(and(eq(ventaContactos.cuenta, "adoops"), sql`lower(${ventaContactos.email}) = ${p.email}`))
         .limit(1)
     : await db
         .select({ id: ventaContactos.id })
         .from(ventaContactos)
-        .where(eq(ventaContactos.telefono, p.telefono!))
+        .where(and(eq(ventaContactos.cuenta, "adoops"), eq(ventaContactos.telefono, p.telefono!)))
         .limit(1);
 
   if (existe) {
@@ -440,10 +450,14 @@ export async function listarSesiones() {
       organizacion: pulsoSesiones.organizacion,
       relator: pulsoSesiones.relator,
       fase: pulsoSesiones.fase,
+      pausada: pulsoSesiones.pausada,
       fecha: pulsoSesiones.fecha,
       senalId: pulsoSesiones.senalId,
       respuestas: sql<number>`(select count(*)::int from pulso_respuestas r where r.sesion_id = ${pulsoSesiones.id})`,
       contactos: sql<number>`(select count(*)::int from pulso_respuestas r where r.sesion_id = ${pulsoSesiones.id} and r.contacto_en is not null)`,
+      // Quienes dejaron sus datos y todavía no reciben nada: lo que el botón
+      // de envío del panel tiene por delante.
+      pendientes: sql<number>`(select count(*)::int from pulso_respuestas r where r.sesion_id = ${pulsoSesiones.id} and r.contacto_en is not null and r.resultado_enviado_en is null)`,
     })
     .from(pulsoSesiones)
     .orderBy(desc(pulsoSesiones.fecha));

@@ -18,12 +18,13 @@ import ChipModuloAuto from "@/components/ChipModuloAuto";
 import SelectorCuenta from "@/components/dashboard360/SelectorCuenta";
 import { resolverCuenta } from "@/lib/cuentas";
 import { filtrarPorCuenta } from "@/lib/dashboard360/nav";
+import { cuentaVenta, type CuentaVenta } from "@/lib/venta/cuenta";
 
 // Cada request revalida la sesión y los contadores del menú. Un tablero que
 // dice "todo al día" cuando hay dos fuentes caídas es peor que no decir nada.
 export const dynamic = "force-dynamic";
 
-async function contadores() {
+async function contadores(cartera: CuentaVenta) {
   const [problemas, borradores, hayMotor, hayContenido, hayReuniones, hayCrm] =
     await Promise.all([
     db
@@ -59,7 +60,7 @@ async function contadores() {
 
   // Mismo cuidado: el badge del CRM es el número de oportunidades que llevan dos
   // semanas sin que nadie las toque, y no se pregunta si las tablas no existen.
-  const crmFrias = hayCrm ? await frias() : 0;
+  const crmFrias = hayCrm ? await frias(cartera) : 0;
 
   return {
     fuentes: problemas.length,
@@ -94,7 +95,7 @@ export default async function Dashboard360AppLayout({
     reunionesPendientes,
     hayCrm,
     crmFrias,
-  } = await contadores();
+  } = await contadores(await cuentaVenta());
 
   const grupos: GrupoNav[] = [
     {
@@ -123,12 +124,17 @@ export default async function Dashboard360AppLayout({
         ? [
             { href: "/dashboard360/crm", etiqueta: "Pipeline", icono: "⛁", badge: crmFrias },
             { href: "/dashboard360/crm/contactos", etiqueta: "Contactos", icono: "☰" },
-            // Las charlas van en el CRM y no en Prospección por lo mismo que el
-            // pipeline: su origen es una sala donde alguien ya nos escuchó, no
-            // una señal que el motor salió a buscar.
-            { href: "/dashboard360/crm/pulso", etiqueta: "Pulso IA", icono: "◔" },
           ]
         : [],
+    },
+    {
+      // Pulso IA es un módulo propio y no una pantalla del CRM: tiene su propio
+      // ciclo —se crea antes de una charla, se proyecta, se cierra— y su gente
+      // recién pasa a Contactos cuando deja sus datos. Solo lo tiene la cuenta
+      // adoOps: adentro hay respuestas y contactos de personas reales, y Demo
+      // es lo que se le muestra a un tercero.
+      titulo: "Charlas",
+      items: [{ href: "/dashboard360/pulso", etiqueta: "Pulso IA", icono: "◔" }],
     },
     {
       // El mercado va antes que el informe: es el dato que enmarca todo lo

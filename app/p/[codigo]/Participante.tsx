@@ -383,7 +383,7 @@ export default function Participante({
       )}
 
       {yo?.dejoDatos && (
-        <p className="pz-aviso">Listo. Te enviamos tu resultado; revisa tu correo en unos minutos.</p>
+        <p className="pz-aviso">Listo. Tu resultado te llega al terminar la charla.</p>
       )}
 
       <Firma relator={relator} />
@@ -493,12 +493,12 @@ function FormularioDatos({
         <input id="pz-cargo" value={cargo} onChange={(e) => setCargo(e.target.value)} autoComplete="organization-title" />
       </div>
       <div className="field">
-        <label htmlFor="pz-email">Correo</label>
-        <input id="pz-email" type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
+        <label htmlFor="pz-tel">WhatsApp</label>
+        <input id="pz-tel" type="tel" inputMode="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} autoComplete="tel" placeholder="+56 9 …" required />
       </div>
       <div className="field">
-        <label htmlFor="pz-tel">WhatsApp (opcional)</label>
-        <input id="pz-tel" type="tel" inputMode="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} autoComplete="tel" placeholder="+56 9 …" />
+        <label htmlFor="pz-email">Correo (opcional)</label>
+        <input id="pz-email" type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
       </div>
       <label className="pz-check">
         <input type="checkbox" checked={consiente} onChange={(e) => setConsiente(e.target.checked)} />

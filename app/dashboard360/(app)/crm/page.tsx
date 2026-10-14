@@ -22,9 +22,11 @@
 // Los datos siguen calculándose en el servidor. El cliente solo pinta y arrastra.
 
 import Link from "next/link";
-import { Card, PageHeader, Vacio, btnPrimario } from "@/components/dashboard360/ui";
+import { Card, PageHeader, StatTile, Vacio, btnPrimario } from "@/components/dashboard360/ui";
 import { requireSession } from "@/lib/dashboard360/auth.actions";
-import { cerradas, contactos, disponible, tablero } from "@/lib/venta/consultas";
+import { cerradas, contactos, disponible, resumen, tablero } from "@/lib/venta/consultas";
+import { cuentaVenta } from "@/lib/venta/cuenta";
+import { BarrasH } from "@/components/dashboard360/charts";
 import { crearOportunidadAction } from "@/lib/venta/acciones";
 import { FUENTES, FUENTE_POR_DEFECTO, nombreEtapa } from "@/lib/venta/etapas";
 import TableroPipeline from "@/components/dashboard360/TableroPipeline";
@@ -54,12 +56,27 @@ function diasSin(fecha: Date | null): number | null {
 
 export default async function CrmPage() {
   await requireSession();
-  const [hay, columnas, gente, historial] = await Promise.all([
+  const cuenta = await cuentaVenta();
+  const [hay, columnas, gente, historial, etapas] = await Promise.all([
     disponible(),
-    tablero(),
-    contactos(),
-    cerradas(10),
+    tablero(cuenta),
+    contactos(cuenta),
+    cerradas(cuenta, 10),
+    resumen(cuenta),
   ]);
+
+  // ── Lo que alimenta los gráficos ───────────────────────────────────────────
+  //
+  // Tres preguntas que el tablero solo no contesta, porque para leerlas ahí hay
+  // que sumar columnas de cabeza: cuánto hay en propuestas enviadas, cuánto se
+  // perdió y cuánto se ganó. El embudo va por monto y no por cantidad: tres
+  // oportunidades chicas en «Nuevo» no pesan lo que una grande en «Negociación».
+  const de = (id: string) => etapas.find((e) => e.etapa === id) ?? { cantidad: 0, monto: 0 };
+  const propuestas = de("propuesta");
+  const ganadas = de("ganado");
+  const perdidas = de("perdido");
+  const decididas = ganadas.cantidad + perdidas.cantidad;
+  const hayHistoria = etapas.some((e) => e.cantidad > 0);
 
   // La columna de perdidas se pinta, pero no cuenta: no es plata en juego.
   const vivas = columnas.filter((c) => !c.cerrada);
@@ -96,6 +113,57 @@ export default async function CrmPage() {
             : `${abiertas} oportunidades abiertas · ${CLP.format(total)} en juego · ${CLP.format(ponderado)} ponderado por probabilidad`
         }
       />
+
+      {hayHistoria && (
+        <>
+          <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatTile
+              etiqueta="Propuestas enviadas"
+              valor={CLP.format(propuestas.monto)}
+              nota={`${propuestas.cantidad} ${propuestas.cantidad === 1 ? "oportunidad" : "oportunidades"} esperando respuesta`}
+            />
+            <StatTile
+              etiqueta="Ganadas"
+              valor={CLP.format(ganadas.monto)}
+              nota={`${ganadas.cantidad} ${ganadas.cantidad === 1 ? "cerrada" : "cerradas"}`}
+            />
+            <StatTile
+              etiqueta="Perdidas"
+              valor={CLP.format(perdidas.monto)}
+              nota={`${perdidas.cantidad} ${perdidas.cantidad === 1 ? "cerrada" : "cerradas"}`}
+            />
+            <StatTile
+              etiqueta="Tasa de cierre"
+              valor={decididas === 0 ? "—" : `${Math.round((ganadas.cantidad / decididas) * 100)}%`}
+              // Sobre las que ya se decidieron, no sobre todas: las abiertas
+              // todavía no son ni una cosa ni la otra.
+              nota={decididas === 0 ? "todavía no se cierra ninguna" : `${ganadas.cantidad} de ${decididas} decididas`}
+            />
+          </div>
+
+          <Card
+            className="mb-6"
+            titulo="Embudo"
+            descripcion="Cuánta plata hay en cada etapa. Ganado y perdido van al final, aparte del flujo."
+          >
+            <BarrasH
+              anchoEtiqueta={150}
+              anchoTexto={170}
+              datos={etapas.map((e) => ({
+                etiqueta: e.nombre,
+                valor: e.monto,
+                texto: `${CLP.format(e.monto)} · ${e.cantidad}`,
+                color:
+                  e.etapa === "ganado"
+                    ? "var(--d360-accent)"
+                    : e.etapa === "perdido"
+                      ? "#c9d3da"
+                      : "var(--d360-brand)",
+              }))}
+            />
+          </Card>
+        </>
+      )}
 
       {/* El tablero es cliente porque se arrastra. Los datos siguen viniendo
           del servidor: acá solo se le da la forma que la vista necesita, y

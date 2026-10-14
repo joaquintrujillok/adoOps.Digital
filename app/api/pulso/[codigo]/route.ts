@@ -6,9 +6,6 @@
 // POST { accion: "inicio" | "cierre" | "contacto", token, ... }
 
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
-import { db } from "@/db";
-import { pulsoRespuestas } from "@/db/pulso";
 import {
   estadoSala,
   guardarCierre,
@@ -18,7 +15,6 @@ import {
   sesionPorCodigo,
   tokenValido,
 } from "@/lib/pulso/datos";
-import { enviarResultado } from "@/lib/pulso/email";
 
 export const dynamic = "force-dynamic";
 
@@ -70,28 +66,11 @@ export async function POST(req: Request, { params }: Ctx) {
     const r = await guardarContacto(sesion, token, body as never);
     if (!r.ok) return NextResponse.json({ error: r.error }, { status: 400 });
 
-    let enviado = false;
-    if (r.valor.email) {
-      try {
-        const sala = await estadoSala(sesion.codigo);
-        if (sala) {
-          enviado = await enviarResultado({
-            email: r.valor.email,
-            nombre: r.valor.nombre,
-            cuadrante: r.valor.cuadrante,
-            sala,
-          });
-          if (enviado) {
-            await db
-              .update(pulsoRespuestas)
-              .set({ resultadoEnviadoEn: new Date() })
-              .where(eq(pulsoRespuestas.id, r.valor.id));
-          }
-        }
-      } catch (e) {
-        console.error("[pulso] no salió el correo de resultado:", e);
-      }
-    }
+    // El resultado ya no sale acá. Lo gatilla el relator desde el panel
+    // (`enviarResultados` en app/dashboard360/(app)/pulso/acciones.ts), para
+    // que le llegue a toda la sala junto y con el mapa ya completo: enviado al
+    // dejar los datos, cada persona recibía la sala a medio llenar.
+    const enviado = false;
     return NextResponse.json({ ok: true, enviado });
   }
 

@@ -32,6 +32,7 @@ const RUTAS: [string, ModuloCuenta][] = [
   ["/dashboard360/contenido", "contenido"],
   ["/dashboard360/reuniones", "reuniones"],
   ["/dashboard360/crm", "crm"],
+  ["/dashboard360/pulso", "pulso"],
   ["/dashboard360", "panel"],
 ];
 
@@ -61,6 +62,7 @@ const ORDEN: ModuloCuenta[] = [
   "contenido",
   "reuniones",
   "crm",
+  "pulso",
 ];
 
 /**

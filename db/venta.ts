@@ -57,6 +57,11 @@ export const ventaEmpresas = pgTable(
     tamano: varchar("tamano", { length: 40 }),
     ciudad: varchar("ciudad", { length: 120 }),
     notas: text("notas"),
+    /**
+     * `adoops` o `demo`. Separa el pipeline propio de los clientes ficticios que
+     * se muestran en una reunión. Ver `lib/venta/cuenta.ts`.
+     */
+    cuenta: varchar("cuenta", { length: 20 }).notNull().default("adoops"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [index("venta_empresas_nombre_idx").on(t.nombre)],
@@ -76,6 +81,11 @@ export const ventaContactos = pgTable(
     telefono: varchar("telefono", { length: 40 }),
     linkedin: varchar("linkedin", { length: 300 }),
     notas: text("notas"),
+    /**
+     * `adoops` o `demo`. Separa el pipeline propio de los clientes ficticios que
+     * se muestran en una reunión. Ver `lib/venta/cuenta.ts`.
+     */
+    cuenta: varchar("cuenta", { length: 20 }).notNull().default("adoops"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [
@@ -118,6 +128,11 @@ export const ventaOportunidades = pgTable(
      * join a actividades por cada tarjeta es el tipo de consulta que se nota.
      */
     ultimaActividad: timestamp("ultima_actividad", { withTimezone: true }),
+    /**
+     * `adoops` o `demo`. Separa el pipeline propio de los clientes ficticios que
+     * se muestran en una reunión. Ver `lib/venta/cuenta.ts`.
+     */
+    cuenta: varchar("cuenta", { length: 20 }).notNull().default("adoops"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [

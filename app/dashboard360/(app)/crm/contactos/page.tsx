@@ -12,6 +12,7 @@ import { Card, PageHeader, Tabla, Vacio, btnPrimario } from "@/components/dashbo
 import { requireSession } from "@/lib/dashboard360/auth.actions";
 import { contactos, disponible, empresas } from "@/lib/venta/consultas";
 import { crearContactoAction, crearEmpresaAction } from "@/lib/venta/acciones";
+import { cuentaVenta } from "@/lib/venta/cuenta";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,8 @@ const campo =
 
 export default async function ContactosPage() {
   await requireSession();
-  const [hay, gente, casas] = await Promise.all([disponible(), contactos(), empresas()]);
+  const cuenta = await cuentaVenta();
+  const [hay, gente, casas] = await Promise.all([disponible(), contactos(cuenta), empresas(cuenta)]);
 
   if (!hay) {
     return (

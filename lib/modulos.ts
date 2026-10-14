@@ -119,17 +119,17 @@ export const MODULOS: Modulo[] = [
   {
     id: "pulso-panel",
     nombre: "Pulso IA · panel",
-    // Vive en el CRM del tablero, que es el CRM propio de adoOps. Estuvo unas
-    // horas bajo /crm —el demo de Highend— y era un error: tiene los contactos
-    // reales de quienes dejaron sus datos en una charla. Va declarado aparte y
-    // con la ruta más larga para que `moduloDe()` lo distinga del resto del
-    // tablero, que es `interno`.
-    ruta: "/dashboard360/crm/pulso",
+    // Módulo propio del tablero, encendido solo en la cuenta adoOps. Estuvo
+    // unas horas bajo /crm —el demo de Highend— y era un error: tiene los
+    // contactos reales de quienes dejaron sus datos en una charla. Va declarado
+    // aparte y con la ruta más larga para que `moduloDe()` lo distinga del resto
+    // del tablero, que es `interno`.
+    ruta: "/dashboard360/pulso",
     estado: "produccion",
     datos: "reales",
     audiencia: "Nelson y Joaquín, antes y después de una charla",
     tablas: ["pulso_", "lead_personas", "lead_empresas", "lead_senales"],
-    nota: "Crea las sesiones de las charlas y muestra quién dejó sus datos; al cerrar deja una señal en el motor.",
+    nota: "Crea las charlas, pausa y cierra su QR, muestra cómo quedó la sala y gatilla el envío de resultados; al cerrar deja una señal en el motor.",
   },
   {
     id: "pulso-pantalla",

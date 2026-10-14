@@ -12,7 +12,8 @@
 //            mensual; UF del 10-09-2026, $40.893,78). Aparte: 4,9 UF por área al
 //            mes.
 //
-// Entran como perdidas. Idempotente: se puede correr dos veces sin duplicar
+// Entraron como perdidas; Vanni se corrigió después a "Propuesta enviada" (se
+// había cargado mal). Idempotente: se puede correr dos veces sin duplicar
 // (la persona se busca por correo y la oportunidad por título y persona).
 //
 // Uso: node scripts/crm-carga-vanni-tuniche.mjs

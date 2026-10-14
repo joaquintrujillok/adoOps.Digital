@@ -14,7 +14,7 @@
 // Una actividad es algo que ocurrió. Corregir el pasado es cómo se pierde la
 // confianza en un CRM.
 
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import {
@@ -25,6 +25,7 @@ import {
 } from "@/db/venta";
 import { getSession } from "@/lib/dashboard360/session";
 import { esCerrada, nombreEtapa, probabilidadDe } from "./etapas";
+import { cuentaVenta, type CuentaVenta } from "./cuenta";
 
 const TABLERO = "/dashboard360/crm";
 
@@ -32,6 +33,14 @@ async function exigirSesion() {
   const s = await getSession();
   if (!s) throw new Error("No autorizado");
   return s;
+}
+
+/**
+ * La oportunidad `id`, solo si es de esta cartera. Toda acción que recibe un id
+ * del navegador pasa por acá: el id lo manda el cliente, y la cuenta no.
+ */
+function deLaCuenta(id: number, cuenta: CuentaVenta) {
+  return and(eq(ventaOportunidades.id, id), eq(ventaOportunidades.cuenta, cuenta));
 }
 
 function texto(fd: FormData, campo: string, max = 300): string | null {
@@ -47,6 +56,7 @@ export async function crearEmpresaAction(formData: FormData) {
   if (!nombre) return;
 
   await db.insert(ventaEmpresas).values({
+    cuenta: await cuentaVenta(),
     nombre,
     rubro: texto(formData, "rubro", 120),
     sitio: texto(formData, "sitio", 200),
@@ -61,11 +71,23 @@ export async function crearContactoAction(formData: FormData) {
   const nombre = texto(formData, "nombre", 200);
   if (!nombre) return;
 
-  const empresaId = Number(formData.get("empresaId"));
+  const cuenta = await cuentaVenta();
+  const pedida = Number(formData.get("empresaId"));
+  // La empresa tiene que ser de la misma cartera: el id viene del formulario y
+  // nada impide mandar el de una empresa de la otra cuenta.
+  const [empresa] =
+    Number.isInteger(pedida) && pedida > 0
+      ? await db
+          .select({ id: ventaEmpresas.id })
+          .from(ventaEmpresas)
+          .where(and(eq(ventaEmpresas.id, pedida), eq(ventaEmpresas.cuenta, cuenta)))
+          .limit(1)
+      : [];
 
   await db.insert(ventaContactos).values({
+    cuenta,
     nombre,
-    empresaId: Number.isInteger(empresaId) && empresaId > 0 ? empresaId : null,
+    empresaId: empresa?.id ?? null,
     cargo: texto(formData, "cargo", 160),
     email: texto(formData, "email", 254),
     telefono: texto(formData, "telefono", 40),
@@ -80,18 +102,18 @@ export async function crearContactoAction(formData: FormData) {
  * seis de la tarde está hablando de la misma empresa, y dos fichas para la misma
  * empresa es cómo un CRM empieza a mentir.
  */
-async function empresaPorNombre(nombre: string | null): Promise<number | null> {
+async function empresaPorNombre(nombre: string | null, cuenta: CuentaVenta): Promise<number | null> {
   if (!nombre) return null;
   const [existente] = await db
     .select({ id: ventaEmpresas.id })
     .from(ventaEmpresas)
-    .where(sql`lower(${ventaEmpresas.nombre}) = lower(${nombre})`)
+    .where(and(eq(ventaEmpresas.cuenta, cuenta), sql`lower(${ventaEmpresas.nombre}) = lower(${nombre})`))
     .limit(1);
   if (existente) return existente.id;
 
   const [creada] = await db
     .insert(ventaEmpresas)
-    .values({ nombre })
+    .values({ nombre, cuenta })
     .returning({ id: ventaEmpresas.id });
   return creada.id;
 }
@@ -115,6 +137,7 @@ export async function crearOportunidadAction(formData: FormData) {
   const sesion = await exigirSesion();
   const titulo = texto(formData, "titulo", 200);
   if (!titulo) return;
+  const cuenta = await cuentaVenta();
 
   const elegido = Number(formData.get("contactoId"));
   let contactoId = Number.isInteger(elegido) && elegido > 0 ? elegido : 0;
@@ -126,7 +149,7 @@ export async function crearOportunidadAction(formData: FormData) {
     const [contacto] = await db
       .select({ empresaId: ventaContactos.empresaId })
       .from(ventaContactos)
-      .where(eq(ventaContactos.id, contactoId))
+      .where(and(eq(ventaContactos.id, contactoId), eq(ventaContactos.cuenta, cuenta)))
       .limit(1);
     if (!contacto) return;
     empresaId = contacto.empresaId;
@@ -135,7 +158,7 @@ export async function crearOportunidadAction(formData: FormData) {
     // Sin persona no hay oportunidad. Es el único caso en que esto no hace nada.
     if (!nombre) return;
 
-    empresaId = await empresaPorNombre(texto(formData, "empresaNueva", 200));
+    empresaId = await empresaPorNombre(texto(formData, "empresaNueva", 200), cuenta);
     const [nuevo] = await db
       .insert(ventaContactos)
       // Correo y teléfono se guardan acá y no «después, en la ficha». Este
@@ -144,6 +167,7 @@ export async function crearOportunidadAction(formData: FormData) {
       // después ya nadie vuelve a completarlo, y un contacto sin forma de
       // contactarlo es una fila que no sirve para nada.
       .values({
+        cuenta,
         nombre,
         empresaId,
         cargo: texto(formData, "cargoNuevo", 160),
@@ -160,6 +184,7 @@ export async function crearOportunidadAction(formData: FormData) {
   const [creada] = await db
     .insert(ventaOportunidades)
     .values({
+      cuenta,
       titulo,
       contactoId,
       empresaId,
@@ -195,7 +220,7 @@ export async function moverEtapaAction(formData: FormData) {
   const [antes] = await db
     .select({ etapa: ventaOportunidades.etapa, contactoId: ventaOportunidades.contactoId })
     .from(ventaOportunidades)
-    .where(eq(ventaOportunidades.id, id))
+    .where(deLaCuenta(id, await cuentaVenta()))
     .limit(1);
   if (!antes || antes.etapa === etapa) return;
 
@@ -239,7 +264,7 @@ export async function registrarActividadAction(formData: FormData) {
   const [op] = await db
     .select({ contactoId: ventaOportunidades.contactoId })
     .from(ventaOportunidades)
-    .where(eq(ventaOportunidades.id, id))
+    .where(deLaCuenta(id, await cuentaVenta()))
     .limit(1);
   if (!op) return;
 
@@ -282,7 +307,7 @@ export async function editarOportunidadAction(formData: FormData) {
           : undefined,
       cierreEstimado: texto(formData, "cierreEstimado", 10),
     })
-    .where(eq(ventaOportunidades.id, id));
+    .where(deLaCuenta(id, await cuentaVenta()));
 
   revalidatePath(`/dashboard360/crm/oportunidades/${id}`);
   revalidatePath(TABLERO);
@@ -310,6 +335,16 @@ export async function borrarOportunidadAction(formData: FormData) {
   await exigirSesion();
   const id = Number(formData.get("id"));
   if (!Number.isInteger(id) || id <= 0) return;
+
+  // Primero se confirma que es de esta cartera: las actividades no llevan
+  // cuenta, y borrarlas por id sin mirar dejaría a Demo vaciando el historial
+  // de una oportunidad real.
+  const [propia] = await db
+    .select({ id: ventaOportunidades.id })
+    .from(ventaOportunidades)
+    .where(deLaCuenta(id, await cuentaVenta()))
+    .limit(1);
+  if (!propia) return;
 
   await db.delete(ventaActividades).where(eq(ventaActividades.oportunidadId, id));
   await db.delete(ventaOportunidades).where(eq(ventaOportunidades.id, id));

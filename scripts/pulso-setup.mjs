@@ -1,7 +1,7 @@
 // Crea, de forma idempotente, las dos tablas de Pulso IA.
 //
-// Aditivo: solo CREATE IF NOT EXISTS. No siembra nada: la primera fila llega
-// desde una sala real. Para probar, crea una sesión desde /dashboard360/crm/pulso y bórrala
+// Aditivo: solo CREATE IF NOT EXISTS y ADD COLUMN IF NOT EXISTS. No siembra nada: la primera fila llega
+// desde una sala real. Para probar, crea una sesión desde /dashboard360/pulso y bórrala
 // después desde ahí mismo.
 //
 // Uso: node scripts/pulso-setup.mjs
@@ -63,5 +63,9 @@ await sql`
 `;
 await sql`CREATE UNIQUE INDEX IF NOT EXISTS pulso_respuestas_token_idx ON pulso_respuestas (sesion_id, token)`;
 await sql`CREATE INDEX IF NOT EXISTS pulso_respuestas_sesion_idx ON pulso_respuestas (sesion_id)`;
+
+// La pausa del QR llegó después de las tablas. Para una base que ya las tenía,
+// este es el único paso que hace algo.
+await sql`ALTER TABLE pulso_sesiones ADD COLUMN IF NOT EXISTS pausada BOOLEAN NOT NULL DEFAULT false`;
 
 console.log("pulso_sesiones y pulso_respuestas listas.");
