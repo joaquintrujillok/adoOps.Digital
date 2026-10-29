@@ -32,6 +32,24 @@ export default function Oportunidades() {
         ))}
       </section>
 
+      <section className="card">
+        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 8, alignItems: "baseline" }}>
+          <h2>Cómo se reparte el tiempo recuperable</h2>
+          <span className="small muted">De lo más simple (sin TI) a lo más integrado</span>
+        </div>
+        <div className="apilada" role="img" aria-label={CAPAS.map((c) => `${c.t}: ${PROCESOS.filter((p) => p.s === c.s).reduce((x, p) => x + p.ahorro, 0)} h/mes`).join(", ")}>
+          {CAPAS.map((c) => {
+            const h = PROCESOS.filter((p) => p.s === c.s).reduce((x, p) => x + p.ahorro, 0);
+            return <span key={c.s} className={`t-${c.tono}`} style={{ flex: h }}><strong>{c.n}</strong> {Math.round((h / ahorroTotal) * 100)}%</span>;
+          })}
+        </div>
+        <div className="leyenda">
+          {CAPAS.map((c) => (
+            <span key={c.s}><i className={`t-${c.tono}`} />Capa {c.n} · {c.t}</span>
+          ))}
+        </div>
+      </section>
+
       {CAPAS.map((c) => {
         const procesos = PROCESOS.filter((p) => p.s === c.s);
         const compartidas = COMPARTIDAS.filter((x) => x.solucion === c.s);
@@ -68,7 +86,7 @@ export default function Oportunidades() {
             </div>
             {compartidas.map((x) => (
               <div key={x.id} className="t-gris small" style={{ borderRadius: 10, padding: "10px 14px", color: "var(--g-tinta)" }}>
-                <strong>Sirve también entre unidades:</strong> {x.t.toLowerCase()} en {x.unidades.join(", ")}.{" "}
+                <strong>Sirve también entre unidades:</strong> {x.t.toLowerCase()} en {Object.keys(x.reparto).join(", ")}.{" "}
                 <Link href="/gia/flujo">Ver en el flujo →</Link>
               </div>
             ))}
