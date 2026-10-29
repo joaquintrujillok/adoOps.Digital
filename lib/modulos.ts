@@ -117,6 +117,21 @@ export const MODULOS: Modulo[] = [
     nota: "Sembrado, pero durante una demostración entran mensajes de WhatsApp de verdad.",
   },
   {
+    id: "gia",
+    nombre: "Gobierno y adopción de IA · levantamiento",
+    ruta: "/gia",
+    // `demo` con datos `mixtos`, el mismo caso que TorreControl: la empresa
+    // (Valle Sur Alimentos) es inventada y vive en código, pero la entrevista
+    // se hace en vivo durante la reunión, y quien la responde es una persona
+    // real con su nombre y su cargo. Esas filas están en `gia_*` y se borran
+    // con `scripts/gia-limpiar.mjs` después de cada demo. El audio no se guarda.
+    estado: "demo",
+    datos: "mixtos",
+    audiencia: "un prospecto en una reunión",
+    tablas: ["gia_"],
+    nota: "Empresa demo sembrada en código; las entrevistas en vivo de la reunión quedan en gia_* hasta que se limpian.",
+  },
+  {
     id: "pulso-panel",
     nombre: "Pulso IA · panel",
     // Módulo propio del tablero, encendido solo en la cuenta adoOps. Estuvo
