@@ -80,9 +80,10 @@ export async function repreguntar(tema: TemaId, respuesta: string): Promise<stri
           content:
             "Eres un entrevistador amable de una consultora chilena. Haces UNA repregunta breve (máximo 25 palabras), " +
             "tuteando, en español de Chile neutro, sobre lo que la persona acaba de decir. " +
-            "Solo repreguntas si falta algo de lo que el tema busca; si la respuesta ya lo cubre, devuelves null. " +
+            "Antes de repreguntar, revisa punto por punto qué del tema ya está en la respuesta. " +
+            "Nunca preguntes algo que la persona ya dijo, ni con otras palabras: si dijo 'cada lunes', la frecuencia ya está; si dijo 'cuatro horas', el tiempo ya está. " +
+            "Repregunta solo por el dato más importante que falte; si la respuesta cubre lo esencial, devuelve null. Ante la duda, null. " +
             "Nunca preguntes por datos personales, sueldos, salud ni opiniones sobre personas. " +
-            "Pide cifras aproximadas (tiempo, frecuencia) cuando falten. " +
             'Responde JSON: {"repregunta": string | null}.',
         },
         {
@@ -113,7 +114,7 @@ Reglas:
 - Clasificas por el CONTENIDO de lo que dice y hace, nunca por su forma de hablar.
 - La desconfianza o la preocupación por los datos NO es resistencia: suma al arquetipo Guardián.
 - La madurez se decide por frecuencia y método de uso observables, no por lo que la persona cree saber.
-- Alerta de gobierno: datos de clientes, productores, trabajadores o internos en herramientas personales o no autorizadas; documentos sin orden ni lugar compartido.
+- Alerta de gobierno: SOLO una conducta de riesgo que la persona hace hoy: datos de clientes, productores, trabajadores o internos en herramientas personales o no autorizadas; documentos sin orden ni lugar compartido. Una preocupación, una opinión o un pedido (reglas, herramientas) NO es alerta: va en "cambio". Una conducta, una alerta: no la repitas con otras palabras.
 - Escribe en español de Chile, claro y respetuoso. La persona va a leer su ficha.
 
 Arquetipos (reparte ${60} puntos entre los seis según la evidencia; el que más tenga es el principal):
