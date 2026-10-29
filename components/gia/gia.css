@@ -270,3 +270,216 @@
 .gia .flujo-tramo:last-child { flex: 0.72 1 0; }
 .gia .paso { width: auto; flex: 1 1 auto; min-width: 168px; }
 .gia .flecha { width: 72px; }
+
+/* ══ Back office v3 ════════════════════════════════════════════════════════
+   Dirección: SaaS claro y calmo. Lienzo gris muy suave, superficies blancas con
+   sombra apenas visible, barra lateral clara con íconos, el verde de adoOps
+   solo para lo activo y lo positivo. Referencias: constructores de workflow
+   (lienzo de puntos, nodos tarjeta, panel lateral), diagramas Sankey y
+   plataformas de cursos (reproductor protagonista con capítulos). */
+
+.gia { --g-fondo: #f5f7f5; --sombra: 0 1px 2px rgba(19, 34, 26, 0.04), 0 4px 16px rgba(19, 34, 26, 0.05); }
+.gia .card { border-color: #e4e9e5; border-radius: 16px; box-shadow: var(--sombra); }
+.gia-main > header h1 { font-size: 30px; letter-spacing: -0.01em; }
+.gia-main { padding: 28px 32px 80px; gap: 22px; max-width: 1360px; }
+
+/* Barra lateral clara */
+.gia-nav { flex: 0 0 248px; background: #fff; color: var(--g-tinta); border-right: 1px solid #e4e9e5; padding: 20px 14px; gap: 2px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+.gia-nav .marca { display: flex; align-items: center; gap: 10px; padding: 4px 8px 18px; text-decoration: none; color: var(--g-tinta); }
+.gia-nav .marca:hover { color: var(--g-tinta); }
+.gia-nav .logo { width: 34px; height: 34px; border-radius: 10px; background: var(--g-verde); color: #fff; display: inline-flex; align-items: center; justify-content: center; font: 700 16px var(--font-sora), Sora, sans-serif; flex: none; }
+.gia-nav .marca-t { display: block; font: 600 15px var(--font-sora), Sora, sans-serif; }
+.gia-nav .marca-s { display: block; font-size: 12px; color: var(--g-gris); }
+.gia-nav .nav-grupo { display: flex; flex-direction: column; gap: 2px; }
+.gia-nav .grupo { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #7a8a80; padding: 16px 10px 6px; }
+.gia-nav .etapa { width: 18px; height: 18px; border-radius: 6px; background: var(--g-gris-cl); color: var(--g-verde); display: inline-flex; align-items: center; justify-content: center; font-size: 11px; letter-spacing: 0; }
+.gia-nav a.item { gap: 10px; min-height: 40px; color: var(--g-suave); font-size: 14.5px; border-radius: 10px; }
+.gia-nav a.item:hover { background: var(--g-gris-cl); color: var(--g-tinta); }
+.gia-nav a.item[aria-current="page"] { background: var(--g-verde-cl); color: var(--g-verde-osc); font-weight: 600; }
+.gia-nav .cta { margin-top: 20px; display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; border-radius: 12px; background: var(--g-tinta); color: #fff; font-weight: 600; text-decoration: none; font-size: 14.5px; }
+.gia-nav .cta:hover { background: #24382c; color: #fff; }
+.gia-nav .nav-pie { margin-top: auto; padding: 16px 10px 0; font-size: 11.5px; color: #8a998f; }
+@media (max-width: 800px) {
+  .gia-nav { position: static; height: auto; flex: 1 1 100%; flex-direction: row; flex-wrap: wrap; align-items: center; border-right: none; border-bottom: 1px solid #e4e9e5; padding: 10px 12px; }
+  .gia-nav .marca { padding: 0 8px 0 0; }
+  .gia-nav .marca-s, .gia-nav .grupo, .gia-nav .nav-pie { display: none; }
+  .gia-nav .nav-grupo { flex-direction: row; flex-wrap: wrap; }
+  .gia-nav a.item span { font-size: 13px; }
+  .gia-nav .cta { margin-top: 0; min-height: 40px; padding: 0 14px; }
+  .gia-main { padding: 20px 16px 72px; }
+}
+
+/* Control segmentado */
+.gia .seg { display: inline-flex; gap: 4px; padding: 4px; background: #e9eee9; border-radius: 12px; align-self: flex-start; flex-wrap: wrap; }
+.gia .seg button { min-height: 40px; padding: 0 16px; border: none; border-radius: 9px; background: transparent; color: var(--g-suave); font-weight: 600; font-size: 14px; }
+.gia .seg button[aria-selected="true"] { background: #fff; color: var(--g-tinta); box-shadow: 0 1px 3px rgba(19, 34, 26, 0.12); }
+.gia .seg-sm button { min-height: 36px; padding: 0 12px; font-size: 13px; }
+
+/* Chips de tareas repetidas */
+.gia .tareas-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.gia .tarea-chip { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid #dbe2dc; background: #fff; color: var(--g-tinta); box-shadow: var(--sombra); }
+.gia .tarea-chip .punto { width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+.gia .tarea-chip .nombre { font-weight: 600; font-size: 14px; }
+.gia .tarea-chip .horas { font-size: 12.5px; color: var(--g-gris); font-variant-numeric: tabular-nums; }
+.gia .tarea-chip[aria-pressed="true"] { border-color: var(--c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 18%, transparent); }
+
+/* Lienzo */
+.gia .lienzo-card { gap: 16px; }
+.gia .lienzo-cab { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px; }
+.gia .col-etq { display: none; }
+
+/* Sankey */
+.gia .sankey-scroll { overflow-x: auto; border-radius: 12px; background: radial-gradient(circle, #dfe6e0 1px, transparent 1px) 0 0 / 18px 18px, #fafbfa; padding: 18px 8px; }
+.gia .sankey { width: 100%; min-width: 760px; height: auto; display: block; }
+.gia .sankey .cinta { opacity: 0.12; transition: opacity 0.25s; }
+.gia .sankey .cinta.on { opacity: 0.55; }
+.gia .sankey .cinta:hover { opacity: 0.8; }
+.gia .sankey .nodo { cursor: pointer; outline: none; }
+.gia .sankey .nodo:focus-visible rect { stroke: var(--g-verde); stroke-width: 3; }
+.gia .sankey .etq-u { font: 500 13px var(--font-inter), Inter, sans-serif; fill: var(--g-tinta); }
+.gia .sankey .nodo.sel .etq-u { font-weight: 700; }
+.gia .sankey .etq-t { font: 600 13.5px var(--font-inter), Inter, sans-serif; fill: var(--g-tinta); paint-order: stroke; stroke: #fafbfa; stroke-width: 4px; }
+.gia .sankey .etq-h { font: 500 12px var(--font-inter), Inter, sans-serif; fill: var(--g-gris); paint-order: stroke; stroke: #fafbfa; stroke-width: 4px; }
+.gia .mapa-detalle { display: flex; gap: 14px; align-items: flex-start; background: var(--g-gris-cl); border-radius: 12px; padding: 14px 16px; min-height: 64px; }
+.gia .punto-g { width: 12px; height: 12px; border-radius: 50%; margin-top: 6px; flex: none; }
+
+/* Procesos: lienzo con nodos y panel lateral */
+.gia .procesos { display: flex; flex-wrap: wrap; gap: 16px; align-items: stretch; }
+.gia .procesos .lienzo { flex: 999 1 560px; min-width: 0; overflow-x: auto; border-radius: 12px; background: radial-gradient(circle, #dfe6e0 1px, transparent 1px) 0 0 / 18px 18px, #fafbfa; padding: 28px 20px; }
+.gia .cadena { display: flex; align-items: center; min-width: max-content; }
+.gia .tramo { display: flex; align-items: center; }
+.gia .nodo-p { width: 188px; text-align: left; background: #fff; border: 1px solid #dbe2dc; border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 8px; box-shadow: var(--sombra); transition: opacity 0.25s, box-shadow 0.2s, border-color 0.2s, transform 0.2s; color: var(--g-tinta); }
+.gia .nodo-p:hover { transform: translateY(-2px); }
+.gia .nodo-p.externo { border-style: dashed; background: #f5f7f5; box-shadow: none; }
+.gia .nodo-p.off { opacity: 0.35; }
+.gia .nodo-p.on { border-color: var(--c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 20%, transparent), var(--sombra); }
+.gia .nodo-p.sel { outline: 2px solid var(--g-tinta); outline-offset: 2px; }
+.gia .nodo-cab { display: flex; align-items: center; gap: 10px; }
+.gia .avatar { width: 32px; height: 32px; border-radius: 9px; background: var(--g-verde-cl); color: var(--g-verde-osc); display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex: none; }
+.gia .nodo-p.externo .avatar { background: #e9eee9; color: var(--g-gris); }
+.gia .nodo-t { font-weight: 600; font-size: 14px; line-height: 1.25; }
+.gia .nodo-s { font-size: 12px; color: var(--g-gris); }
+.gia .nodo-d { font-size: 12.5px; color: var(--g-suave); line-height: 1.4; }
+.gia .nodo-pie { display: flex; align-items: center; gap: 6px; min-height: 20px; }
+.gia .mano { font-size: 11px; font-weight: 700; color: var(--g-rojo); background: var(--g-rojo-cl); border-radius: 6px; padding: 2px 7px; }
+.gia .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: none; }
+.gia .conector { position: relative; width: 92px; display: flex; align-items: center; justify-content: center; color: #9aaba0; }
+.gia .conector svg { width: 100%; overflow: visible; }
+.gia .conector line { stroke: currentColor; stroke-width: 1.6; stroke-dasharray: 4 4; animation: gia-flujo 1.2s linear infinite; vector-effect: non-scaling-stroke; }
+.gia .conector path { fill: none; stroke: currentColor; stroke-width: 1.6; vector-effect: non-scaling-stroke; }
+.gia .conector-etq { position: absolute; top: calc(50% + 10px); left: 50%; transform: translateX(-50%); width: 88px; text-align: center; font-size: 11px; line-height: 1.3; color: var(--g-gris); }
+@keyframes gia-flujo { to { stroke-dashoffset: -16; } }
+@media (prefers-reduced-motion: reduce) { .gia .conector line { animation: none; } .gia .nodo-p:hover { transform: none; } }
+.gia .panel-p { flex: 1 1 280px; background: #fff; border: 1px solid #e4e9e5; border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+.gia .panel-p .a-mano { font-size: 14px; }
+.gia .panel-p blockquote { margin: 8px 0 0; font-style: italic; border-left: 3px solid currentColor; padding-left: 10px; }
+.gia .link-tarea { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid #e4e9e5; background: #fff; text-align: left; font-size: 14px; color: var(--g-tinta); }
+.gia .link-tarea:hover { background: var(--g-gris-cl); }
+/* El lienzo usa todo el ancho; el detalle del paso va debajo. */
+.gia .procesos { flex-direction: column; }
+.gia .procesos .lienzo { flex: none; padding: 32px 20px 40px; }
+.gia .cadena { min-width: 0; width: 100%; }
+.gia .tramo { flex: 1 1 0; min-width: 0; }
+.gia .tramo:last-child { flex: 0 1 auto; }
+.gia .nodo-p { width: auto; flex: 1 1 auto; min-width: 150px; max-width: 220px; }
+.gia .conector { width: auto; flex: 1 0 56px; max-width: 110px; }
+.gia .conector-etq { width: 100%; }
+@media (max-width: 1100px) { .gia .cadena { min-width: max-content; } .gia .nodo-p { width: 176px; flex: none; } .gia .conector { width: 80px; flex: none; } }
+.gia .panel-p { flex: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px 24px; align-items: start; }
+.gia .panel-p > .cab-panel { grid-column: 1 / -1; }
+.gia .nodo-p { flex: 1 1 150px; min-width: 146px; max-width: 210px; }
+.gia .conector { flex: 0 0 74px; max-width: none; }
+.gia .conector-etq { width: 74px; font-size: 10.5px; }
+.gia .panel-p { display: flex; flex-wrap: wrap; gap: 14px 24px; }
+.gia .panel-p > * { flex: 1 1 280px; }
+.gia .panel-p > .cab-panel { flex-basis: 100%; }
+.gia .panel-p { align-items: flex-start; }
+.gia .panel-p { flex-direction: row; }
+
+/* ── Videos: reproductor con capítulos ── */
+.gia .video-layout { display: flex; flex-wrap: wrap; gap: 18px; }
+.gia .reproductor { flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.gia .pantalla { position: relative; aspect-ratio: 16 / 9; border-radius: 14px; overflow: hidden; background: radial-gradient(120% 90% at 15% 10%, #2e9e63 0%, #14492f 45%, #0b1d14 100%); color: #fff; display: flex; align-items: center; justify-content: center; padding: 6%; }
+.gia .pv-badge { position: absolute; top: 14px; left: 14px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; background: rgba(255, 255, 255, 0.16); padding: 4px 10px; border-radius: 999px; }
+.gia .pv-capa { position: absolute; top: 14px; right: 14px; font-size: 12px; color: #cfe8da; }
+.gia .pv-portada { text-align: center; max-width: 560px; }
+.gia .pv-titulo { font: 600 clamp(20px, 2.6vw, 30px) / 1.25 var(--font-sora), Sora, sans-serif; }
+.gia .pv-meta { margin-top: 10px; color: #cfe8da; font-size: 14px; }
+.gia .pv-paso { width: 100%; max-width: 620px; display: flex; flex-direction: column; gap: 14px; animation: gia-aparece 0.4s ease-out; }
+.gia .pv-n { font-size: 13px; font-weight: 600; color: #9fd9b8; letter-spacing: 0.04em; text-transform: uppercase; }
+.gia .pv-texto { font: 600 clamp(18px, 2.4vw, 28px) / 1.3 var(--font-sora), Sora, sans-serif; }
+.gia .pv-maqueta { background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+.gia .pv-maqueta span { height: 9px; border-radius: 5px; background: rgba(255, 255, 255, 0.28); }
+.gia .pv-maqueta span.corta { width: 55%; }
+.gia .pv-play { position: absolute; inset: 0; margin: auto; width: 72px; height: 72px; border-radius: 50%; border: none; background: rgba(255, 255, 255, 0.95); color: var(--g-verde-osc); display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3); top: auto; bottom: 14%; }
+.gia .pv-play:hover { transform: scale(1.05); }
+.gia .controles { display: flex; align-items: center; gap: 12px; }
+.gia .ctl { width: 40px; height: 40px; border-radius: 50%; border: 1px solid #dbe2dc; background: #fff; color: var(--g-tinta); display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.gia .barra-cap { flex: 1; display: flex; gap: 4px; }
+.gia .barra-cap span { height: 6px; border-radius: 3px; background: #e2e8e3; overflow: hidden; }
+.gia .barra-cap i { display: block; height: 100%; background: var(--g-verde); }
+.gia .tiempo { font-size: 13px; color: var(--g-gris); font-variant-numeric: tabular-nums; }
+.gia .capitulos { flex: 1 1 260px; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.gia .capitulos button { width: 100%; display: flex; align-items: center; gap: 10px; text-align: left; min-height: 48px; padding: 8px 10px; border-radius: 10px; border: 1px solid transparent; background: transparent; color: var(--g-tinta); }
+.gia .capitulos button:hover { background: var(--g-gris-cl); }
+.gia .capitulos button.en { background: var(--g-verde-cl); border-color: #b9dcc8; }
+.gia .cap-n { width: 26px; height: 26px; border-radius: 50%; background: #e9eee9; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex: none; }
+.gia .hecho .cap-n { background: var(--g-verde); color: #fff; }
+.gia .cap-t { flex: 1; font-size: 14px; line-height: 1.35; }
+.gia .cap-d { font-size: 12px; color: var(--g-gris); font-variant-numeric: tabular-nums; }
+.gia .biblioteca { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.gia .mini { text-align: left; border: 1px solid #e4e9e5; background: #fff; border-radius: 12px; padding: 8px; display: flex; flex-direction: column; gap: 6px; color: var(--g-tinta); }
+.gia .mini.sel { border-color: var(--g-verde); box-shadow: 0 0 0 3px rgba(31, 107, 69, 0.12); }
+.gia .mini-thumb { position: relative; aspect-ratio: 16 / 9; border-radius: 8px; background: linear-gradient(135deg, #1f6b45, #0b1d14); display: flex; align-items: center; justify-content: center; }
+.gia .mini-dur { position: absolute; right: 6px; bottom: 6px; font-size: 11px; color: #fff; background: rgba(0, 0, 0, 0.55); padding: 1px 6px; border-radius: 4px; }
+.gia .mini-t { font-size: 13.5px; font-weight: 600; line-height: 1.3; }
+
+/* ── Asesor: chat ── */
+.gia .asesor { gap: 0; padding: 0; overflow: hidden; }
+.gia .asesor-cab { display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid #e9eee9; }
+.gia .asesor-avatar { width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(135deg, #2e9e63, #14492f); display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.gia .chat { display: flex; flex-direction: column; gap: 12px; padding: 20px; min-height: 220px; max-height: 460px; overflow-y: auto; background: #fafbfa; }
+.gia .chat-vacio { margin: auto; text-align: center; }
+.gia .burbuja { max-width: min(640px, 90%); padding: 12px 16px; border-radius: 16px; font-size: 14.5px; line-height: 1.5; animation: gia-aparece 0.25s ease-out; }
+.gia .burbuja.yo { align-self: flex-end; background: var(--g-tinta); color: #fff; border-bottom-right-radius: 4px; }
+.gia .burbuja.ia { align-self: flex-start; background: #fff; border: 1px solid #e4e9e5; border-bottom-left-radius: 4px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.gia .veredicto { font: 600 16px var(--font-sora), Sora, sans-serif; }
+.gia .pasos-ia { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.gia .fuentes { display: flex; flex-wrap: wrap; gap: 6px; }
+.gia .fuente { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 3px 9px; border-radius: 999px; background: var(--g-gris-cl); color: var(--g-suave); }
+.gia .escribiendo { flex-direction: row !important; gap: 4px !important; padding: 14px 16px; }
+.gia .escribiendo span { width: 7px; height: 7px; border-radius: 50%; background: #9aaba0; animation: gia-punto 1s ease-in-out infinite; }
+.gia .escribiendo span:nth-child(2) { animation-delay: 0.15s; }
+.gia .escribiendo span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes gia-punto { 0%, 100% { opacity: 0.3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } }
+.gia .sugeridas { display: flex; gap: 8px; padding: 12px 20px 0; overflow-x: auto; }
+.gia .sugerida { flex: none; max-width: 300px; text-align: left; min-height: 44px; padding: 8px 14px; border-radius: 12px; border: 1px solid #dbe2dc; background: #fff; color: var(--g-tinta); font-size: 13.5px; }
+.gia .sugerida:hover:not(:disabled) { border-color: var(--g-verde); }
+.gia .chat-input { display: flex; gap: 8px; padding: 12px 20px 18px; }
+.gia .chat-input input { flex: 1; min-height: 48px; border-radius: 12px; border: 1px solid #dbe2dc; padding: 0 14px; font: inherit; color: var(--g-tinta); background: #fff; }
+.gia .chat-input button { width: 48px; height: 48px; border-radius: 12px; border: none; background: var(--g-verde); color: #fff; display: inline-flex; align-items: center; justify-content: center; }
+.gia .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .gia .escribiendo span, .gia .pv-paso, .gia .burbuja { animation: none; } }
+
+/* ── Panorama: bento ── */
+.gia .bento { display: grid; gap: 14px; grid-template-columns: 1.4fr repeat(2, 1fr); grid-auto-rows: minmax(120px, auto); }
+.gia .kpi-hero { grid-row: span 2; background: radial-gradient(120% 100% at 0% 0%, #2e9e63 0%, #1f6b45 40%, #13221a 100%); border: none; color: #fff; gap: 8px; }
+.gia .kpi-tile { gap: 6px; justify-content: center; }
+@media (max-width: 900px) { .gia .bento { grid-template-columns: 1fr 1fr; } .gia .kpi-hero { grid-column: 1 / -1; grid-row: auto; } }
+.gia .anillos { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.gia .anillo { display: flex; align-items: center; gap: 12px; }
+.gia .anillo-n { font: 600 16px var(--font-sora), Sora, sans-serif; fill: var(--g-tinta); }
+.gia .feed { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+.gia .feed-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid #e4e9e5; border-radius: 12px; text-decoration: none; color: var(--g-tinta); background: #fff; }
+.gia .feed-item:hover { border-color: var(--g-verde); color: var(--g-tinta); }
+.gia .en-vivo { border: 2px solid #2e9e63; }
+.gia .cita-card { margin: 0; border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 8px; color: var(--g-tinta); }
+.gia .cita-card blockquote { margin: 4px 0 0; font-size: 15px; font-style: italic; color: var(--g-suave); position: relative; padding-left: 14px; border-left: 3px solid currentColor; }
+.gia .hallazgos { display: grid; gap: 10px; }
+.gia .hallazgo { display: flex; gap: 14px; align-items: flex-start; padding: 12px 14px; border-radius: 12px; background: #fafbfa; border: 1px solid #edf1ee; }
+.gia .apilada { display: flex; height: 48px; border-radius: 12px; overflow: hidden; gap: 3px; }
+.gia .apilada span { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 13px; font-weight: 600; min-width: 48px; }
+.gia .leyenda { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; color: var(--g-suave); }
+.gia .leyenda span { display: inline-flex; align-items: center; gap: 6px; }
+.gia .leyenda i { width: 12px; height: 12px; border-radius: 4px; display: inline-block; }
+.gia .seg { flex-wrap: nowrap; max-width: 100%; overflow-x: auto; } .gia .seg button { white-space: nowrap; }

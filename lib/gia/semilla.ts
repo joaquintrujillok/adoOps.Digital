@@ -109,17 +109,34 @@ export const COMPARTIDAS: {
   id: CompartidaId;
   t: string;
   d: string;
-  unidades: string[];
+  /** Horas al mes que cada unidad dedica a esta tarea. Suma `h`. */
+  reparto: Record<string, number>;
   personas: number;
   h: number;
   solucion: SolucionSemilla;
   propuesta: string;
 }[] = [
-  { id: "consolidar", t: "Consolidar planillas de otras áreas en un informe", d: "Bajar archivos, copiarlos a Excel, cruzarlos y mandarlos por correo.", unidades: ["Recepción", "Laboratorio de calidad", "Trade marketing", "Gerencia comercial"], personas: 31, h: 990, solucion: "agente_datos", propuesta: "Un agente de datos común que lee las fuentes y arma cada informe." },
-  { id: "doble", t: "Digitar dos veces lo mismo", d: "Lo que llega por WhatsApp, PDF o romana se vuelve a escribir en el ERP.", unidades: ["Recepción", "Mantenimiento", "Abastecimiento", "Contabilidad"], personas: 37, h: 760, solucion: "agente_proceso", propuesta: "Un agente de proceso que toma el dato en su origen y lo registra una vez." },
-  { id: "consultas", t: "Responder la misma consulta una y otra vez", d: "Volúmenes, pagos, estado de pedidos, liquidaciones: por WhatsApp y correo.", unidades: ["Productores", "Relación con productores", "Servicio al cliente", "Remuneraciones"], personas: 29, h: 520, solucion: "gem", propuesta: "Un asistente de consultas por área, con la misma base de conocimiento." },
-  { id: "minutas", t: "Minutas y seguimiento de compromisos", d: "Escribir la minuta al final del día y perseguir los compromisos.", unidades: ["Planta", "Mantenimiento", "Ventas"], personas: 64, h: 310, solucion: "gemini", propuesta: "Gemini en Meet con una plantilla de minuta común." },
+  { id: "consolidar", t: "Consolidar planillas de otras áreas en un informe", d: "Bajar archivos, copiarlos a Excel, cruzarlos y mandarlos por correo.", reparto: { Recepción: 310, "Laboratorio de calidad": 120, "Trade marketing": 260, "Gerencia comercial": 300 }, personas: 31, h: 990, solucion: "agente_datos", propuesta: "Un agente de datos común que lee las fuentes y arma cada informe." },
+  { id: "doble", t: "Digitar dos veces lo mismo", d: "Lo que llega por WhatsApp, PDF o romana se vuelve a escribir en el ERP.", reparto: { Recepción: 140, Mantenimiento: 240, Abastecimiento: 90, Contabilidad: 290 }, personas: 37, h: 760, solucion: "agente_proceso", propuesta: "Un agente de proceso que toma el dato en su origen y lo registra una vez." },
+  { id: "consultas", t: "Responder la misma consulta una y otra vez", d: "Volúmenes, pagos, estado de pedidos, liquidaciones: por WhatsApp y correo.", reparto: { "Relación con productores": 280, "Servicio al cliente": 170, Remuneraciones: 70 }, personas: 29, h: 520, solucion: "gem", propuesta: "Un asistente de consultas por área, con la misma base de conocimiento." },
+  { id: "minutas", t: "Minutas y seguimiento de compromisos", d: "Escribir la minuta al final del día y perseguir los compromisos.", reparto: { Planta: 190, Mantenimiento: 60, Ventas: 60 }, personas: 64, h: 310, solucion: "gemini", propuesta: "Gemini en Meet con una plantilla de minuta común." },
 ];
+
+/** A qué gerencia pertenece cada unidad del mapa de conexiones. */
+export const GERENCIA_DE: Record<string, string> = {
+  Recepción: "Operaciones",
+  "Laboratorio de calidad": "Operaciones",
+  Planta: "Operaciones",
+  Mantenimiento: "Operaciones",
+  Abastecimiento: "Operaciones",
+  "Relación con productores": "Operaciones",
+  Ventas: "Comercial",
+  "Servicio al cliente": "Comercial",
+  "Trade marketing": "Comercial",
+  "Gerencia comercial": "Comercial",
+  Contabilidad: "Administración y Finanzas",
+  Remuneraciones: "Personas",
+};
 
 // ─── El flujo entre unidades ──────────────────────────────────────────────────
 //
@@ -204,29 +221,47 @@ export const NIVELES_AUTONOMIA = [
 
 // ─── CoE as a Service ─────────────────────────────────────────────────────────
 
-export const CONSULTAS_COE = [
+export const CONSULTAS_COE: {
+  corta: string;
+  pregunta: string;
+  /** Palabras que, si aparecen en lo que alguien escribe, llevan a esta respuesta. */
+  claves: string[];
+  veredicto: string;
+  nivel: string;
+  tono: string;
+  intro: string;
+  pasos: string[];
+  fuentes: string[];
+  escala: string;
+}[] = [
   {
     corta: "Quiero hacer un agente", pregunta: "Quiero un agente que lea las guías de despacho y me arme el informe semanal para los clientes.",
-    nivel: "Nivel 3 · Agente de proceso", tono: "ambar",
-    intro: "Se puede, pero usa datos de clientes y se conecta al sistema de despacho, así que pasa por revisión.",
+    claves: ["agente", "despacho", "informe", "automatizar"],
+    veredicto: "Sí, se puede, con revisión.", nivel: "Nivel 3 · Agente de proceso", tono: "ambar",
+    intro: "Usa datos de clientes y se conecta al sistema de despacho, así que pasa por TI y Seguridad antes de ir a producción.",
     pasos: ["Registra el caso en el catálogo con la plantilla de agente (10 min).", "Clasifica los datos: guías de despacho = interno; datos de clientes = confidencial.", "Construye un prototipo con datos de prueba en el entorno del CoE.", "Pide revisión de TI y Seguridad antes de conectarlo al sistema real."],
+    fuentes: ["Estándar de niveles de autonomía", "Plantilla de ficha de agente"],
     escala: "TI (arquitectura) y Seguridad · respuesta en 5 días hábiles",
   },
   {
     corta: "¿Puedo usar ChatGPT?", pregunta: "¿Puedo usar ChatGPT con planillas de producción?",
-    nivel: "Política de uso aceptable", tono: "rojo",
-    intro: "No con datos internos en cuentas personales. Usa Gemini con tu cuenta de la empresa: los datos quedan dentro de Workspace.",
+    claves: ["chatgpt", "planilla", "datos", "personal", "puedo usar"],
+    veredicto: "No con tu cuenta personal. Sí con Gemini.", nivel: "Política de uso aceptable", tono: "rojo",
+    intro: "Las planillas de producción son datos internos. Usa Gemini con tu cuenta de la empresa: los datos quedan dentro de Workspace.",
     pasos: ["Datos públicos: cualquier herramienta autorizada.", "Datos internos: solo Gemini u herramientas aprobadas por el CoE.", "Datos confidenciales o personales: solo agentes aprobados de nivel 3."],
-    escala: "no requiere; consulta la política completa en el repositorio",
+    fuentes: ["Directriz de uso aceptable de IA y Workspace", "Clasificación de datos para IA"],
+    escala: "no requiere",
   },
   {
     corta: "Mejorar mis minutas", pregunta: "¿Cómo hago que Gemini me arme la minuta de la reunión de turno?",
-    nivel: "Nivel 1 · Autoservicio", tono: "verde",
-    intro: "Lo puedes hacer hoy mismo sin pedir permiso.",
+    claves: ["minuta", "reunión", "meet", "gemini", "acta"],
+    veredicto: "Sí, hoy mismo y sin pedir permiso.", nivel: "Nivel 1 · Autoservicio", tono: "verde",
+    intro: "Es uso personal de Gemini con tus propias reuniones: no necesita aprobación.",
     pasos: ["Activa la toma de notas de Gemini en la reunión de Meet.", "Usa la plantilla de prompt “Minuta de turno” del repositorio.", "Revisa los compromisos antes de enviarla."],
+    fuentes: ["Video: Cómo armar la minuta del turno con Gemini en Meet"],
     escala: "no requiere",
   },
-] as const;
+];
 
 export const REPOSITORIO = [
   { t: "Política de uso aceptable", k: "Política" },
@@ -236,11 +271,47 @@ export const REPOSITORIO = [
   { t: "Plantilla de ficha de agente", k: "Plantilla" },
 ];
 
-export const VIDEOS = [
-  { t: "Cómo armar la minuta del turno con Gemini en Meet", min: 3, capa: "Capa 1" },
-  { t: "Crear un Gem para el informe de recepción, paso a paso", min: 6, capa: "Capa 2" },
-  { t: "Qué datos puedo usar con IA y cuáles no", min: 4, capa: "Estándar" },
-  { t: "Cómo proponer un caso de uso al CoE", min: 2, capa: "Estándar" },
+/**
+ * Los videos paso a paso del repositorio. En la demo son una vista previa: se
+ * graban con el cliente en la etapa 2. `pasos` son los capítulos, con su
+ * duración en segundos.
+ */
+export const VIDEOS: { id: string; t: string; capa: string; pasos: { t: string; seg: number }[] }[] = [
+  {
+    id: "minuta", t: "Cómo armar la minuta del turno con Gemini en Meet", capa: "Capa 1",
+    pasos: [
+      { t: "Activa “Tomar notas con Gemini” al entrar a la reunión", seg: 35 },
+      { t: "Pega la plantilla de prompt “Minuta de turno”", seg: 50 },
+      { t: "Revisa compromisos, responsables y plazos", seg: 60 },
+      { t: "Guarda la minuta en la carpeta del turno y compártela", seg: 40 },
+    ],
+  },
+  {
+    id: "gem", t: "Crear un Gem para el informe de recepción, paso a paso", capa: "Capa 2",
+    pasos: [
+      { t: "Qué es un Gem y cuándo conviene", seg: 45 },
+      { t: "Escribe las instrucciones del Gem", seg: 90 },
+      { t: "Conecta la carpeta de Drive con las planillas", seg: 70 },
+      { t: "Pruébalo con el informe de ayer y compáralo", seg: 80 },
+      { t: "Regístralo en el catálogo del CoE", seg: 40 },
+    ],
+  },
+  {
+    id: "datos", t: "Qué datos puedo usar con IA y cuáles no", capa: "Estándar",
+    pasos: [
+      { t: "Los cuatro tipos de datos", seg: 60 },
+      { t: "Ejemplos de Valle Sur por tipo", seg: 80 },
+      { t: "Qué herramienta para cada tipo", seg: 60 },
+    ],
+  },
+  {
+    id: "caso", t: "Cómo proponer un caso de uso al CoE", capa: "Estándar",
+    pasos: [
+      { t: "Describe el problema con una cifra", seg: 40 },
+      { t: "Llena la ficha en el banco de ideas", seg: 50 },
+      { t: "Qué pasa después: evaluación y respuesta", seg: 30 },
+    ],
+  },
 ];
 
 export const IDEAS = [
