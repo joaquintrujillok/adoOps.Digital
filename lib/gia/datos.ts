@@ -18,7 +18,7 @@ export function nuevoToken(): string {
   return randomBytes(18).toString("base64url");
 }
 
-/** Respuestas por entrevista: seis temas, a lo más una repregunta cada uno. */
+/** Respuestas por entrevista: un turno por tema y a lo más una repregunta cada uno. */
 export const MAX_TURNOS = TEMAS.length * 2;
 
 export async function crearEntrevista(p: { nombre: string; cargo: string; gerencia: string }): Promise<string> {

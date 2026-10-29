@@ -4,9 +4,14 @@
 // GET  ?t=TOKEN           estado de la entrevista, para retomar si recarga
 // POST JSON  { accion: "iniciar", nombre, cargo, gerencia }      → { token }
 // POST form  accion=responder, token, tema, ronda, audio | texto, segundos
-//                                                → { transcripcion, repregunta }
+//                                                → { transcripcion }
+// POST JSON  { accion: "repreguntar", token, tema }              → { repregunta }
 // POST JSON  { accion: "terminar", token }                       → { analisis }
 // POST JSON  { accion: "confirmar", token }                      → { id }
+//
+// Transcribir y repreguntar son dos llamadas y no una a propósito: así la
+// pantalla puede decir con verdad en qué paso está ("transcribiendo", "viendo si
+// falta algo") y mostrar lo que se escuchó antes de que llegue la repregunta.
 //
 // Cada llamada cuesta tokens de OpenAI y la ruta es pública, así que los topes
 // van acá: tamaño del audio, largo del texto y cantidad de turnos.
@@ -30,7 +35,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 const SIN_CACHE = { "Cache-Control": "no-store" };
-const MAX_AUDIO = 12 * 1024 * 1024; // ~3 min de opus/webm con holgura
+const MAX_AUDIO = 20 * 1024 * 1024; // 5 min de opus/webm o m4a con holgura; la API acepta hasta 25 MB
 const MAX_TEXTO = 3000;
 
 const error = (msg: string, status = 400) => NextResponse.json({ error: msg }, { status, headers: SIN_CACHE });
@@ -88,6 +93,17 @@ export async function POST(req: Request) {
     }
   }
 
+  if (body.accion === "repreguntar") {
+    // Lee la respuesta guardada en vez de recibirla: el navegador no puede
+    // hacer que el modelo repregunte sobre algo que la persona no dijo.
+    const tema = temaPorId(String(body.tema ?? ""));
+    if (!tema) return error("Tema desconocido.");
+    const turno = (await turnosDe(e.id)).find((t) => t.tema === tema.id && t.ronda === 0);
+    if (!turno) return error("Todavía no respondes ese tema.");
+    const repregunta = await repreguntar(tema.id, turno.transcripcion);
+    return NextResponse.json({ repregunta }, { headers: SIN_CACHE });
+  }
+
   if (body.accion === "confirmar") {
     if (e.estado !== "lista" && e.estado !== "confirmada") return error("La ficha todavía no está lista.");
     if (e.estado === "lista") await marcarEstado(e.id, { estado: "confirmada", confirmadaEn: new Date() });
@@ -123,7 +139,7 @@ async function responder(form: FormData) {
   let canal: "voz" | "texto" = "voz";
   const audio = form.get("audio");
   if (audio instanceof File && audio.size > 0) {
-    if (audio.size > MAX_AUDIO) return error("El audio es demasiado largo. Intenta con una respuesta de menos de 3 minutos.");
+    if (audio.size > MAX_AUDIO) return error("El audio es demasiado largo. Intenta con una respuesta de menos de 5 minutos.");
     try {
       transcripcion = await transcribir(audio, pregunta);
     } catch (err) {
@@ -137,6 +153,5 @@ async function responder(form: FormData) {
   if (!transcripcion) return error("No escuchamos nada. Intenta de nuevo, un poco más cerca del micrófono.");
 
   await guardarTurno(e.id, { tema: tema.id, ronda, pregunta, transcripcion, canal, segundos });
-  const repregunta = ronda === 0 ? await repreguntar(tema.id, transcripcion) : null;
-  return NextResponse.json({ transcripcion, repregunta }, { headers: SIN_CACHE });
+  return NextResponse.json({ transcripcion }, { headers: SIN_CACHE });
 }
