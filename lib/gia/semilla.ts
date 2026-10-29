@@ -227,39 +227,48 @@ export const CONSULTAS_COE: {
   /** Palabras que, si aparecen en lo que alguien escribe, llevan a esta respuesta. */
   claves: string[];
   veredicto: string;
+  /** sí · condicionado · no: decide el color y el ícono del veredicto. */
+  tipo: "si" | "condicionado" | "no";
+  /** Nivel de autonomía (1 a 4) que aplica. `null` si la respuesta es de política, no de un caso. */
+  nivelN: 1 | 2 | 3 | 4 | null;
   nivel: string;
   tono: string;
   intro: string;
   pasos: string[];
   fuentes: string[];
   escala: string;
+  /** Lo que la persona puede hacer a continuación. */
+  acciones: string[];
 }[] = [
   {
     corta: "Quiero hacer un agente", pregunta: "Quiero un agente que lea las guías de despacho y me arme el informe semanal para los clientes.",
     claves: ["agente", "despacho", "informe", "automatizar"],
-    veredicto: "Sí, se puede, con revisión.", nivel: "Nivel 3 · Agente de proceso", tono: "ambar",
+    veredicto: "Sí, se puede, con revisión.", tipo: "condicionado", nivelN: 3, nivel: "Nivel 3 · Agente de proceso", tono: "ambar",
     intro: "Usa datos de clientes y se conecta al sistema de despacho, así que pasa por TI y Seguridad antes de ir a producción.",
     pasos: ["Registra el caso en el catálogo con la plantilla de agente (10 min).", "Clasifica los datos: guías de despacho = interno; datos de clientes = confidencial.", "Construye un prototipo con datos de prueba en el entorno del CoE.", "Pide revisión de TI y Seguridad antes de conectarlo al sistema real."],
     fuentes: ["Estándar de niveles de autonomía", "Plantilla de ficha de agente"],
     escala: "TI (arquitectura) y Seguridad · respuesta en 5 días hábiles",
+    acciones: ["Crear la ficha del caso", "Ver el estándar de autonomía"],
   },
   {
     corta: "¿Puedo usar ChatGPT?", pregunta: "¿Puedo usar ChatGPT con planillas de producción?",
     claves: ["chatgpt", "planilla", "datos", "personal", "puedo usar"],
-    veredicto: "No con tu cuenta personal. Sí con Gemini.", nivel: "Política de uso aceptable", tono: "rojo",
+    veredicto: "No con tu cuenta personal. Sí con Gemini.", tipo: "no", nivelN: null, nivel: "Política de uso aceptable", tono: "rojo",
     intro: "Las planillas de producción son datos internos. Usa Gemini con tu cuenta de la empresa: los datos quedan dentro de Workspace.",
     pasos: ["Datos públicos: cualquier herramienta autorizada.", "Datos internos: solo Gemini u herramientas aprobadas por el CoE.", "Datos confidenciales o personales: solo agentes aprobados de nivel 3."],
     fuentes: ["Directriz de uso aceptable de IA y Workspace", "Clasificación de datos para IA"],
     escala: "no requiere",
+    acciones: ["Abrir Gemini con mi cuenta", "Ver la clasificación de datos"],
   },
   {
     corta: "Mejorar mis minutas", pregunta: "¿Cómo hago que Gemini me arme la minuta de la reunión de turno?",
     claves: ["minuta", "reunión", "meet", "gemini", "acta"],
-    veredicto: "Sí, hoy mismo y sin pedir permiso.", nivel: "Nivel 1 · Autoservicio", tono: "verde",
+    veredicto: "Sí, hoy mismo y sin pedir permiso.", tipo: "si", nivelN: 1, nivel: "Nivel 1 · Autoservicio", tono: "verde",
     intro: "Es uso personal de Gemini con tus propias reuniones: no necesita aprobación.",
     pasos: ["Activa la toma de notas de Gemini en la reunión de Meet.", "Usa la plantilla de prompt “Minuta de turno” del repositorio.", "Revisa los compromisos antes de enviarla."],
     fuentes: ["Video: Cómo armar la minuta del turno con Gemini en Meet"],
     escala: "no requiere",
+    acciones: ["Ver el video (3 min)", "Copiar la plantilla de minuta"],
   },
 ];
 
