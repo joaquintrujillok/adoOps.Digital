@@ -70,41 +70,120 @@ export const HALLAZGOS = [
 
 export type SolucionSemilla = "gemini" | "gem" | "agente_proceso" | "agente_datos";
 
-export const PROCESOS: { p: string; u: string; g: string; n: number; h: number; s: SolucionSemilla }[] = [
-  { p: "Conciliación de facturas de proveedores", u: "Adm. y Finanzas", g: "Administración y Finanzas", n: 14, h: 420, s: "agente_proceso" },
-  { p: "Informe diario de recepción y calidad", u: "Recepción", g: "Operaciones", n: 9, h: 310, s: "gem" },
-  { p: "Consultas de productores (volúmenes y pagos)", u: "Relación con productores", g: "Operaciones", n: 11, h: 280, s: "agente_proceso" },
-  { p: "Reportes de sell-out para trade", u: "Trade marketing", g: "Comercial", n: 8, h: 260, s: "agente_datos" },
-  { p: "Órdenes de mantenimiento desde reportes de terreno", u: "Mantenimiento", g: "Operaciones", n: 17, h: 240, s: "agente_proceso" },
-  { p: "Minutas y seguimiento de reuniones de turno", u: "Planta", g: "Operaciones", n: 42, h: 190, s: "gemini" },
-  { p: "Respuesta a reclamos de clientes", u: "Servicio al cliente", g: "Comercial", n: 12, h: 170, s: "gem" },
-  { p: "Validación de rendiciones de gastos", u: "Adm. y Finanzas", g: "Administración y Finanzas", n: 6, h: 130, s: "agente_proceso" },
+/**
+ * Los 8 procesos con más horas repetitivas. `ahorro` es lo que se estima
+ * recuperar con la solución propuesta, en h/mes: suma 1.280 de las 3.150
+ * automatizables de toda la empresa.
+ */
+export const PROCESOS: { p: string; u: string; g: string; n: number; h: number; ahorro: number; s: SolucionSemilla }[] = [
+  { p: "Conciliación de facturas de proveedores", u: "Contabilidad", g: "Administración y Finanzas", n: 14, h: 420, ahorro: 290, s: "agente_proceso" },
+  { p: "Informe diario de recepción y calidad", u: "Recepción", g: "Operaciones", n: 9, h: 310, ahorro: 220, s: "gem" },
+  { p: "Consultas de productores (volúmenes y pagos)", u: "Relación con productores", g: "Operaciones", n: 11, h: 280, ahorro: 170, s: "agente_proceso" },
+  { p: "Reportes de sell-out para trade", u: "Trade marketing", g: "Comercial", n: 8, h: 260, ahorro: 190, s: "agente_datos" },
+  { p: "Órdenes de mantenimiento desde reportes de terreno", u: "Mantenimiento", g: "Operaciones", n: 17, h: 240, ahorro: 120, s: "agente_proceso" },
+  { p: "Minutas y seguimiento de reuniones de turno", u: "Planta", g: "Operaciones", n: 42, h: 190, ahorro: 110, s: "gemini" },
+  { p: "Respuesta a reclamos de clientes", u: "Servicio al cliente", g: "Comercial", n: 12, h: 170, ahorro: 90, s: "gem" },
+  { p: "Validación de rendiciones de gastos", u: "Contabilidad", g: "Administración y Finanzas", n: 6, h: 130, ahorro: 90, s: "agente_proceso" },
 ];
 
-export const CUADRANTES = [
-  { titulo: "Quick wins · alto impacto, bajo esfuerzo", tono: "verde", items: ["Informe diario de recepción y calidad", "Minutas de turno con Gemini en Meet", "Respuestas tipo a reclamos"] },
-  { titulo: "Proyectos · alto impacto, más esfuerzo", tono: "azul", items: ["Conciliación de facturas", "Consultas de productores", "Órdenes de mantenimiento"] },
-  { titulo: "Autoservicio · bajo impacto, bajo esfuerzo", tono: "gris", items: ["Plantillas de correo comercial", "Resúmenes de documentos"] },
-  { titulo: "Evaluar después", tono: "ambar", items: ["Pronóstico de demanda con IA", "Visión computacional en línea"] },
-] as const;
+/**
+ * Las capas de agentización, de la más simple a la más integrada. Es el orden
+ * en que se aborda: la capa 1 no necesita a TI; la 3 y la 4 sí.
+ */
+export const CAPAS: { s: SolucionSemilla; n: number; t: string; d: string; quien: string; tono: string }[] = [
+  { s: "gemini", n: 1, t: "Gemini en Workspace", d: "Cada persona con el Gemini que ya tiene: correo, documentos, minutas.", quien: "La propia persona", tono: "azul" },
+  { s: "gem", n: 2, t: "Gem de equipo", d: "Un asistente del área sobre sus documentos en Drive.", quien: "El área, registrado en el CoE", tono: "morado" },
+  { s: "agente_proceso", n: 3, t: "Agente de proceso", d: "Cruza sistemas y ejecuta pasos: lee, digita, concilia.", quien: "CoE + TI y Seguridad", tono: "verde" },
+  { s: "agente_datos", n: 4, t: "Agente de datos", d: "Consolida varias fuentes y arma el informe solo.", quien: "CoE + TI", tono: "ambar" },
+];
+
+// ─── Lo que se repite entre unidades ──────────────────────────────────────────
+//
+// Esto es lo que el levantamiento entrega además del perfil de cada persona: la
+// misma tarea, hecha por separado en áreas que no se hablan. Cada una es un
+// solo caso de uso que sirve a varias unidades a la vez.
+
+export type CompartidaId = "consolidar" | "consultas" | "doble" | "minutas";
+
+export const COMPARTIDAS: {
+  id: CompartidaId;
+  t: string;
+  d: string;
+  unidades: string[];
+  personas: number;
+  h: number;
+  solucion: SolucionSemilla;
+  propuesta: string;
+}[] = [
+  { id: "consolidar", t: "Consolidar planillas de otras áreas en un informe", d: "Bajar archivos, copiarlos a Excel, cruzarlos y mandarlos por correo.", unidades: ["Recepción", "Laboratorio de calidad", "Trade marketing", "Gerencia comercial"], personas: 31, h: 990, solucion: "agente_datos", propuesta: "Un agente de datos común que lee las fuentes y arma cada informe." },
+  { id: "doble", t: "Digitar dos veces lo mismo", d: "Lo que llega por WhatsApp, PDF o romana se vuelve a escribir en el ERP.", unidades: ["Recepción", "Mantenimiento", "Abastecimiento", "Contabilidad"], personas: 37, h: 760, solucion: "agente_proceso", propuesta: "Un agente de proceso que toma el dato en su origen y lo registra una vez." },
+  { id: "consultas", t: "Responder la misma consulta una y otra vez", d: "Volúmenes, pagos, estado de pedidos, liquidaciones: por WhatsApp y correo.", unidades: ["Productores", "Relación con productores", "Servicio al cliente", "Remuneraciones"], personas: 29, h: 520, solucion: "gem", propuesta: "Un asistente de consultas por área, con la misma base de conocimiento." },
+  { id: "minutas", t: "Minutas y seguimiento de compromisos", d: "Escribir la minuta al final del día y perseguir los compromisos.", unidades: ["Planta", "Mantenimiento", "Ventas"], personas: 64, h: 310, solucion: "gemini", propuesta: "Gemini en Meet con una plantilla de minuta común." },
+];
+
+// ─── El flujo entre unidades ──────────────────────────────────────────────────
+//
+// Como el flujo del levantamiento del JPL: cómo se mueve el trabajo hoy, según
+// lo contaron las personas. Cada paso dice quién lo hace y qué entrega al
+// siguiente; en rojo, lo que hoy se resuelve a mano, con la cita de quien lo
+// dijo. Las etiquetas de `compartidas` son las que se iluminan al elegir una
+// tarea repetida: así se ve que la misma tarea cruza unidades que no se hablan.
+
+export interface PasoFlujo {
+  unidad: string;
+  gerencia: string;
+  externa?: boolean;
+  personas?: number;
+  hace: string;
+  manual?: { texto: string; cita?: string; quien: string };
+  compartidas: CompartidaId[];
+  /** Lo que este paso le entrega al siguiente. */
+  entrega?: string;
+}
+
+export const FLUJOS: { id: string; t: string; d: string; pasos: PasoFlujo[] }[] = [
+  {
+    id: "leche",
+    t: "La leche: de la recepción al pago",
+    d: "Del camión en la romana a la liquidación del productor.",
+    pasos: [
+      { unidad: "Productores", gerencia: "Externo", externa: true, hace: "Entregan la leche dos veces al día.", manual: { texto: "Preguntan por WhatsApp cuánto entregaron y cuándo se les paga.", quien: "Relación con productores, P1" }, compartidas: ["consultas"], entrega: "leche en la romana" },
+      { unidad: "Recepción", gerencia: "Operaciones", personas: 9, hace: "Pesa, toma muestras y arma el informe diario.", manual: { texto: "Cruza la romana con las planillas del laboratorio en Excel: 1,5 h diarias.", cita: "Las cruzo a mano en Excel, como una hora y media diaria.", quien: "Carolina M., P2" }, compartidas: ["consolidar", "doble"], entrega: "muestras y planilla por correo" },
+      { unidad: "Laboratorio de calidad", gerencia: "Operaciones", personas: 7, hace: "Analiza grasa, proteína y recuento.", manual: { texto: "Los resultados viven en una planilla que se reenvía por correo.", cita: "Lo mando por correo y cada uno lo copia a su Excel.", quien: "Analista de laboratorio, P2" }, compartidas: ["consolidar"], entrega: "resultados de calidad" },
+      { unidad: "Relación con productores", gerencia: "Operaciones", personas: 11, hace: "Calcula la liquidación por volumen y calidad.", manual: { texto: "Responde una a una las consultas de volumen y pago: 280 h/mes.", quien: "Ejecutiva de productores, P2" }, compartidas: ["consultas"], entrega: "liquidación para pago" },
+      { unidad: "Contabilidad", gerencia: "Administración y Finanzas", personas: 14, hace: "Paga a los productores y registra en el ERP.", manual: { texto: "Digita en el ERP lo que llega en PDF y lo concilia a mano.", quien: "Analista contable, P2" }, compartidas: ["doble"] },
+    ],
+  },
+  {
+    id: "venta",
+    t: "La venta: del pedido al reporte",
+    d: "De la orden de compra de la cadena a la decisión comercial.",
+    pasos: [
+      { unidad: "Cadenas y distribuidores", gerencia: "Externo", externa: true, hace: "Envían órdenes de compra y publican el sell-out en sus portales.", compartidas: [], entrega: "órdenes de compra" },
+      { unidad: "Ventas", gerencia: "Comercial", personas: 22, hace: "Toma los pedidos y coordina el despacho.", manual: { texto: "La reunión semanal de pedidos se documenta a mano, cuando se documenta.", quien: "Ejecutivo de ventas, P1" }, compartidas: ["minutas"], entrega: "pedidos y quiebres" },
+      { unidad: "Servicio al cliente", gerencia: "Comercial", personas: 12, hace: "Atiende reclamos y el estado de los pedidos.", manual: { texto: "Responde por correo las mismas consultas, una a una.", quien: "Analista de servicio, P2" }, compartidas: ["consultas"], entrega: "reclamos y quiebres" },
+      { unidad: "Trade marketing", gerencia: "Comercial", personas: 8, hace: "Mide el sell-out por cadena.", manual: { texto: "Baja los archivos de cada cadena y los consolida: 6 h cada lunes.", cita: "Cada lunes bajo los archivos de cada cadena y los consolido, son como seis horas.", quien: "Rodrigo P., P2" }, compartidas: ["consolidar"], entrega: "reporte semanal" },
+      { unidad: "Gerencia comercial", gerencia: "Comercial", personas: 3, hace: "Decide precios y promociones.", manual: { texto: "Recibe cuatro reportes en formatos distintos y los vuelve a juntar.", quien: "Subgerente comercial, P2" }, compartidas: ["consolidar"] },
+    ],
+  },
+  {
+    id: "mantencion",
+    t: "Mantenimiento: de la falla a la factura",
+    d: "Del aviso en la línea al pago del repuesto.",
+    pasos: [
+      { unidad: "Planta", gerencia: "Operaciones", personas: 42, hace: "Opera las líneas y avisa las fallas.", manual: { texto: "Avisa por WhatsApp; la minuta del turno se escribe al final del día.", cita: "La minuta del turno la escribo yo al final del día.", quien: "Jefe de turno, P1" }, compartidas: ["minutas"], entrega: "falla por WhatsApp" },
+      { unidad: "Mantenimiento", gerencia: "Operaciones", personas: 17, hace: "Diagnostica y repara.", manual: { texto: "Transcribe el WhatsApp a una orden de trabajo en el sistema.", quien: "Supervisor de mantenimiento, P2" }, compartidas: ["doble", "minutas"], entrega: "solicitud de repuesto" },
+      { unidad: "Abastecimiento", gerencia: "Operaciones", personas: 6, hace: "Compra los repuestos.", manual: { texto: "Arma la orden de compra copiando los datos de la OT.", quien: "Comprador, P2" }, compartidas: ["doble"], entrega: "factura del proveedor" },
+      { unidad: "Contabilidad", gerencia: "Administración y Finanzas", personas: 14, hace: "Concilia la factura con la orden de compra.", manual: { texto: "Concilia a mano facturas contra órdenes de compra: 420 h/mes.", quien: "Analista contable, P2" }, compartidas: ["doble"] },
+    ],
+  },
+];
 
 /** Rutas de formación por nivel. 208 + 87 + 61 = 356, y calzan con la matriz. */
 export const RUTAS_FORMACION = [
   { t: "Constructores y champions", niveles: [4, 5], d: "Gems y diseño de agentes con el CoE. Lideran los quick wins de su unidad." },
   { t: "Usuarios de productividad", niveles: [3], d: "Gemini con buenas prácticas por rol: correo, informes, minutas. Talleres cortos de 2 horas." },
   { t: "Primeros pasos", niveles: [1, 2], d: "Reglas de uso seguro, un caso de su propia área y acompañamiento de un champion." },
-];
-
-// ─── Lineamientos ─────────────────────────────────────────────────────────────
-
-export const DIMENSIONES = [
-  { n: "Estrategia y patrocinio", s: 2.1 },
-  { n: "Plataforma e infraestructura", s: 2.0 },
-  { n: "Seguridad y riesgo", s: 1.8 },
-  { n: "Datos y clasificación", s: 1.5 },
-  { n: "Personas y capacidades", s: 1.4 },
-  { n: "Políticas y uso aceptable", s: 1.2 },
-  { n: "Gestión de casos y valor", s: 1.0 },
 ];
 
 export const DOCUMENTOS: { n: string; estado: "listo" | "revision" | "pendiente" }[] = [
@@ -122,26 +201,6 @@ export const NIVELES_AUTONOMIA = [
   { k: "Nivel 3 · Revisión", t: "Agente de proceso", d: "Se integra con ERP u otros sistemas, o usa datos personales de clientes, productores o trabajadores.", a: "TI (arquitectura) + Seguridad", tono: "ambar" },
   { k: "Nivel 4 · Comité", t: "Agente con decisión o externo", d: "Ejecuta acciones automáticas o conversa con clientes y productores fuera de la empresa.", a: "Comité de IA + Legal", tono: "rojo" },
 ] as const;
-
-// ─── Gemini y agentes ─────────────────────────────────────────────────────────
-
-export const OPCIONES_GEMINI = [
-  {
-    tag: "Opción A", t: "Adoptar bien Gemini", d: "Lineamientos, buenas prácticas por rol y champions sobre el Gemini que ya viene en Workspace.",
-    h: "1.290 h/mes · 41%", v: "UF 6.970", c: "UF 1.100", r: "UF 5.870",
-    det: ["Resuelve bien correo, documentos, planillas, minutas de Meet y resúmenes.", "Sin costo de licencia adicional: el costo es formación y acompañamiento.", "No resuelve procesos que cruzan sistemas: facturas, consultas de productores, mantenimiento.", "Es el mejor punto de partida: el retorno más rápido."],
-  },
-  {
-    tag: "Opción B", t: "Gemini + Gems y agentes de equipo", d: "Lo anterior más Gems y agentes de equipo con licencias empresariales para quienes construyen.",
-    h: "1.800 h/mes · 57%", v: "UF 9.720", c: "UF 4.300", r: "UF 5.420",
-    det: ["Suma asistentes de equipo sobre documentos de Drive: informes, respuestas tipo.", "Licencias empresariales adicionales para los usuarios que construyen agentes.", "Integraciones con ERP limitadas sin desarrollo.", "Requiere igualmente un CoE para aprobar y mantener agentes."],
-  },
-  {
-    tag: "Recomendada", t: "Híbrido gobernado", d: "Gemini para todos, más 6 agentes de proceso gobernados por el CoE.",
-    h: "2.270 h/mes · 72%", v: "UF 12.260", c: "UF 6.200", r: "UF 6.060",
-    det: ["Parte por la opción A y suma agentes donde Gemini no llega.", "Seis agentes de proceso integrados (facturas, productores, mantenimiento, sell-out, recepción, rendiciones).", "Modelo elegido por caso según costo y calidad, con trazabilidad y control de datos.", "Incluye el CoE: catálogo, aprobaciones, banco de ideas y métricas."],
-  },
-];
 
 // ─── CoE as a Service ─────────────────────────────────────────────────────────
 
@@ -177,46 +236,17 @@ export const REPOSITORIO = [
   { t: "Plantilla de ficha de agente", k: "Plantilla" },
 ];
 
+export const VIDEOS = [
+  { t: "Cómo armar la minuta del turno con Gemini en Meet", min: 3, capa: "Capa 1" },
+  { t: "Crear un Gem para el informe de recepción, paso a paso", min: 6, capa: "Capa 2" },
+  { t: "Qué datos puedo usar con IA y cuáles no", min: 4, capa: "Estándar" },
+  { t: "Cómo proponer un caso de uso al CoE", min: 2, capa: "Estándar" },
+];
+
 export const IDEAS = [
   { t: "Gem que responda las preguntas frecuentes de productores sobre liquidaciones", area: "Relación con productores", votos: 23, estado: "En evaluación" },
   { t: "Resumen automático del informe de calidad para el turno siguiente", area: "Planta", votos: 17, estado: "Aprobada" },
   { t: "Plantilla de correo para cotizaciones a distribuidores", area: "Comercial", votos: 9, estado: "Nueva" },
-];
-
-// ─── Hoja de ruta ─────────────────────────────────────────────────────────────
-
-export const ROADMAP = [
-  { q: "Meses 0 a 3 · Quick win", t: "Levantamiento inicial", items: ["Entrevistas por voz a la unidad", "Diagnóstico cultural y de uso de IA", "Directrices y protocolos iniciales", "Recomendación inicial de gobierno de datos e IA"], h: "presentación al comité ejecutivo o directorio", estilo: "verde" },
-  { q: "Meses 3 a 12", t: "Primera gobernanza", items: ["Comité de IA constituido", "Portal CoE y banco de ideas activos", "Champions formados por unidad", "Primeros 3 a 5 agentes y automatizaciones"], h: "primer sistema de gobernanza en marcha", estilo: "blanco" },
-  { q: "Meses 12 a 24", t: "Escala", items: ["Levantamiento al resto de la organización", "Upskilling diferenciado por arquetipo", "Agentes de proceso integrados a sistemas", "Tablero de valor trimestral"], h: "IA en los procesos productivos clave", estilo: "blanco" },
-  { q: "Meses 24 a 36", t: "Autonomía", items: ["Las unidades construyen dentro de las reglas", "Ideas de los colaboradores como fuente principal", "Transferencia del CoE a un equipo interno", "Revisión anual de lineamientos"], h: "cultura de mejora continua con IA", estilo: "oscuro" },
-] as const;
-
-export const ESCENARIOS = [
-  {
-    k: "Etapa 1", tag: "Partimos aquí", t: "Levantamiento inicial", d: "Tres meses para entender cómo trabaja y cómo vive el cambio la unidad, y dejar las primeras reglas del juego.",
-    p: "UF 1.200", pn: "Precio cerrado · 3 meses", estilo: "blanco",
-    inc: ["Entrevistas por agente de voz y back office de resultados", "Diagnóstico cultural, de procesos y de uso de IA", "Directrices, protocolos y orden de documentos", "Recomendación inicial de gobierno y plan para el comité"],
-    no: "Si continúan a la etapa 2 dentro de 60 días, el 50% se abona al primer trimestre.",
-  },
-  {
-    k: "Etapa 2 · Modalidad A", tag: "Acompañamiento", t: "Gobernanza y CoE", d: "Implementar lo aprobado: comité, portal CoE, champions y quick wins trimestrales.",
-    p: "UF 450 / mes", pn: "Contrato anual", estilo: "verde",
-    inc: ["Secretaría técnica del comité de IA", "CoE as a Service: portal, asesor y banco de ideas", "Formación de champions", "1 a 2 quick wins por trimestre"],
-    no: "Los agentes de proceso integrados a sistemas se cotizan aparte.",
-  },
-  {
-    k: "Etapa 2 · Modalidad B", tag: "Transformación", t: "CoE + fábrica de agentes", d: "Todo lo anterior más construcción continua de agentes y upskilling para toda la organización.",
-    p: "UF 650 / mes", pn: "Contrato anual", estilo: "oscuro",
-    inc: ["Toda la modalidad A", "Fábrica de agentes: backlog priorizado y entrega continua", "Upskilling diferenciado por arquetipo", "Levantamiento al resto de la organización"],
-    no: "Licencias y consumo de modelos aparte, según uso.",
-  },
-] as const;
-
-/** Etapa 1 + 9 meses de etapa 2 el primer año; 12 meses el segundo; el tercero con abono. */
-export const ANIOS = [
-  { m: "Etapa 1 + modalidad A", a: "UF 5.250", b: "UF 5.400", c: "UF 4.200" },
-  { m: "Etapa 1 + modalidad B", a: "UF 7.050", b: "UF 7.800", c: "UF 5.400" },
 ];
 
 // ─── Fichas de ejemplo ────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { fichaEnVivo } from "@/lib/gia/datos";
+import { fichaEnVivo, turnosDe } from "@/lib/gia/datos";
 import { ARQUETIPOS, NIVELES, SOLUCIONES, TEMAS, arquetipoPorId, campoDe } from "@/lib/gia/modelo";
 import { FICHAS } from "@/lib/gia/semilla";
 
@@ -15,6 +15,9 @@ export default async function FichaPersona({ params }: { params: Promise<{ id: s
   const ejemplo = vivo ? null : FICHAS.find((f) => f.id === id);
   const f = vivo ?? ejemplo;
   if (!f) notFound();
+  // La conversación completa solo existe para las entrevistas en vivo. Si la
+  // lectura falla, la ficha se muestra igual, sin esa sección.
+  const conversacion = vivo ? await turnosDe(vivo.id).catch(() => []) : [];
 
   const a = f.analisis;
   const principal = arquetipoPorId(a.perfil.principal)!;
@@ -121,6 +124,23 @@ export default async function FichaPersona({ params }: { params: Promise<{ id: s
           {a.cambio.ideas.length > 0 && <div><span className="muted">Ideas:</span> {a.cambio.ideas.join(" · ")}</div>}
         </div>
       </section>
+
+      {conversacion.length > 0 && (
+        <section className="card">
+          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 8, alignItems: "baseline" }}>
+            <h2>La entrevista</h2>
+            <span className="small muted">Transcripción de lo que dijo; el audio no se guarda</span>
+          </div>
+          {conversacion.map((t, i) => (
+            <div key={i} style={{ borderTop: "1px solid var(--g-linea2)", paddingTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+              <div className="small" style={{ color: t.ronda ? "var(--g-ambar)" : "var(--g-verde)", fontWeight: 600 }}>
+                {t.ronda ? "Repregunta" : TEMAS.find((x) => x.id === t.tema)?.titulo ?? "Pregunta"} · {t.pregunta}
+              </div>
+              <div>“{t.transcripcion}”</div>
+            </div>
+          ))}
+        </section>
+      )}
 
       {a.ruta && (
         <section className="card" style={{ borderColor: "var(--g-verde)", borderWidth: 2 }}>

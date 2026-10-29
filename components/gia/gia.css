@@ -244,3 +244,29 @@
 .gia-oscuro .grabando .reloj .de { font-size: 13px; margin-top: 4px; }
 .gia-oscuro .grabando .onda { height: 36px; }
 @media (max-width: 420px) { .gia-oscuro .grabando .ent-pregunta { font-size: 21px; } }
+
+/* ── Flujo entre unidades (al estilo del flujo del JPL) ── */
+.gia .compartida { text-align: left; border: 2px solid transparent; border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; min-height: 44px; color: var(--g-tinta); }
+.gia .compartida[aria-pressed="true"] { border-color: var(--g-tinta); }
+.gia .flujo { display: flex; align-items: stretch; overflow-x: auto; padding-bottom: 6px; }
+.gia .flujo-tramo { display: flex; align-items: stretch; flex: none; }
+.gia .paso { width: 220px; background: #fff; border: 1px solid var(--g-linea); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 8px; transition: opacity 0.25s, box-shadow 0.25s, border-color 0.25s; }
+.gia .paso.externo { border-style: dashed; background: var(--g-fondo); }
+.gia .paso.off { opacity: 0.35; }
+.gia .paso.on { border-width: 2px; box-shadow: 0 6px 18px rgba(19, 34, 26, 0.12); }
+.gia .t-borde-ambar { border-color: #c99a2e !important; }
+.gia .t-borde-morado { border-color: #6b5bc4 !important; }
+.gia .t-borde-azul { border-color: #2f5da8 !important; }
+.gia .t-borde-verde { border-color: var(--g-verde) !important; }
+.gia .a-mano { background: var(--g-rojo-cl); color: var(--g-rojo); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; line-height: 1.45; }
+.gia .a-mano .quien { margin-top: 4px; font-weight: 600; font-size: 11.5px; }
+.gia .flecha { width: 96px; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--g-gris); font-size: 11.5px; text-align: center; padding: 0 6px; }
+.gia .capa-n { width: 44px; height: 44px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; font: 700 20px var(--font-sora), Sora, sans-serif; flex: none; }
+.gia .video-mini { width: 44px; height: 30px; border-radius: 6px; background: var(--g-tinta); display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.gia-nav .grupo { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #7f978a; padding: 14px 12px 4px; }
+@media (max-width: 800px) { .gia-nav .grupo { display: none; } }
+/* Que el flujo use el ancho disponible y solo se desplace si no cabe. */
+.gia .flujo-tramo { flex: 1 1 0; min-width: 0; }
+.gia .flujo-tramo:last-child { flex: 0.72 1 0; }
+.gia .paso { width: auto; flex: 1 1 auto; min-width: 168px; }
+.gia .flecha { width: 72px; }
