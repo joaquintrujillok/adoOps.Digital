@@ -287,4 +287,3 @@ export function cerrarPerfil(crudos: Partial<Record<string, unknown>>): {
   return { puntos, principal: orden[0].id, potencial: orden[1].id };
 }
 
-export const GERENCIAS = ["Operaciones", "Comercial", "Administración y Finanzas", "Personas"] as const;

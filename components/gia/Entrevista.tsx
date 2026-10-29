@@ -33,14 +33,16 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { GERENCIAS, NIVELES, TEMAS, arquetipoPorId, type AnalisisGia } from "@/lib/gia/modelo";
+import { NIVELES, TEMAS, arquetipoPorId, type AnalisisGia } from "@/lib/gia/modelo";
+import type { Invitado } from "@/lib/gia/semilla";
 
 type Fase = "datos" | "tema" | "analizando" | "ficha";
 type Escena = "pregunta" | "grabando" | "procesando" | "transicion";
 type EstadoPaso = "pendiente" | "activo" | "listo";
 interface Paso { id: "subir" | "transcribir" | "revisar"; label: string; estado: EstadoPaso; detalle?: string }
 
-const CLAVE = "gia-entrevista-token";
+/** El token se guarda por link: dos invitados en el mismo navegador no se pisan. */
+const claveDe = (codigo: string) => `gia-entrevista-${codigo}`;
 /** Límite duro de una respuesta. Lo normal son 1 o 2 minutos. */
 const MAX_SEG = 300;
 /** Desde aquí el anillo pasa a ámbar, y en el último medio minuto a rojo. */
@@ -111,12 +113,11 @@ function extracto(t: string): string {
   return limpio.length > 140 ? `${limpio.slice(0, 140).replace(/\s\S*$/, "")}…` : limpio;
 }
 
-export default function Entrevista() {
+export default function Entrevista({ invitado }: { invitado: Invitado }) {
+  const CLAVE = claveDe(invitado.codigo);
+  const nombre = invitado.nombre;
   const [fase, setFase] = useState<Fase>("datos");
   const [token, setToken] = useState<string | null>(null);
-  const [nombre, setNombre] = useState("");
-  const [cargo, setCargo] = useState("");
-  const [gerencia, setGerencia] = useState<string>(GERENCIAS[0]);
 
   const [idxTema, setIdxTema] = useState(0);
   const [ronda, setRonda] = useState<0 | 1>(0);
@@ -165,7 +166,6 @@ export default function Entrevista() {
       .then((d) => {
         if (!d) return;
         setToken(t);
-        setNombre(d.nombre);
         if ((d.estado === "lista" || d.estado === "confirmada") && d.analisis) {
           setAnalisis(d.analisis);
           if (d.estado === "confirmada") setConfirmadaId(d.id);
@@ -179,7 +179,7 @@ export default function Entrevista() {
         setFase("tema");
       })
       .catch(() => {});
-  }, []);
+  }, [CLAVE]);
 
   useEffect(() => {
     if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.getVoices();
@@ -210,7 +210,7 @@ export default function Entrevista() {
     setError(null);
     setEnviandoDatos(true);
     try {
-      const { ok, json } = await postJson({ accion: "iniciar", nombre, cargo, gerencia });
+      const { ok, json } = await postJson({ accion: "iniciar", codigo: invitado.codigo });
       if (!ok) throw new Error(String(json.error || "No pudimos empezar."));
       const t = String(json.token);
       try { localStorage.setItem(CLAVE, t); } catch {}
@@ -230,6 +230,9 @@ export default function Entrevista() {
   function medirVoz(stream: MediaStream) {
     try {
       const ctx = new AudioContext();
+      // Por si el navegador lo crea suspendido (nace después del permiso del
+      // micrófono, fuera del gesto): sin esto la onda quedaría plana.
+      void ctx.resume();
       const an = ctx.createAnalyser();
       an.fftSize = 128;
       ctx.createMediaStreamSource(stream).connect(an);
@@ -461,21 +464,9 @@ export default function Entrevista() {
       <div className="ent-centro">
         <form onSubmit={empezar} className="caja ent-datos">
           <div className="orbe orbe-quieto" aria-hidden="true"><span /><span /><span /></div>
-          <h1>Cinco minutos sobre tu trabajo</h1>
-          <p className="tenue">{TEMAS.length} preguntas en voz alta. Respondes hablando y al final revisas lo que entendimos.</p>
-          <div className="ent-campos">
-            <label>Tu nombre
-              <input value={nombre} onChange={(e) => setNombre(e.target.value)} required minLength={2} maxLength={80} autoComplete="given-name" />
-            </label>
-            <label>Tu cargo
-              <input value={cargo} onChange={(e) => setCargo(e.target.value)} required minLength={2} maxLength={160} />
-            </label>
-            <label>Gerencia
-              <select value={gerencia} onChange={(e) => setGerencia(e.target.value)}>
-                {GERENCIAS.map((g) => <option key={g} value={g}>{g}</option>)}
-              </select>
-            </label>
-          </div>
+          <span className="ent-chip">{invitado.cargo} · {invitado.gerencia}</span>
+          <h1>Hola, {nombre.split(" ")[0]}</h1>
+          <p className="tenue">Son {TEMAS.length} preguntas sobre tu trabajo, unos 5 minutos. Respondes hablando y al final revisas lo que entendimos.</p>
           {error && <div className="error" role="alert">{error}</div>}
           <button type="submit" className="b-grande" disabled={enviandoDatos}>{enviandoDatos ? "Preparando…" : "Empezar"}</button>
           <p className="tenue small ent-privacidad">El audio no se guarda: se transcribe y se descarta. Tu perfil sale de lo que dices, nunca de cómo suena tu voz.</p>
@@ -562,7 +553,7 @@ export default function Entrevista() {
           ) : (
             <button type="button" className="b-pri" onClick={confirmar}>Confirmar y ver en back office</button>
           )}
-          <button type="button" className="b-sec" onClick={otraPersona}>Entrevistar a otra persona</button>
+          <button type="button" className="b-sec" onClick={otraPersona}>Repetir la entrevista</button>
         </div>
       </div>
     );
@@ -645,7 +636,10 @@ export default function Entrevista() {
       <div className="ent-centro">
         {progreso}
         <div className={`caja ent-escena grabando ${color}`}>
-          <div className="ent-recordatorio tenue small">{esRepregunta ? "Repregunta" : `Pregunta ${idxTema + 1}`} · {preguntaActual}</div>
+          <span className={`ent-chip ${esRepregunta ? "ambar" : ""}`}>{esRepregunta ? "Repregunta" : `Pregunta ${idxTema + 1} de ${TEMAS.length}`}</span>
+          {/* La pregunta sigue siendo la protagonista mientras se responde: quien
+              habla vuelve a mirarla para no perder el hilo. */}
+          <h2 className="ent-pregunta">{preguntaActual}</h2>
           <div className="reloj" role="timer" aria-live="off">
             <svg viewBox="0 0 240 240" aria-hidden="true">
               <circle cx="120" cy="120" r={r} className="pista" />

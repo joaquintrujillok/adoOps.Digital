@@ -2,7 +2,7 @@
 // sesión: la credencial es el token que vive en el navegador de quien responde.
 //
 // GET  ?t=TOKEN           estado de la entrevista, para retomar si recarga
-// POST JSON  { accion: "iniciar", nombre, cargo, gerencia }      → { token }
+// POST JSON  { accion: "iniciar", codigo }                       → { token }
 // POST form  accion=responder, token, tema, ronda, audio | texto, segundos
 //                                                → { transcripcion }
 // POST JSON  { accion: "repreguntar", token, tema }              → { repregunta }
@@ -17,7 +17,8 @@
 // van acá: tamaño del audio, largo del texto y cantidad de turnos.
 
 import { NextResponse } from "next/server";
-import { GERENCIAS, temaPorId } from "@/lib/gia/modelo";
+import { temaPorId } from "@/lib/gia/modelo";
+import { invitadoPorCodigo } from "@/lib/gia/semilla";
 import { analizar, modeloAnalisis, repreguntar, transcribir } from "@/lib/gia/ia";
 import {
   MAX_TURNOS,
@@ -64,12 +65,10 @@ export async function POST(req: Request) {
   }
 
   if (body.accion === "iniciar") {
-    const nombre = String(body.nombre ?? "").trim().slice(0, 80);
-    const cargo = String(body.cargo ?? "").trim().slice(0, 160);
-    const gerencia = String(body.gerencia ?? "").trim();
-    if (nombre.length < 2 || cargo.length < 2) return error("Falta tu nombre o tu cargo.");
-    if (!(GERENCIAS as readonly string[]).includes(gerencia)) return error("Elige una gerencia.");
-    const token = await crearEntrevista({ nombre, cargo, gerencia });
+    // La persona la define el link, no lo que mande el navegador.
+    const inv = invitadoPorCodigo(String(body.codigo ?? ""));
+    if (!inv) return error("Este link de entrevista no existe.", 404);
+    const token = await crearEntrevista({ nombre: inv.nombre, cargo: inv.cargo, gerencia: inv.gerencia });
     return NextResponse.json({ token }, { headers: SIN_CACHE });
   }
 

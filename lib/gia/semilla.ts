@@ -318,3 +318,28 @@ export const FICHAS: FichaSemilla[] = [
     },
   },
 ];
+
+// ─── Invitados a la entrevista ────────────────────────────────────────────────
+//
+// En el producto real cada colaborador recibe su propio link y la entrevista
+// ya sabe quién es: no se le pide nombre, cargo ni gerencia, igual que en el
+// levantamiento del JPL. Para la demo los invitados son personas inventadas de
+// la empresa demo, y el servidor toma sus datos de acá, no del navegador: nadie
+// puede entrevistarse con un nombre que no esté en la lista.
+
+export interface Invitado {
+  codigo: string;
+  nombre: string;
+  cargo: string;
+  gerencia: string;
+}
+
+export const INVITADOS: Invitado[] = [
+  { codigo: "camila-r7k2", nombre: "Camila Rojas", cargo: "Jefa de Abastecimiento", gerencia: "Operaciones" },
+  { codigo: "matias-f3p9", nombre: "Matías Fuentes", cargo: "Ejecutivo de Ventas Canal Tradicional", gerencia: "Comercial" },
+  { codigo: "valentina-s8m4", nombre: "Valentina Soto", cargo: "Analista de Remuneraciones", gerencia: "Personas" },
+];
+
+export function invitadoPorCodigo(codigo: string): Invitado | undefined {
+  return INVITADOS.find((i) => i.codigo === codigo);
+}
