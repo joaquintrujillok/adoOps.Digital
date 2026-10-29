@@ -203,15 +203,6 @@ export const RUTAS_FORMACION = [
   { t: "Primeros pasos", niveles: [1, 2], d: "Reglas de uso seguro, un caso de su propia área y acompañamiento de un champion." },
 ];
 
-export const DOCUMENTOS: { n: string; estado: "listo" | "revision" | "pendiente" }[] = [
-  { n: "Directriz de uso aceptable de IA y Workspace", estado: "listo" },
-  { n: "Protocolo de orden de carpetas y documentos compartidos", estado: "listo" },
-  { n: "Clasificación de datos para IA", estado: "revision" },
-  { n: "Protocolo para proponer ideas y casos de uso", estado: "revision" },
-  { n: "Propuesta de comité de IA y roles", estado: "revision" },
-  { n: "Recomendación inicial de gobierno de datos e IA", estado: "pendiente" },
-];
-
 export const NIVELES_AUTONOMIA = [
   { k: "Nivel 1 · Autoservicio", t: "Asistente personal", d: "Gemini en Workspace con datos propios, sin integraciones ni datos personales de terceros.", a: "la propia jefatura", tono: "verde" },
   { k: "Nivel 2 · Registro", t: "Agente de equipo", d: "Gem o agente con documentos internos del área en Drive. Se registra en el catálogo del CoE.", a: "CoE (revisión de datos)", tono: "azul" },
@@ -272,14 +263,6 @@ export const CONSULTAS_COE: {
   },
 ];
 
-export const REPOSITORIO = [
-  { t: "Política de uso aceptable", k: "Política" },
-  { t: "Clasificación de datos para IA", k: "Política" },
-  { t: "Cómo escribir un buen prompt", k: "Guía" },
-  { t: "Cómo crear un Gem paso a paso", k: "Guía" },
-  { t: "Plantilla de ficha de agente", k: "Plantilla" },
-];
-
 /**
  * Los videos paso a paso del repositorio. En la demo son una vista previa: se
  * graban con el cliente en la etapa 2. `pasos` son los capítulos, con su
@@ -323,10 +306,91 @@ export const VIDEOS: { id: string; t: string; capa: string; pasos: { t: string; 
   },
 ];
 
-export const IDEAS = [
-  { t: "Gem que responda las preguntas frecuentes de productores sobre liquidaciones", area: "Relación con productores", votos: 23, estado: "En evaluación" },
-  { t: "Resumen automático del informe de calidad para el turno siguiente", area: "Planta", votos: 17, estado: "Aprobada" },
-  { t: "Plantilla de correo para cotizaciones a distribuidores", area: "Comercial", votos: 9, estado: "Nueva" },
+// ─── Repositorio de documentos ────────────────────────────────────────────────
+//
+// La biblioteca del CoE: lo que una persona consulta antes de hacer algo con
+// IA. Cada documento tiene dueño, versión y estado, porque un estándar sin
+// dueño es uno que nadie actualiza.
+
+export type CarpetaDoc = "politicas" | "estandares" | "guias" | "plantillas" | "casos";
+
+export const CARPETAS: { id: CarpetaDoc; t: string; d: string }[] = [
+  { id: "politicas", t: "Políticas", d: "Qué se puede y qué no" },
+  { id: "estandares", t: "Estándares", d: "Cómo se hace bien" },
+  { id: "guias", t: "Guías paso a paso", d: "Para hacerlo tú mismo" },
+  { id: "plantillas", t: "Plantillas", d: "Para copiar y usar" },
+  { id: "casos", t: "Casos documentados", d: "Lo que ya funciona" },
+];
+
+export interface DocRepo {
+  id: string;
+  t: string;
+  carpeta: CarpetaDoc;
+  tipo: "doc" | "hoja" | "pres" | "video";
+  resumen: string;
+  secciones: string[];
+  dueno: string;
+  version: string;
+  actualizado: string;
+  estado: "publicado" | "revision" | "borrador";
+  lecturas: number;
+  etiquetas: string[];
+  destacado?: boolean;
+}
+
+export const DOCS: DocRepo[] = [
+  { id: "uso-aceptable", t: "Directriz de uso aceptable de IA y Workspace", carpeta: "politicas", tipo: "doc", resumen: "Qué herramientas se pueden usar, con qué cuenta y con qué datos. Es lo primero que lee alguien nuevo.", secciones: ["Herramientas autorizadas", "Cuenta de la empresa vs personal", "Datos que nunca salen de Workspace", "Qué hacer si te equivocas"], dueno: "Personas + Riesgo", version: "1.2", actualizado: "12-oct", estado: "publicado", lecturas: 318, etiquetas: ["Obligatorio"], destacado: true },
+  { id: "clasificacion", t: "Clasificación de datos para IA", carpeta: "politicas", tipo: "doc", resumen: "Los cuatro tipos de datos —público, interno, confidencial, personal— y qué herramienta corresponde a cada uno.", secciones: ["Los cuatro tipos", "Ejemplos de Valle Sur", "Herramienta por tipo", "Casos dudosos"], dueno: "Riesgo", version: "0.9", actualizado: "20-oct", estado: "revision", lecturas: 142, etiquetas: ["Datos"], destacado: true },
+  { id: "autonomia", t: "Estándar de niveles de autonomía", carpeta: "estandares", tipo: "doc", resumen: "Los cuatro niveles —autoservicio, registro, revisión y comité— y quién aprueba cada uno.", secciones: ["Nivel 1 · Autoservicio", "Nivel 2 · Registro", "Nivel 3 · Revisión de TI y Seguridad", "Nivel 4 · Comité de IA"], dueno: "CoE", version: "1.0", actualizado: "08-oct", estado: "publicado", lecturas: 204, etiquetas: ["Gobierno"], destacado: true },
+  { id: "carpetas", t: "Protocolo de orden de carpetas y documentos compartidos", carpeta: "estandares", tipo: "doc", resumen: "Dónde se guarda cada cosa, cómo se nombra y quién tiene acceso. Sin esto, ningún Gem encuentra nada.", secciones: ["Estructura de unidades compartidas", "Cómo nombrar archivos", "Permisos por rol"], dueno: "Personas", version: "1.1", actualizado: "15-oct", estado: "publicado", lecturas: 256, etiquetas: ["Workspace"] },
+  { id: "comite", t: "Propuesta de comité de IA y roles", carpeta: "estandares", tipo: "pres", resumen: "Quiénes integran el comité, cada cuánto se reúne y qué decide.", secciones: ["Integrantes", "Cadencia", "Qué decide y qué no"], dueno: "Gerencia de Personas", version: "0.6", actualizado: "24-oct", estado: "revision", lecturas: 37, etiquetas: ["Gobierno"] },
+  { id: "prompt", t: "Cómo escribir un buen prompt", carpeta: "guias", tipo: "doc", resumen: "Rol, contexto, tarea y formato: la receta corta con ejemplos de cada gerencia.", secciones: ["La receta en cuatro partes", "Ejemplos por gerencia", "Errores comunes"], dueno: "CoE", version: "1.0", actualizado: "10-oct", estado: "publicado", lecturas: 289, etiquetas: ["Capa 1"] },
+  { id: "gem", t: "Crear un Gem paso a paso", carpeta: "guias", tipo: "video", resumen: "De cero a un Gem del área conectado a su carpeta de Drive, en 5 minutos.", secciones: ["Qué es un Gem", "Instrucciones", "Conectar Drive", "Probar y registrar"], dueno: "CoE", version: "1.0", actualizado: "18-oct", estado: "publicado", lecturas: 121, etiquetas: ["Capa 2"] },
+  { id: "proponer", t: "Cómo proponer un caso de uso", carpeta: "guias", tipo: "doc", resumen: "Describe el problema con una cifra y súbelo al banco de ideas.", secciones: ["El problema en una frase", "La cifra que lo mide", "Qué pasa después"], dueno: "CoE", version: "1.0", actualizado: "05-oct", estado: "publicado", lecturas: 96, etiquetas: ["Ideas"] },
+  { id: "ficha-agente", t: "Plantilla de ficha de agente", carpeta: "plantillas", tipo: "doc", resumen: "Lo que hay que llenar antes de construir un agente: objetivo, datos, nivel y dueño.", secciones: ["Objetivo y métrica", "Datos que usa", "Nivel de autonomía", "Dueño y respaldo"], dueno: "CoE", version: "1.0", actualizado: "08-oct", estado: "publicado", lecturas: 64, etiquetas: ["Capa 3"] },
+  { id: "minuta", t: "Plantilla de prompt “Minuta de turno”", carpeta: "plantillas", tipo: "doc", resumen: "El prompt listo para pegar en Gemini al terminar la reunión de turno.", secciones: ["El prompt", "Cómo adaptarlo"], dueno: "Planta", version: "1.3", actualizado: "22-oct", estado: "publicado", lecturas: 187, etiquetas: ["Capa 1"] },
+  { id: "registro-casos", t: "Registro de casos y horas medidas", carpeta: "plantillas", tipo: "hoja", resumen: "La planilla donde cada piloto anota horas antes y después.", secciones: ["Línea base", "Medición mensual", "Horas recuperadas"], dueno: "CoE", version: "1.0", actualizado: "19-oct", estado: "publicado", lecturas: 45, etiquetas: ["Medición"] },
+  { id: "caso-recepcion", t: "Caso: Gem del informe de recepción", carpeta: "casos", tipo: "doc", resumen: "Cómo Recepción pasó de 1,5 h diarias a 20 minutos con un Gem sobre sus planillas.", secciones: ["El problema", "Lo que se construyó", "Resultados", "Lo que aprendimos"], dueno: "Recepción", version: "0.4", actualizado: "26-oct", estado: "borrador", lecturas: 12, etiquetas: ["Capa 2", "Piloto"] },
+];
+
+// ─── Banco de ideas ──────────────────────────────────────────────────────────
+//
+// Las personas proponen, votan y el CoE evalúa. Los votos ordenan, pero no
+// deciden: el CoE prioriza con el impacto estimado y el nivel de autonomía.
+
+export type EstadoIdea = "nueva" | "evaluacion" | "aprobada" | "construccion" | "lista";
+
+export const ESTADOS_IDEA: { id: EstadoIdea; t: string; tono: string }[] = [
+  { id: "nueva", t: "Nueva", tono: "gris" },
+  { id: "evaluacion", t: "En evaluación", tono: "ambar" },
+  { id: "aprobada", t: "Aprobada", tono: "azul" },
+  { id: "construccion", t: "En construcción", tono: "morado" },
+  { id: "lista", t: "Funcionando", tono: "verde" },
+];
+
+export interface Idea {
+  id: string;
+  t: string;
+  problema: string;
+  area: string;
+  autor: string;
+  votos: number;
+  comentarios: number;
+  horas: number | null;
+  capa: string;
+  estado: EstadoIdea;
+  hace: string;
+}
+
+export const IDEAS: Idea[] = [
+  { id: "i1", t: "Gem que responda las preguntas frecuentes de productores sobre liquidaciones", problema: "Respondemos una a una por WhatsApp cuánto entregaron y cuándo se les paga.", area: "Relación con productores", autor: "Paula V.", votos: 47, comentarios: 9, horas: 170, capa: "Capa 2", estado: "evaluacion", hace: "hace 3 días" },
+  { id: "i2", t: "Resumen automático del informe de calidad para el turno siguiente", problema: "El turno entrante no alcanza a leer el informe completo.", area: "Planta", autor: "Jorge M.", votos: 38, comentarios: 6, horas: 60, capa: "Capa 1", estado: "aprobada", hace: "hace 1 semana" },
+  { id: "i3", t: "Agente que concilie facturas con órdenes de compra", problema: "Conciliamos a mano facturas contra OC: 420 h al mes.", area: "Contabilidad", autor: "Ximena R.", votos: 35, comentarios: 11, horas: 290, capa: "Capa 3", estado: "construccion", hace: "hace 2 semanas" },
+  { id: "i4", t: "Gem del informe diario de recepción", problema: "Cruzar la romana con el laboratorio toma 1,5 h diarias.", area: "Recepción", autor: "Carolina M.", votos: 31, comentarios: 7, horas: 220, capa: "Capa 2", estado: "lista", hace: "hace 3 semanas" },
+  { id: "i5", t: "Consolidar el sell-out de todas las cadenas en un solo tablero", problema: "Cada lunes se bajan los archivos de cada cadena y se juntan a mano.", area: "Trade marketing", autor: "Rodrigo P.", votos: 29, comentarios: 5, horas: 190, capa: "Capa 4", estado: "evaluacion", hace: "hace 4 días" },
+  { id: "i6", t: "Orden de trabajo creada desde el WhatsApp de la falla", problema: "Transcribimos el WhatsApp de planta a una OT en el sistema.", area: "Mantenimiento", autor: "Luis A.", votos: 22, comentarios: 4, horas: 120, capa: "Capa 3", estado: "nueva", hace: "ayer" },
+  { id: "i7", t: "Plantilla de correo para cotizaciones a distribuidores", problema: "Cada ejecutivo escribe la cotización desde cero.", area: "Ventas", autor: "Matías F.", votos: 14, comentarios: 2, horas: 25, capa: "Capa 1", estado: "nueva", hace: "hace 2 días" },
+  { id: "i8", t: "Asistente que responda dudas de liquidación de sueldo", problema: "Las mismas consultas llegan cada fin de mes a Remuneraciones.", area: "Remuneraciones", autor: "Valentina S.", votos: 18, comentarios: 3, horas: 70, capa: "Capa 2", estado: "nueva", hace: "hoy" },
 ];
 
 // ─── Fichas de ejemplo ────────────────────────────────────────────────────────
