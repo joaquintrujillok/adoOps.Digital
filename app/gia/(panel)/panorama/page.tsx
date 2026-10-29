@@ -29,7 +29,7 @@ export default async function Panorama() {
           <div className="small muted">Diagnóstico · cierre {EMPRESA.cierre} · Operaciones, Comercial, Administración y Finanzas</div>
           <h1>Panorama</h1>
         </div>
-        <Link href="/gia/lineamientos" className="btn">Ver lineamientos</Link>
+        <Link href="/gia/flujo" className="btn">Ver cómo se conectan las unidades →</Link>
       </header>
 
       <section className="grid" style={{ ["--min" as string]: "170px", gap: 14 }}>
