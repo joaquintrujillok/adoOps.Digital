@@ -20,14 +20,23 @@
 // que el CoE necesita. La falta de uso ya la mide la madurez; ponerle además una
 // etiqueta negativa a la persona solo sirve para que no conteste con honestidad.
 
-export type TemaId = "rol" | "dia" | "repite" | "sistemas" | "ia" | "cambio";
+// ── Cuatro temas y no seis ───────────────────────────────────────────────────
+//
+// La primera versión tenía seis (rol, día, lo que se repite, sistemas, IA,
+// cambio) y en una demo se hacía larga: unos 10 minutos con repreguntas. Se
+// fundieron de a pares los que se pisaban —el día normal ya cuenta el rol, y
+// los sistemas salen solos al hablar de las tareas— y quedan cuatro, unos 5
+// minutos. Lo que cada tema `busca` conserva lo de los dos originales, así que
+// la repregunta y el análisis siguen pidiendo lo mismo.
+
+export type TemaId = "rol" | "repite" | "ia" | "cambio";
 
 export interface Tema {
   id: TemaId;
   titulo: string;
   /** Lo que el agente dice en voz alta. Corto: se escucha, no se lee. */
   pregunta: string;
-  /** Ejemplos para destrabar a quien no sabe por dónde partir. */
+  /** Ejemplos para destrabar a quien no sabe por dónde partir. Una línea. */
   ayuda: string;
   /** Qué tiene que quedar dicho. Guía la repregunta: si falta, se pregunta. */
   busca: string;
@@ -36,44 +45,30 @@ export interface Tema {
 export const TEMAS: Tema[] = [
   {
     id: "rol",
-    titulo: "Tu rol y tu equipo",
-    pregunta: "Para partir, cuéntame cuál es tu cargo, en qué equipo trabajas y de qué eres responsable.",
-    ayuda: "Por ejemplo: cuántas personas tienes a cargo, con qué áreas te coordinas.",
-    busca: "cargo, área, si tiene personas a cargo y con qué otras áreas se relaciona",
-  },
-  {
-    id: "dia",
-    titulo: "Un día normal",
-    pregunta: "¿Cómo es una semana normal para ti? ¿Qué haces, con quién te coordinas y qué es lo que más tiempo te quita?",
-    ayuda: "Piensa en el lunes pasado: con qué partiste y en qué se te fue la mañana.",
-    busca: "actividades concretas y cuál le consume más tiempo",
+    titulo: "Tu trabajo",
+    pregunta: "Para partir, cuéntame cuál es tu cargo y cómo es una semana normal para ti: qué haces y qué es lo que más tiempo te quita.",
+    ayuda: "Piensa en el lunes pasado.",
+    busca: "cargo, área, si tiene personas a cargo, actividades concretas y cuál le consume más tiempo",
   },
   {
     id: "repite",
     titulo: "Lo que se repite",
-    pregunta: "Piensa en las tareas que se repiten: informes, planillas, correos, traspasar datos de un lado a otro. ¿Cuáles son y cuánto tiempo te toman?",
+    pregunta: "¿Qué tareas se repiten en tu semana, como informes, planillas o correos? ¿Cuánto tiempo te toman y en qué sistemas las haces?",
     ayuda: "Sirve una estimación: una hora al día, medio día a fin de mes.",
-    busca: "tareas repetitivas con su frecuencia y el tiempo que toman",
-  },
-  {
-    id: "sistemas",
-    titulo: "Sistemas y documentos",
-    pregunta: "¿Con qué sistemas, planillas o herramientas trabajas? ¿Y dónde guardas los documentos y cómo los compartes con tu equipo?",
-    ayuda: "Por ejemplo: el ERP, Excel, Drive, correo, WhatsApp.",
-    busca: "sistemas y herramientas que usa, y dónde guarda y cómo comparte documentos",
+    busca: "tareas repetitivas con su frecuencia y tiempo, y los sistemas, planillas o herramientas que usa para hacerlas",
   },
   {
     id: "ia",
     titulo: "La IA hoy",
-    pregunta: "¿Cuándo fue la última vez que usaste una herramienta de inteligencia artificial en tu trabajo? Cuéntame para qué, con cuál, y qué hiciste con el resultado.",
-    ayuda: "Vale todo: Gemini, ChatGPT en el celular, el resumen automático de una reunión. Si no la usas, también es una respuesta.",
+    pregunta: "¿Cuándo fue la última vez que usaste inteligencia artificial en tu trabajo? Cuéntame para qué, con qué herramienta y qué hiciste con el resultado.",
+    ayuda: "Vale todo, incluso ChatGPT en el celular. Si no la usas, también es una respuesta.",
     busca: "herramienta concreta, frecuencia de uso, si es cuenta de la empresa o personal, qué datos le pasó y cómo revisó el resultado",
   },
   {
     id: "cambio",
-    titulo: "El cambio y tus ideas",
-    pregunta: "¿Cómo ves la llegada de la IA a tu trabajo? ¿Qué te entusiasma, qué te preocupa, y si pudieras pedir una ayuda para tu equipo, cuál sería?",
-    ayuda: "No hay respuestas correctas. Lo que preocupa es tan útil como lo que entusiasma.",
+    titulo: "El cambio",
+    pregunta: "Por último, ¿cómo ves la llegada de la IA a tu trabajo? ¿Qué te entusiasma, qué te preocupa y qué ayuda pedirías para tu equipo?",
+    ayuda: "Lo que preocupa es tan útil como lo que entusiasma.",
     busca: "postura frente al cambio, preocupaciones concretas y al menos una idea o pedido",
   },
 ];

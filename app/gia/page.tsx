@@ -20,7 +20,7 @@ export default function InicioGia() {
           <p className="eyebrow" style={{ margin: 0 }}>Caso de referencia</p>
           <h1 style={{ fontSize: "clamp(32px, 5vw, 48px)", lineHeight: 1.1 }}>Usar IA con tranquilidad: primero las personas, después los agentes.</h1>
           <p style={{ margin: 0, fontSize: 19, color: "var(--g-suave)" }}>
-            Un agente de voz entrevista a cada colaborador en 10 minutos. Levantamos cómo vive el cambio, qué tareas repite y cómo usa la IA hoy, y lo convertimos en directrices, protocolos y una hoja de ruta.
+            Un agente de voz entrevista a cada colaborador en 5 minutos. Levantamos cómo vive el cambio, qué tareas repite y cómo usa la IA hoy, y lo convertimos en directrices, protocolos y una hoja de ruta.
           </p>
         </section>
 

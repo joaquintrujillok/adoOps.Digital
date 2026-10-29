@@ -133,3 +133,107 @@
 .gia-oscuro .alerta { background: #3a2e12; color: #f6dfa8; border-radius: 12px; padding: 14px 16px; font-size: 14px; }
 .gia-oscuro .error { background: #4a1d18; color: #ffd4cc; border-radius: 12px; padding: 12px 16px; font-size: 14px; }
 .gia-oscuro .linea { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid #2a4034; padding-bottom: 10px; }
+
+/* ── Entrevista v2: una escena por estado ──────────────────────────────────
+   Inspirada en patrones de interfaces de voz (orbe del agente con estado,
+   reloj grande con onda en vivo, pasos de procesamiento visibles) adaptados a
+   la paleta de adoOps. Verde = el agente pregunta o escucha; ámbar =
+   repregunta o se acerca el límite; rojo = últimos 30 segundos. */
+
+.gia-oscuro .ent-centro { max-width: 760px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+.gia-oscuro .ent-escena { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 18px; padding: 36px 28px; transition: background 0.4s, border-color 0.4s; }
+.gia-oscuro .ent-escena.repregunta { background: #221d10; border-color: #5a4a1f; }
+.gia-oscuro .ent-titulo { font-family: var(--font-sora), Sora, sans-serif; font-size: 24px; font-weight: 600; }
+.gia-oscuro .ent-pregunta { font-size: clamp(22px, 3.4vw, 30px); line-height: 1.3; font-weight: 600; max-width: 640px; }
+.gia-oscuro .ent-chip { display: inline-block; font-size: 13px; font-weight: 600; padding: 6px 14px; border-radius: 999px; background: #1d3226; color: #9fd9b8; }
+.gia-oscuro .ent-chip.ambar { background: #3a2e12; color: #f6cf74; }
+.gia-oscuro .cita-previa { margin: 0; max-width: 560px; font-style: italic; color: #d9c79a; border-left: 3px solid #f6cf74; padding: 4px 0 4px 14px; text-align: left; font-size: 15px; }
+.gia-oscuro .ent-secundarios { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 20px; }
+.gia-oscuro .ent-escribir { width: 100%; max-width: 560px; display: flex; flex-direction: column; gap: 12px; text-align: left; }
+.gia-oscuro .b-grande { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 60px; padding: 0 34px; border-radius: 999px; border: none; background: #2e9e63; color: #fff; font-size: 18px; font-weight: 600; box-shadow: 0 8px 24px rgba(46, 158, 99, 0.25); }
+.gia-oscuro .b-grande:hover:not(:disabled) { background: #26864f; }
+.gia-oscuro .repregunta .b-mic { background: #c99a2e; box-shadow: 0 8px 24px rgba(201, 154, 46, 0.25); color: #1a1405; }
+.gia-oscuro .repregunta .b-mic:hover { background: #b88a22; }
+
+/* Formulario inicial */
+.gia-oscuro .ent-datos { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 16px; padding: 36px 28px; }
+.gia-oscuro .ent-datos h1 { font-size: clamp(26px, 4vw, 32px); }
+.gia-oscuro .ent-datos p { margin: 0; max-width: 480px; }
+.gia-oscuro .ent-campos { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 14px; text-align: left; }
+.gia-oscuro .ent-privacidad { max-width: 420px; }
+
+/* Progreso por temas */
+.gia-oscuro .ent-progreso { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.gia-oscuro .ent-progreso li { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #6f8578; }
+.gia-oscuro .ent-progreso .barra-seg { height: 4px; border-radius: 4px; background: #24382c; }
+.gia-oscuro .ent-progreso li.listo .barra-seg { background: #2e9e63; }
+.gia-oscuro .ent-progreso li.actual .barra-seg { background: linear-gradient(90deg, #2e9e63 50%, #24382c 50%); }
+.gia-oscuro .ent-progreso li.listo, .gia-oscuro .ent-progreso li.actual { color: #eaf2ec; }
+@media (max-width: 520px) { .gia-oscuro .ent-progreso .etq { display: none; } .gia-oscuro .ent-progreso li.actual .etq { display: block; grid-column: 1 / -1; } }
+
+/* El orbe del agente: tres capas que respiran. Cambia de ritmo según el estado. */
+.gia-oscuro .orbe { position: relative; width: 120px; height: 120px; flex: none; margin: 24px 0 12px; }
+.gia-oscuro .orbe span { position: absolute; inset: 0; border-radius: 50%; }
+.gia-oscuro .orbe span:nth-child(1) { background: radial-gradient(circle at 35% 30%, #8fe3b4, #2e9e63 55%, #14492f); box-shadow: 0 0 48px rgba(46, 158, 99, 0.45); }
+.gia-oscuro .orbe span:nth-child(2) { inset: -14px; border: 2px solid rgba(46, 158, 99, 0.35); }
+.gia-oscuro .orbe span:nth-child(3) { inset: -30px; border: 2px solid rgba(46, 158, 99, 0.15); }
+.gia-oscuro .orbe-ambar span:nth-child(1) { background: radial-gradient(circle at 35% 30%, #ffe2a0, #c99a2e 55%, #5a4310); box-shadow: 0 0 48px rgba(201, 154, 46, 0.45); }
+.gia-oscuro .orbe-ambar span:nth-child(2) { border-color: rgba(201, 154, 46, 0.4); }
+.gia-oscuro .orbe-ambar span:nth-child(3) { border-color: rgba(201, 154, 46, 0.18); }
+.gia-oscuro .orbe-quieto span:nth-child(1) { animation: gia-respira 4s ease-in-out infinite; }
+.gia-oscuro .orbe-hablando span:nth-child(1) { animation: gia-habla 0.9s ease-in-out infinite; }
+.gia-oscuro .orbe-hablando span:nth-child(2) { animation: gia-onda 1.6s ease-out infinite; }
+.gia-oscuro .orbe-hablando span:nth-child(3) { animation: gia-onda 1.6s ease-out 0.5s infinite; }
+.gia-oscuro .orbe-pensando span:nth-child(1) { background: conic-gradient(from 0deg, #2e9e63, #8fe3b4, #1f6b45, #2e9e63); animation: gia-gira 2.4s linear infinite; }
+.gia-oscuro .orbe-pensando span:nth-child(2) { border-style: dashed; animation: gia-gira 6s linear infinite reverse; }
+@keyframes gia-respira { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+@keyframes gia-habla { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.09); } }
+@keyframes gia-onda { 0% { transform: scale(0.9); opacity: 1; } 100% { transform: scale(1.3); opacity: 0; } }
+@keyframes gia-gira { to { transform: rotate(360deg); } }
+
+/* Grabando: reloj con anillo de avance y onda de voz en vivo */
+.gia-oscuro .grabando { --c: #2e9e63; }
+.gia-oscuro .grabando.ambar { --c: #e0a82e; border-color: #5a4a1f; }
+.gia-oscuro .grabando.rojo { --c: #e5534b; border-color: #6b2620; }
+.gia-oscuro .ent-recordatorio { max-width: 560px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.gia-oscuro .reloj { position: relative; width: min(240px, 70vw); aspect-ratio: 1; }
+.gia-oscuro .reloj svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.gia-oscuro .reloj .pista { fill: none; stroke: #24382c; stroke-width: 10; }
+.gia-oscuro .reloj .avance { fill: none; stroke: var(--c); stroke-width: 10; stroke-linecap: round; transition: stroke-dashoffset 0.25s linear, stroke 0.6s; }
+.gia-oscuro .reloj .cifras { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.gia-oscuro .reloj .t { font-family: var(--font-sora), Sora, sans-serif; font-size: clamp(48px, 13vw, 64px); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--c); transition: color 0.6s; line-height: 1; }
+.gia-oscuro .reloj .de { font-size: 14px; color: #8fa497; margin-top: 6px; }
+.gia-oscuro .onda { display: flex; align-items: center; justify-content: center; gap: 4px; height: 48px; width: 100%; max-width: 320px; }
+.gia-oscuro .onda span { flex: 1; max-width: 6px; height: 100%; border-radius: 3px; background: var(--c); transform-origin: center; transition: transform 0.08s linear, background 0.6s; }
+.gia-oscuro .ent-estado { font-size: 18px; font-weight: 600; color: var(--c); transition: color 0.6s; }
+.gia-oscuro .ent-controles { display: flex; align-items: center; justify-content: center; gap: 18px; }
+.gia-oscuro .b-redondo { width: 56px; height: 56px; border-radius: 50%; border: 1px solid #3c5a49; background: #16261d; color: #eaf2ec; display: inline-flex; align-items: center; justify-content: center; }
+.gia-oscuro .b-redondo:hover { background: #1f3529; }
+.gia-oscuro .b-enviar { display: inline-flex; align-items: center; gap: 10px; min-height: 64px; padding: 0 30px; border-radius: 999px; border: none; background: var(--c); color: #0f1a14; font-size: 18px; font-weight: 700; transition: background 0.6s; }
+
+/* Procesando: pasos reales */
+.gia-oscuro .ent-pasos { list-style: none; margin: 0; padding: 0; width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 14px; text-align: left; }
+.gia-oscuro .ent-pasos li { display: flex; align-items: center; gap: 12px; font-size: 16px; color: #6f8578; transition: color 0.3s; }
+.gia-oscuro .ent-pasos li.activo, .gia-oscuro .ent-pasos li.listo { color: #eaf2ec; }
+.gia-oscuro .ent-pasos .ico { width: 24px; height: 24px; border-radius: 50%; flex: none; border: 2px solid #3c5a49; display: inline-flex; align-items: center; justify-content: center; }
+.gia-oscuro .ent-pasos li.activo .ico { border-color: #2e9e63; border-top-color: transparent; animation: gia-gira 0.9s linear infinite; }
+.gia-oscuro .ent-pasos li.listo .ico { background: #2e9e63; border-color: #2e9e63; }
+.gia-oscuro .ent-pasos .det { margin-left: auto; font-size: 13px; color: #9fd9b8; font-variant-numeric: tabular-nums; }
+.gia-oscuro .escuchado { width: 100%; max-width: 560px; background: #1d3226; border-radius: 14px; padding: 16px 18px; text-align: left; animation: gia-aparece 0.4s ease-out; }
+.gia-oscuro .escuchado p { margin: 6px 0 0; font-size: 16px; line-height: 1.55; }
+@keyframes gia-aparece { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* Transición entre temas */
+.gia-oscuro .ent-transicion { padding: 56px 28px; }
+.gia-oscuro .check-grande { width: 76px; height: 76px; border-radius: 50%; background: #2e9e63; display: flex; align-items: center; justify-content: center; animation: gia-aparece 0.35s ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  .gia-oscuro .orbe span, .gia-oscuro .ent-pasos li.activo .ico, .gia-oscuro .escuchado, .gia-oscuro .check-grande { animation: none !important; }
+}
+.gia-oscuro .b-enviar { white-space: nowrap; }
+@media (max-width: 420px) {
+  .gia-oscuro .ent-escena { padding: 28px 18px; }
+  .gia-oscuro .ent-controles { gap: 12px; }
+  .gia-oscuro .b-enviar { padding: 0 22px; font-size: 17px; }
+  .gia-oscuro .ent-pregunta { font-size: 22px; }
+}
